@@ -1,0 +1,54 @@
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+env/
+venv/
+*.egg-info/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Logs
+logs/
+*.log
+
+# Model and data files
+data/models/
+data/logs/
+
+# Config backups
+*.yml.bak
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE-specific files
+.vscode/
+.idea/
+
+# Python environment files
+*.env
+*.venv
+*.virtualenv
+Pipfile
+Pipfile.lock
+
+# Pytest cache
+.pytest_cache/
+
+# Generated files
+*.pkl
+*.h5
+*.hdf5
+*.json
+
+# Debug files
+*.swp
+*.swo
+*.bak
+
+# Training runs
+runs/
