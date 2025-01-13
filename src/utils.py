@@ -7,27 +7,34 @@ from tqdm import tqdm
 import yaml
 import torch
 
-def save_model(model, model_dir="data/models/"):
+def save_model(model, model_dir="data/models/", env_name=None, timestamp=None):
     """
-    Save the model with a timestamped filename.
+    Save the model with a timestamped filename, including the environment name.
     """
     os.makedirs(model_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    model_path = os.path.join(model_dir, f"ppo_model_{timestamp}.zip")
+    if not timestamp:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    model_path = os.path.join(model_dir, f"{env_name}_ppo_model_{timestamp}.zip")
     model.save(model_path)
     print(f"Model saved at: {model_path}")
     return model_path
 
-def save_logs(logs, log_dir="data/logs/"):
+def save_logs(logs, log_dir="data/logs/", env_name=None, timestamp=None):
     """
-    Save logs into a timestamped file.
+    Save logs into a timestamped file, with the same name as the model but prefixed with 'logs_'.
     """
     os.makedirs(log_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = os.path.join(log_dir, f"training_logs_{timestamp}.txt")
+    if not timestamp:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = os.path.join(log_dir, f"logs_{env_name}_ppo_model_{timestamp}.txt")
     with open(log_path, "w") as file:
         for key, value in logs.items():
-            file.write(f"{key}: {value}\n")
+            if key == "training_config":
+                file.write("Training Configuration:\n")
+                for config_key, config_value in value.items():
+                    file.write(f"  {config_key}: {config_value}\n")
+            else:
+                file.write(f"{key}: {value}\n")
     print(f"Logs saved at: {log_path}")
     return log_path
 

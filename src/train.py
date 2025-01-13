@@ -1,11 +1,21 @@
 import sys
 import os
+# from dotenv import load_dotenv
+
+# load_dotenv()
+
+pythonpath = os.getenv("PYTHONPATH")
+if pythonpath and pythonpath not in sys.path:
+    sys.path.append(pythonpath)
+
 import gymnasium as gym
 from minigrid.wrappers import FullyObsWrapper
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from src.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
 from src.utils import save_model, save_logs, evaluate_agent, tqdm_monitor_training, load_config, get_device
+from datetime import datetime
+
 
 def train_agent(config):
     """
@@ -38,11 +48,12 @@ def train_agent(config):
 
     # Step 4: Train the model
     print(f"Starting training for {config['total_timesteps']} timesteps...")
-    tqdm_monitor_training(model, total_timesteps=config["total_timesteps"])
+    model.learn(total_timesteps=config["total_timesteps"])
 
-    # Step 5: Save the trained model
+    # Step 5: Save the trained model and logs with the same timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     print("Training complete. Saving the model...")
-    model_path = save_model(model)
+    model_path = save_model(model, env_name=env_name, timestamp=timestamp)
 
     # Step 6: Evaluate the agent
     print("Evaluating the agent...")
@@ -56,8 +67,9 @@ def train_agent(config):
         "mean_reward": mean_reward,
         "std_reward": std_reward,
         "model_path": model_path,
+        "training_config": config
     }
-    save_logs(logs)
+    save_logs(logs, env_name=env_name, timestamp=timestamp)
     print("Training and evaluation complete. Logs saved.")
 
 if __name__ == "__main__":
