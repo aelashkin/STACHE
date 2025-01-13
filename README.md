@@ -84,4 +84,3 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - [Gymnasium](https://gymnasium.farama.org/)
 - [MiniGrid](https://github.com/Farama-Foundation/MiniGrid)
 - [Stable-Baselines3](https://stable-baselines3.readthedocs.io/)
-```
