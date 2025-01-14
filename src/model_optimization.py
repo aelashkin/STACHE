@@ -15,10 +15,10 @@ import torch
 import torch.nn as nn
 import yaml
 
-N_TRIALS = 100  # Total number of Optuna trials for hyperparameter optimization
+N_TRIALS = 50  # Total number of Optuna trials for hyperparameter optimization
 N_STARTUP_TRIALS = 5  # Initial random trials before optimization logic is applied
 N_EVALUATIONS = 2  # Number of evaluations during each training trial
-N_TIMESTEPS = 20000  # Total timesteps for training the agent in each trial
+N_TIMESTEPS = 300000  # Total timesteps for training the agent in each trial
 EVAL_FREQ = int(N_TIMESTEPS / N_EVALUATIONS)  # Timesteps between each evaluation
 N_EVAL_EPISODES = 50  # Number of episodes to average performance during evaluation
 
@@ -139,19 +139,22 @@ def objective(trial: optuna.Trial) -> float:
 
 
 if __name__ == "__main__":
+    # Set pytorch num threads to 1 for faster training.
     torch.set_num_threads(1)
 
-    # sampler=optunahub.load_module("samplers/auto_sampler").AutoSampler()
-    sampler = TPESampler(n_startup_trials=N_STARTUP_TRIALS)
+    sampler=optunahub.load_module("samplers/auto_sampler").AutoSampler()
+    # sampler = TPESampler(n_startup_trials=N_STARTUP_TRIALS)
     print(f"Sampler: {sampler} created successfully.")
-    pruner = MedianPruner(n_startup_trials=N_STARTUP_TRIALS, n_warmup_steps=N_EVALUATIONS // 3)
+
+    # Do not prune before 1/2 of the max budget is used.
+    pruner = MedianPruner(n_startup_trials=N_STARTUP_TRIALS, n_warmup_steps=N_EVALUATIONS // 2)
     print(f"Pruner: {pruner} created successfully.")
 
     study_name = f"A2C_{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     study = optuna.create_study(study_name=study_name, sampler=sampler, pruner=pruner, direction="maximize")
     print("Starting optimization...")
     try:
-        study.optimize(objective, n_trials=N_TRIALS, timeout=600, n_jobs=4)
+        study.optimize(objective, n_trials=N_TRIALS, timeout=600, n_jobs=12)
     except KeyboardInterrupt:
         pass
 
