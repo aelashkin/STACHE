@@ -43,19 +43,10 @@ def train_agent(env_config, model_config):
             "MlpPolicy",
             env,
             verbose=1,
-            n_steps=model_config["n_steps"],
-            batch_size=model_config["batch_size"],
-            ent_coef=model_config["ent_coef"],
-            device=device,
-            learning_rate=model_config["learning_rate"],
-            gamma=model_config["gamma"],
-            gae_lambda=model_config["gae_lambda"],
-            max_grad_norm=model_config["max_grad_norm"],
-            ortho_init=model_config["ortho_init"],
-            policy_kwargs={"net_arch": model_config["net_arch"], "activation_fn": model_config["activation_fn"]},
-            n_epochs=model_config["n_epochs"],
-            clip_range=model_config["clip_range"],
-            normalize_advantage=model_config["normalize_advantage"]
+            n_steps=config["n_steps"],
+            batch_size=config["batch_size"],
+            ent_coef=config["ent_coef"],
+            device=device  # Pass the device here
         )
     elif model_type == "A2C":
         model = A2C(
