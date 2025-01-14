@@ -154,7 +154,7 @@ if __name__ == "__main__":
     study = optuna.create_study(study_name=study_name, sampler=sampler, pruner=pruner, direction="maximize")
     print("Starting optimization...")
     try:
-        study.optimize(objective, n_trials=N_TRIALS, timeout=600, n_jobs=12)
+        study.optimize(objective, n_trials=N_TRIALS, timeout=600, n_jobs=10)
     except KeyboardInterrupt:
         pass
 
