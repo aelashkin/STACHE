@@ -15,8 +15,8 @@ logs/
 *.log
 
 # Model and data files
-data/models/
-data/logs/
+# data/models/
+# data/logs/
 
 # Config backups
 *.yml.bak
