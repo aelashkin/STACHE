@@ -1,3 +1,14 @@
+import sys
+import os
+
+# Get the absolute path of the project's root directory
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(script_dir, '..'))
+
+# Ensure the project root is in sys.path
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from typing import Any, Dict
 import optuna
 import optunahub
@@ -15,10 +26,11 @@ import torch
 import torch.nn as nn
 import yaml
 
-N_TRIALS = 50  # Total number of Optuna trials for hyperparameter optimization
+
+N_TRIALS = 20  # Total number of Optuna trials for hyperparameter optimization
 N_STARTUP_TRIALS = 5  # Initial random trials before optimization logic is applied
 N_EVALUATIONS = 2  # Number of evaluations during each training trial
-N_TIMESTEPS = 100000  # Total timesteps for training the agent in each trial
+N_TIMESTEPS = 200000  # Total timesteps for training the agent in each trial
 EVAL_FREQ = int(N_TIMESTEPS / N_EVALUATIONS)  # Timesteps between each evaluation
 N_EVAL_EPISODES = 50  # Number of episodes to average performance during evaluation
 
@@ -150,11 +162,38 @@ if __name__ == "__main__":
     pruner = MedianPruner(n_startup_trials=N_STARTUP_TRIALS, n_warmup_steps=N_EVALUATIONS // 2)
     print(f"Pruner: {pruner} created successfully.")
 
-    study_name = f"A2C_{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    study = optuna.create_study(study_name=study_name, sampler=sampler, pruner=pruner, direction="maximize")
+
+
+    study_name = f"A2C_2"
+    # Dynamically determine the directory of the current script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Construct the relative path to the database file
+    db_path = os.path.join(script_dir, "../config/optuna_study.db")
+    storage = f"sqlite:///{os.path.abspath(db_path)}"
+
+
+    # storage = "sqlite:////Users/eam/Documents/GIT/STACHE/config/optuna_study.db"
+
+
+    study = optuna.create_study(
+            study_name=study_name, 
+            sampler=sampler, 
+            pruner=pruner, 
+            direction="maximize", 
+            storage=storage,
+            load_if_exists=True
+    )
+
+    # study_name = f"A2C_{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    # study = optuna.create_study(study_name=study_name, sampler=sampler, pruner=pruner, direction="maximize")
+    
+    
+    
     print("Starting optimization...")
     try:
-        study.optimize(objective, n_trials=N_TRIALS, timeout=600, n_jobs=3, show_progress_bar=True)
+        study.optimize(objective, n_trials=N_TRIALS, n_jobs=1, show_progress_bar=True)
+        # study.optimize(objective, n_trials=N_TRIALS, timeout=600, n_jobs=1, show_progress_bar=True)
     except KeyboardInterrupt:
         pass
 
