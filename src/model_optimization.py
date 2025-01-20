@@ -59,6 +59,63 @@ def sample_a2c_params(trial: optuna.Trial) -> Dict[str, Any]:
         },
     }
 
+def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
+    """Sampler for PPO hyperparameters."""
+    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-3, log=True)
+    n_steps = trial.suggest_int("n_steps", 16, 2048)
+    batch_size = trial.suggest_categorical("batch_size", [32, 64, 128, 256])
+    n_epochs = trial.suggest_int("n_epochs", 1, 20)
+    gamma = trial.suggest_float("gamma", 0.9, 0.9999)
+    gae_lambda = trial.suggest_float("gae_lambda", 0.8, 0.99)
+    clip_range = trial.suggest_float("clip_range", 0.1, 0.4)
+    ent_coef = trial.suggest_float("ent_coef", 1e-8, 1e-2, log=True)
+    vf_coef = trial.suggest_float("vf_coef", 0.1, 1.0)
+    max_grad_norm = trial.suggest_float("max_grad_norm", 0.3, 1.0)
+    use_sde = trial.suggest_categorical("use_sde", [False, True])
+    sde_sample_freq = trial.suggest_int("sde_sample_freq", -1, 64)
+    target_kl = trial.suggest_float("target_kl", 0.01, 0.1)
+
+
+    #check on these
+    trial.set_user_attr("learning_rate", learning_rate)
+    trial.set_user_attr("n_steps", n_steps)
+    trial.set_user_attr("batch_size", batch_size)
+    trial.set_user_attr("n_epochs", n_epochs)
+    trial.set_user_attr("gamma", gamma)
+    trial.set_user_attr("gae_lambda", gae_lambda)
+    trial.set_user_attr("clip_range", clip_range)
+    trial.set_user_attr("ent_coef", ent_coef)
+    trial.set_user_attr("vf_coef", vf_coef)
+    trial.set_user_attr("max_grad_norm", max_grad_norm)
+    trial.set_user_attr("use_sde", use_sde)
+    trial.set_user_attr("sde_sample_freq", sde_sample_freq)
+    trial.set_user_attr("target_kl", target_kl)
+
+    return {
+        "learning_rate": learning_rate,
+        "n_steps": n_steps,
+        "batch_size": batch_size,
+        "n_epochs": n_epochs,
+        "gamma": gamma,
+        "gae_lambda": gae_lambda,
+        "clip_range": clip_range,
+        "ent_coef": ent_coef,
+        "vf_coef": vf_coef,
+        "max_grad_norm": max_grad_norm,
+        "use_sde": use_sde,
+        "sde_sample_freq": sde_sample_freq,
+        "target_kl": target_kl,
+    }
+
+def create_minigrid_env(env_config):
+    env_name = env_config["env_name"]
+    env = gym.make(env_name)
+    env = FullyObsWrapper(env)
+    env = FactorizedSymbolicWrapper(env)
+    env = PaddedObservationWrapper(env, max_objects=env_config["max_objects"], max_walls=env_config["max_walls"])
+    env = Monitor(env)
+    return env
+
 
 class TrialEvalCallback(EvalCallback):
     def __init__(
@@ -101,12 +158,7 @@ def objective(trial: optuna.Trial) -> float:
 
     device = get_device(model_config.get("device", "cpu"))
 
-    env_name = env_config["env_name"]
-    env = gym.make(env_name)
-    env = FullyObsWrapper(env)
-    env = FactorizedSymbolicWrapper(env)
-    env = PaddedObservationWrapper(env, max_objects=env_config["max_objects"], max_walls=env_config["max_walls"])
-    env = Monitor(env)
+    env = create_minigrid_env(env_config)
 
     kwargs = sample_a2c_params(trial)
     kwargs["env"] = env

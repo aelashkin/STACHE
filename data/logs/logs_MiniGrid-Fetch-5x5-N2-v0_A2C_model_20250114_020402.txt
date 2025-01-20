@@ -1,0 +1,16 @@
+env_name: MiniGrid-Fetch-5x5-N2-v0
+total_timesteps: 10000
+mean_reward: 0.04949599981307983
+std_reward: 0.21574950297252832
+model_path: data/models/MiniGrid-Fetch-5x5-N2-v0_A2C_model_20250114_020402.zip
+Training Configuration:
+  env_name: MiniGrid-Fetch-5x5-N2-v0
+  model_type: A2C
+  total_timesteps: 10000
+  device: cpu
+  n_steps: 5
+  gamma: 0.99
+  gae_lambda: 0.95
+  ent_coef: 0.01
+  learning_rate: 0.0007
+  max_grad_norm: 0.5
