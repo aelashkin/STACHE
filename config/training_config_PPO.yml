@@ -1,6 +1,6 @@
 env_name: "MiniGrid-Fetch-5x5-N2-v0"
 model_type: "PPO"
-total_timesteps: 50000
+total_timesteps: 100000
 n_steps: 256
 batch_size: 64
 ent_coef: 0.01

@@ -1,11 +1,15 @@
 import os
-import time
 from datetime import datetime
-import numpy as np
 from stable_baselines3.common.evaluation import evaluate_policy
 from tqdm import tqdm
 import yaml
 import torch
+from enum import Enum
+
+
+class ModelType(Enum):
+    A2C = "A2C"
+    PPO = "PPO"
 
 def save_model(model, model_dir="data/models/", env_name=None, model_type=None, timestamp=None):
     """

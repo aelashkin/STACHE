@@ -5,16 +5,14 @@ pythonpath = os.getenv("PYTHONPATH")
 if (pythonpath and pythonpath not in sys.path):
     sys.path.append(pythonpath)
 
-import gymnasium as gym
-from minigrid.wrappers import FullyObsWrapper
 from stable_baselines3 import PPO, A2C
-from stable_baselines3.common.vec_env import DummyVecEnv
-from src.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
-from src.utils import save_model, save_logs, evaluate_agent, tqdm_monitor_training, load_config, get_device
+from src.utils import save_model, save_logs, evaluate_agent, load_config, get_device
+from src.environment_utils import create_symbolic_minigrid_env
+from src.utils import ModelType
 from datetime import datetime
 import yaml
 
-import torch.nn as nn
+MODEL_TYPE = ModelType.PPO
 
 
 def train_agent(env_config, model_config):
@@ -28,11 +26,7 @@ def train_agent(env_config, model_config):
     # Step 2: Initialize the environment
     env_name = env_config["env_name"]
     print(f"Initializing the environment: {env_name}")
-    env = gym.make(env_name)
-    env = FullyObsWrapper(env)
-    env = FactorizedSymbolicWrapper(env)
-    env = PaddedObservationWrapper(env, max_objects=env_config["max_objects"], max_walls=env_config["max_walls"])
-    env = DummyVecEnv([lambda: env])
+    env = create_symbolic_minigrid_env(env_config)
 
     # Step 3: Initialize the model based on the config
     model_type = model_config["model_type"]
@@ -43,9 +37,9 @@ def train_agent(env_config, model_config):
             "MlpPolicy",
             env,
             verbose=1,
-            n_steps=config["n_steps"],
-            batch_size=config["batch_size"],
-            ent_coef=config["ent_coef"],
+            n_steps=model_config["n_steps"],
+            batch_size=model_config["batch_size"],
+            ent_coef=model_config["ent_coef"],
             device=device  # Pass the device here
         )
     elif model_type == "A2C":
@@ -59,11 +53,7 @@ def train_agent(env_config, model_config):
             learning_rate=model_config.get("learning_rate", 0.0007),
             gamma=model_config.get("gamma", 0.99),
             gae_lambda=model_config.get("gae_lambda", 0.95),
-            max_grad_norm=model_config.get("max_grad_norm", 0.5),
-            # policy_kwargs={
-            #     "net_arch": model_config.get("net_arch", [{"pi": [64, 64], "vf": [64, 64]}]),
-            #     "activation_fn": getattr(nn, model_config.get("activation_fn", "ReLU"))()
-            # }
+            max_grad_norm=model_config.get("max_grad_norm", 0.5)
         )
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
@@ -114,7 +104,11 @@ if __name__ == "__main__":
 
         # Load the model configuration
         print("Loading model configuration...")
-        model_config = load_config("config/training_config_A2C.yml")
+        if MODEL_TYPE == ModelType.PPO:
+            model_config = load_config("config/training_config_PPO.yml")
+        elif MODEL_TYPE == ModelType.A2C:
+            model_config = load_config("config/training_config_A2C.yml")
+
         print("Model configuration loaded successfully.")
     except (FileNotFoundError, PermissionError, yaml.YAMLError, ValueError) as e:
         print(f"Error loading configuration: {e}")
