@@ -1,23 +1,19 @@
-from typing import Any, Dict
 import optuna
 import optunahub
 from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
-from stable_baselines3 import A2C, PPO
-from stable_baselines3.common.callbacks import EvalCallback
-from stable_baselines3.common.monitor import Monitor
-from datetime import datetime
-import gymnasium as gym
-from minigrid.wrappers import FullyObsWrapper
-from src.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
-from src.utils import save_logs, save_model, evaluate_agent, load_config, get_device, ModelType
-import torch
-import torch.nn as nn
-import yaml
-from enum import Enum
 
+from stable_baselines3 import A2C, PPO
+from stable_baselines3.common.monitor import Monitor
+
+import torch
+
+import yaml
+from datetime import datetime
+
+from src.utils import load_config, get_device, ModelType
 from src.environment_utils import create_symbolic_minigrid_env
-from hyperparameter_utils import sample_a2c_params, sample_ppo_params, ModelType
+from src.hyperparameter_utils import sample_a2c_params, sample_ppo_params, TrialEvalCallback
 
 
 N_TRIALS = 50  # Total number of Optuna trials for hyperparameter optimization
@@ -29,38 +25,7 @@ N_EVAL_EPISODES = 50  # Number of episodes to average performance during evaluat
 
 # Select which model type to optimize
 MODEL_TYPE = ModelType.A2C
-
-
-class TrialEvalCallback(EvalCallback):
-    def __init__(
-        self,
-        eval_env: gym.Env,
-        trial: optuna.Trial,
-        n_eval_episodes: int = 5,
-        eval_freq: int = 10000,
-        deterministic: bool = True,
-        verbose: int = 0,
-    ):
-        super().__init__(
-            eval_env=eval_env,
-            n_eval_episodes=n_eval_episodes,
-            eval_freq=eval_freq,
-            deterministic=deterministic,
-            verbose=verbose,
-        )
-        self.trial = trial
-        self.eval_idx = 0
-        self.is_pruned = False
-
-    def _on_step(self) -> bool:
-        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            super()._on_step()
-            self.eval_idx += 1
-            self.trial.report(self.last_mean_reward, self.eval_idx)
-            if self.trial.should_prune():
-                self.is_pruned = True
-                return False
-        return True
+MULTICORE = False
 
 
 def objective(trial: optuna.Trial) -> float:
