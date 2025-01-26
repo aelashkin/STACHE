@@ -1,3 +1,11 @@
-env_name: "MiniGrid-Fetch-5x5-N2-v0"
+#sample env: "MiniGrid-Fetch-5x5-N2-v0", "MiniGrid-Empty-8x8-v0", 
+# env_name: "MiniGrid-Fetch-5x5-N2-v0"
+env_name: "MiniGrid-Empty-8x8-v0"
+
+# Possible values for representation: "symbolic", "image", "standard"
+# representation: "standard"
+representation: "symbolic"
+
+#parameters for symbplic representation
 max_objects: 10
-max_walls: 16
+max_walls: 32

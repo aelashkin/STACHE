@@ -7,7 +7,7 @@ if (pythonpath and pythonpath not in sys.path):
 
 from stable_baselines3 import PPO, A2C
 from src.utils import save_model, save_logs, evaluate_agent, load_config, get_device
-from src.environment_utils import create_symbolic_minigrid_env
+from src.environment_utils import create_minigrid_env
 from src.utils import ModelType
 from datetime import datetime
 import yaml
@@ -23,10 +23,8 @@ def train_agent(env_config, model_config):
     device = get_device(model_config.get("device"))
     print(f"Using device: {device}")
 
-    # Step 2: Initialize the environment
-    env_name = env_config["env_name"]
-    print(f"Initializing the environment: {env_name}")
-    env = create_symbolic_minigrid_env(env_config)
+    # Step 2: Initialize the environment based on the config
+    env = create_minigrid_env(env_config)
 
     # Step 3: Initialize the model based on the config
     model_type = model_config["model_type"]
