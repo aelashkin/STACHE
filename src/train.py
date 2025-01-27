@@ -12,7 +12,7 @@ from src.utils import ModelType
 from datetime import datetime
 import yaml
 
-MODEL_TYPE = ModelType.PPO
+MODEL_TYPE = ModelType.A2C
 
 
 def train_agent(env_config, model_config):
@@ -29,6 +29,12 @@ def train_agent(env_config, model_config):
     # Step 3: Initialize the model based on the config
     model_type = model_config["model_type"]
     print(f"Setting up the {model_type} model...")
+
+    if env_config.get("representation") == "image":
+        policy_kwargs = dict(
+            features_extractor_class=MinigridFeaturesExtractor,
+            features_extractor_kwargs=dict(features_dim=128),
+        )
 
     if model_type == "PPO":
         model = PPO(
@@ -99,7 +105,6 @@ if __name__ == "__main__":
         print("Loading environment configuration...")
         env_config = load_config("config/training_config_env.yml")
         print("Environment configuration loaded successfully.")
-
         # Load the model configuration
         print("Loading model configuration...")
         if MODEL_TYPE == ModelType.PPO:

@@ -1,6 +1,6 @@
 env_name: "MiniGrid-Fetch-5x5-N2-v0"
 model_type: "A2C"
-total_timesteps: 10000
+total_timesteps: 1000000
 device: "cpu"
 n_steps: 6
 gamma: 0.0018465168554889055
