@@ -1,6 +1,7 @@
 import gymnasium as gym
 from stable_baselines3.common.monitor import Monitor
 from minigrid.wrappers import FullyObsWrapper
+from minigrid.wrappers import ImgObsWrapper
 from src.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
 
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
@@ -24,10 +25,11 @@ def create_standard_minigrid_env(env_config: dict) -> gym.Env:
     """
     Create and set up the MiniGrid environment without symbolic observation.
     """
-    env_name = env_config["env_name"]
+    env_name = env_config.get("env_name")
     env = gym.make(env_name)
     env = FullyObsWrapper(env)
-    env = Monitor(env)
+    env = ImgObsWrapper(env)
+    # env = Monitor(env)
     if env is None:
         print(f"Failed to create the environment: {env_name}")
     return env

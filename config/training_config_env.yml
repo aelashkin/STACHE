@@ -3,8 +3,8 @@
 env_name: "MiniGrid-Empty-8x8-v0"
 
 # Possible values for representation: "symbolic", "image", "standard"
-# representation: "standard"
-representation: "image"
+representation: "standard"
+# representation: "image"
 # representation: "symbolic"
 
 #parameters for symbplic representation
