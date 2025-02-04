@@ -1,5 +1,6 @@
 import sys
 import os
+import traceback
 
 pythonpath = os.getenv("PYTHONPATH")
 if (pythonpath and pythonpath not in sys.path):
@@ -53,9 +54,15 @@ def train_agent(env_config, model_config):
             policy,
             env,
             verbose=1,
-            n_steps=model_config.get("n_steps", 2048),
-            batch_size=model_config.get("batch_size", 64),
-            ent_coef=model_config.get("ent_coef", 0.0),
+            n_steps=model_config.get("n_steps"),
+            batch_size=model_config.get("batch_size"),
+            ent_coef=model_config.get("ent_coef"),
+            learning_rate=model_config.get("learning_rate"),
+            gamma=model_config.get("gamma"),
+            gae_lambda=model_config.get("gae_lambda"),
+            n_epochs=model_config.get("n_epochs"),
+            # clip_range=model_config.get("clip_range"),
+            normalize_advantage=model_config.get("normalize_advantage"),
             device=device,
             policy_kwargs=policy_kwargs,
         )
@@ -64,13 +71,13 @@ def train_agent(env_config, model_config):
             policy,
             env,
             verbose=1,
-            n_steps=model_config.get("n_steps", 5),
-            ent_coef=model_config.get("ent_coef", 0.01),
+            n_steps=model_config.get("n_steps"),
+            ent_coef=model_config.get("ent_coef"),
             device=device,
-            learning_rate=model_config.get("learning_rate", 0.0007),
-            gamma=model_config.get("gamma", 0.99),
-            gae_lambda=model_config.get("gae_lambda", 0.95),
-            max_grad_norm=model_config.get("max_grad_norm", 0.5),
+            learning_rate=model_config.get("learning_rate"),
+            gamma=model_config.get("gamma"),
+            gae_lambda=model_config.get("gae_lambda"),
+            max_grad_norm=model_config.get("max_grad_norm"),
             policy_kwargs=policy_kwargs,
         )
     else:
@@ -139,4 +146,5 @@ if __name__ == "__main__":
         print("Training pipeline completed successfully.")
     except Exception as e:
         print(f"An error occurred during training: {e}")
+        traceback.print_exc()
         exit(1)

@@ -131,23 +131,34 @@ class FactorizedSymbolicWrapper(ObservationWrapper):
         goal_obj_idx = OBJECT_TO_IDX["unseen"]
         goal_color_idx = COLOR_TO_IDX["grey"]
 
-        # Only parse if environment is named something like "FetchEnv"
         if self.base_env.__class__.__name__ == "FetchEnv":
             # Example mission: "go fetch a purple key"
             tokens = mission_str.lower().split()
-
             # If we assume the mission always ends with "<color> <type>"
             if len(tokens) >= 2:
                 color_token = tokens[-2].strip(",.!?")
                 type_token = tokens[-1].strip(",.!?")
-
-                # Look up the color index
                 if color_token in COLOR_TO_IDX:
                     goal_color_idx = COLOR_TO_IDX[color_token]
-
-                # Look up the object index
                 if type_token in OBJECT_TO_IDX:
                     goal_obj_idx = OBJECT_TO_IDX[type_token]
+        elif self.base_env.__class__.__name__ == "EmptyEnv":
+            # Example mission: "get to the green goal square"
+            tokens = mission_str.lower().split()
+            # Check color and goal from three words before the end
+            if len(tokens) >= 3:
+                color_token = tokens[-3].strip(",.!?")
+                type_token = tokens[-2].strip(",.!?")
+                if color_token in COLOR_TO_IDX:
+                    goal_color_idx = COLOR_TO_IDX[color_token]
+                else:
+                    #trow error
+                    print(f"Color token {color_token} not found in COLOR_TO_IDX")
+                if type_token in OBJECT_TO_IDX:
+                    goal_obj_idx = OBJECT_TO_IDX[type_token]
+                else:
+                    #trow error
+                    print(f"Type token {type_token} not found in OBJECT_TO_IDX")
 
         return [goal_obj_idx, goal_color_idx]
 

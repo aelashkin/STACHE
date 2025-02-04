@@ -1,0 +1,16 @@
+env_name: MiniGrid-Empty-8x8-v0
+total_timesteps: 1000000
+mean_reward: 0.0
+std_reward: 0.0
+model_path: data/models/MiniGrid-Empty-8x8-v0_A2C_model_20250203_202114.zip
+Training Configuration:
+  env_name: MiniGrid-Fetch-5x5-N2-v0
+  model_type: A2C
+  total_timesteps: 1000000
+  device: cpu
+  n_steps: 6
+  gamma: 0.0018465168554889055
+  gae_lambda: 0.011645833117335965
+  ent_coef: 8.639729568554588e-05
+  learning_rate: 0.0047826169116580676
+  max_grad_norm: 0.46937108004931655
