@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 from stable_baselines3.common.evaluation import evaluate_policy
-from tqdm import tqdm
 import yaml
 import torch
 from enum import Enum
@@ -50,22 +49,6 @@ def evaluate_agent(model, env, n_eval_episodes=50):
     mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=n_eval_episodes, deterministic=True)
     print(f"Mean reward: {mean_reward} +/- {std_reward}")
     return mean_reward, std_reward
-
-def tqdm_monitor_training(model, total_timesteps, progress_bar=True):
-    """
-    Train the model with a tqdm-style progress bar.
-    """
-    if progress_bar:
-        with tqdm(total=total_timesteps, desc="Training Progress") as pbar:
-            # Patch the `callback` to update tqdm
-            def tqdm_callback(local, global_):
-                pbar.update(local["n_steps"])
-                return True
-            
-            # Train the model
-            model.learn(total_timesteps=total_timesteps, callback=tqdm_callback)
-    else:
-        model.learn(total_timesteps=total_timesteps)
 
 
 def load_config(config_path):
