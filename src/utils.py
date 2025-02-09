@@ -124,3 +124,59 @@ def get_device(config_device=None):
         return torch.device("cpu")
     else:
         raise ValueError(f"Unsupported device specified: {config_device}. Choose from 'cpu', 'cuda', or 'mps'.")
+
+
+def load_model(model_name, logs_dir="data/logs/", models_dir="data/models/"):
+    """
+    Load a model by its file name (with or without 'data/models/') and retrieve
+    both the model type and environment name from the corresponding log file.
+    Raises an error if either file or required info is not found.
+    """
+    import os
+    from stable_baselines3 import PPO, A2C
+
+    # Build absolute path for the model
+    if not model_name.startswith(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+    else:
+        model_path = model_name
+
+    # Check if model file exists
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found: {model_path}")
+
+    # Derive log file name from model base name
+    base_name = os.path.splitext(os.path.basename(model_path))[0]
+    log_file_name = f"logs_{base_name}.txt"
+    log_path = os.path.join(logs_dir, log_file_name)
+
+    # Check if log file exists
+    if not os.path.exists(log_path):
+        raise FileNotFoundError(f"Log file not found: {log_path}")
+
+    # Parse log file for env_name and model_type
+    model_type = None
+    env_name = None
+    with open(log_path, "r") as lf:
+        for line in lf:
+            line = line.strip()
+            if line.startswith("env_name:"):
+                env_name = line.split(":", 1)[1].strip()
+            elif line.startswith("model_type:"):
+                model_type = line.split(":", 1)[1].strip()
+
+    # Confirm both were found
+    if not env_name or not model_type:
+        raise ValueError("Missing 'env_name' or 'model_type' in the logs.")
+
+    # Map model type to actual classes
+    model_map = {
+        "PPO": PPO,
+        "A2C": A2C
+    }
+    if model_type not in model_map:
+        raise ValueError(f"Unsupported model type: {model_type}")
+
+    # Load and return the appropriate model
+    loaded_model = model_map[model_type].load(model_path)
+    return loaded_model, env_name
