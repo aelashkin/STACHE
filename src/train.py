@@ -25,6 +25,9 @@ def train_agent(env_config, model_config):
     device = get_device(model_config.get("device"))
     print(f"Using device: {device}")
 
+    # Disable rendering during training
+    env_config["render_mode"] = None
+
     # Step 2: Initialize the environment based on the config
     env = create_minigrid_env(env_config)
     env_name = env_config["env_name"]
@@ -103,18 +106,21 @@ def train_agent(env_config, model_config):
     model_path = save_model(model, env_name=env_name, model_type=model_type_str, timestamp=timestamp)
 
     # Step 7: Evaluate the agent
+    n_eval_episodes = 100
     print("Evaluating the agent...")
-    mean_reward, std_reward = evaluate_agent(model, env, n_eval_episodes=100)
+    mean_reward, std_reward = evaluate_agent(model, env, n_eval_episodes=n_eval_episodes)
 
     # Step 8: Save evaluation results
     print("Saving evaluation results...")
     logs = {
-        "env_name": env_name,
-        "total_timesteps": model_config["total_timesteps"],
-        "mean_reward": mean_reward,
-        "std_reward": std_reward,
-        "model_path": model_path,
-        "training_config": model_config
+        "environment_config": env_config,
+        "model_config": model_config,
+        "evaluation_results": {
+            "n_eval_episodes": n_eval_episodes,
+            "mean_reward": mean_reward,
+            "std_reward": std_reward,
+            "model_path": model_path
+        }
     }
     save_logs(logs, env_name=env_name, model_type=model_type_str, timestamp=timestamp)
     print("Training and evaluation complete. Logs saved.")

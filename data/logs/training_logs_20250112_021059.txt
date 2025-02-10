@@ -1,5 +1,0 @@
-env_name: MiniGrid-Fetch-5x5-N2-v0
-total_timesteps: 100000
-mean_reward: 0.049639999866485596
-std_reward: 0.21637574297538323
-model_path: data/models/ppo_model_20250112_021052.zip

@@ -32,13 +32,20 @@ def save_logs(logs, log_dir="data/logs/", env_name=None, model_type=None, timest
     print(f"model_type: {model_type}")
     log_path = os.path.join(log_dir, f"logs_{env_name}_{model_type}_model_{timestamp}.txt")
     with open(log_path, "w") as file:
-        for key, value in logs.items():
-            if key == "training_config":
-                file.write("Training Configuration:\n")
-                for config_key, config_value in value.items():
-                    file.write(f"  {config_key}: {config_value}\n")
-            else:
-                file.write(f"{key}: {value}\n")
+        file.write("Environment Configuration:\n")
+        for key, val in logs["environment_config"].items():
+            file.write(f"  {key}: {val}\n")
+        file.write("\n---\n\n")
+
+        file.write("Model Configuration:\n")
+        for key, val in logs["model_config"].items():
+            file.write(f"  {key}: {val}\n")
+        file.write("\n---\n\n")
+
+        file.write("Evaluation Results:\n")
+        for key, val in logs["evaluation_results"].items():
+            file.write(f"  {key}: {val}\n")
+
     print(f"Logs saved at: {log_path}")
     return log_path
 

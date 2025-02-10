@@ -276,6 +276,19 @@ def get_neighbors(state, max_objects=10):
     return neighbors
 
 
+
+def get_symbolic_env(env):
+    """
+    Unwrap the environment until you find one that produces dict observations.
+    This assumes that the symbolic representation is provided by a wrapper
+    whose observation_space is a gym.spaces.Dict.
+    """
+    symbolic_env = env
+    while not isinstance(symbolic_env.observation_space, gym.spaces.Dict):
+        symbolic_env = symbolic_env.env
+    return symbolic_env
+
+
 # === BFS-RR Algorithm ===
 
 def bfs_rr(initial_state, model, max_objects=10, max_walls=25):
@@ -323,59 +336,59 @@ def bfs_rr(initial_state, model, max_objects=10, max_walls=25):
 
 # === Example Usage ===
 if __name__ == '__main__':
-    # This example assumes you have a Fetch MiniGrid environment and a trained PPO (or similar) model.
-    # The initial_state should be obtained from your FactorizedSymbolicWrapper.
-    #
-    # For example:
-    #
-    #   import gymnasium as gym
-    #   from your_wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
-    #   from stable_baselines3 import PPO
-    #
-    #   env = gym.make("MiniGrid-Fetch-XXX-v0")
-    #   env = FactorizedSymbolicWrapper(env)
-    #   env = PaddedObservationWrapper(env)
-    #   model = PPO.load("path_to_your_model")
-    #
-    #   obs = env.reset()[0]
-    #   initial_state = obs  # since the wrapper returns a dict observation
-    #
-    #   rr_states = bfs_rr(initial_state, model, max_objects=10, max_walls=25)
-    #   print(f"Found {len(rr_states)} states in the robustness region.")
-    #
-    # For demonstration purposes below, we assume that you have already set up the environment and model.
-    #
-    # Replace the following dummy state and model with your actual implementations.
+    # --- Load the model ---
+    # Import the load_model function from utils
+    from utils import load_model
+    # Load the model from the specified file; load_model returns (model, env_name)
+    model_file = "data/models/MiniGrid-Empty-5x5-v0_PPO_model_20250204_015716.zip"
+    model, env_name = load_model(model_file)
 
-    # ----- DUMMY EXAMPLE (for testing only) -----
-    class DummyModel:
-        def predict(self, obs, deterministic=True):
-            # This dummy model always returns action 0.
-            # In your use, replace DummyModel() with your actual model.
-            return 0, None
+    # --- Create the symbolic MiniGrid environment ---
+    # Import create_minigrid_env from environment_utils
+    from environment_utils import create_minigrid_env
 
-    # A dummy initial state for Fetch:
-    dummy_state = {
-        "direction": 0,
-        "objects": [
-            # Example: agent object (must not be modified)
-            [OBJECT_TO_IDX["agent"], COLOR_TO_IDX["red"], 0, 2, 2],
-            # Example: one key/ball object already present (e.g., a key)
-            [OBJECT_TO_IDX["key"], COLOR_TO_IDX["blue"], 0, 3, 3],
-        ],
-        # Outer walls (assumed to be at the border of a 7x7 grid)
-        "outer_walls": [(x, 0) for x in range(7)] +
-                       [(x, 6) for x in range(7)] +
-                       [(0, y) for y in range(7)] +
-                       [(6, y) for y in range(7)],
-        # Goal: [type, color] (allowed types: key or ball; allowed colors: any)
-        "goal": [OBJECT_TO_IDX["key"], COLOR_TO_IDX["green"]],
+    # Define the environment configuration dictionary.
+    # The env will be created with render_mode "human" so that it renders the initial state.
+    env_config = {
+        "env_name": env_name,           # env_name from the loaded model (should be "MiniGrid-Empty-5x5-v0")
+        "render_mode": "human",         # Enable human rendering
+        "max_objects": 4,               # Maximum number of objects (adjust as needed)
+        "max_walls": 25,                # Maximum number of outer walls
+        "representation": "symbolic"    # Use the symbolic representation
     }
 
-    dummy_model = DummyModel()
+    # Create the environment. (create_minigrid_env calls gym.make and applies the wrappers.)
+    env = create_minigrid_env(env_config)
 
-    rr_states = bfs_rr(dummy_state, dummy_model, max_objects=4, max_walls=25)
-    print(f"Found {len(rr_states)} states in the robustness region (dummy model).")
-    # For each state in the region, you can inspect its canonical key:
-    for s in rr_states:
-        print(state_to_key(s))
+    # For model evaluation (i.e. in bfs_rr), we need the symbolic state.
+    symbolic_env = get_symbolic_env(env)
+
+    # Now, reset the symbolic environment to get a dictionary state.
+    initial_symbolic_state, info = symbolic_env.reset(seed=42, options={})
+
+    # (Optionally) render using your original env (if desired)
+    env.render()
+
+
+    # --- Reset the environment with a fixed seed using Gymnasium 1.0.0 API ---
+    # The reset call returns (observation, info). Here, observation is a dict (symbolic state).
+    initial_state, info = env.reset(seed=42, options={})
+
+    # Render the initial state. With render_mode "human", this should display a window.
+    env.render()
+
+    # --- Calculate the Robustness Region ---
+    # Pass the initial state and the loaded model to bfs_rr.
+    # Use the same max_objects and max_walls as defined in env_config.
+    rr_states = bfs_rr(initial_symbolic_state, model,
+                       max_objects=env_config["max_objects"],
+                       max_walls=env_config["max_walls"])
+
+    print(f"Found {len(rr_states)} states in the robustness region.")
+
+    # For inspection, print each state's canonical key.
+    for state in rr_states:
+        print(state_to_key(state))
+
+    # Close the environment.
+    env.close()
