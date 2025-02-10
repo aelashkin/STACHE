@@ -27,6 +27,11 @@ from collections import deque
 import gymnasium as gym
 import numpy as np
 
+
+# variables for running main without console input
+
+model_file = "data/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250210_205058.zip"
+
 # === Global mappings (these must be consistent with your environment) ===
 
 COLOR_TO_IDX = {
@@ -340,7 +345,7 @@ if __name__ == '__main__':
     # Import the load_model function from utils
     from utils import load_model
     # Load the model from the specified file; load_model returns (model, env_name)
-    model_file = "data/models/MiniGrid-Empty-5x5-v0_PPO_model_20250204_015716.zip"
+    # model_file = "data/models/MiniGrid-Empty-5x5-v0_PPO_model_20250204_015716.zip"
     model, env_name = load_model(model_file)
 
     # --- Create the symbolic MiniGrid environment ---
@@ -352,8 +357,8 @@ if __name__ == '__main__':
     env_config = {
         "env_name": env_name,           # env_name from the loaded model (should be "MiniGrid-Empty-5x5-v0")
         "render_mode": "human",         # Enable human rendering
-        "max_objects": 4,               # Maximum number of objects (adjust as needed)
-        "max_walls": 25,                # Maximum number of outer walls
+        "max_objects": 10,               # Maximum number of objects (adjust as needed)
+        "max_walls": 32,                # Maximum number of outer walls
         "representation": "symbolic"    # Use the symbolic representation
     }
 

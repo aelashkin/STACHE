@@ -27,46 +27,45 @@ def test_load_model_log_not_found(tmp_path):
 def test_load_model_success(mock_ppo_load, tmp_path):
     """
     Test that load_model successfully loads the model when both model and log files exist,
-    and extracts env_name and model_type from logs.
+    and extracts env_config and model_type from logs.
     """
-    # Create a dummy model file
     model_file_path = tmp_path / "test_model.zip"
     model_file_path.touch()
 
-    # Create a matching dummy log file
     log_file_path = tmp_path / f"logs_{model_file_path.stem}.txt"
-    log_contents = """env_name: TestEnv
+    log_contents = """Environment Configuration:
+env_name: TestEnv
+---
 model_type: PPO
 some_other_info: 123
 """
     with open(log_file_path, "w") as f:
         f.write(log_contents)
 
-    # Mock the load call from stable_baselines3 to return a dummy PPO object
     dummy_loaded_model = MagicMock(spec=PPO)
     mock_ppo_load.return_value = dummy_loaded_model
 
-    loaded_model, env_name = load_model(
+    loaded_model, env_config = load_model(
         str(model_file_path),
         logs_dir=str(tmp_path),
         models_dir=str(tmp_path)
     )
-    # Ensure load was called
     mock_ppo_load.assert_called_once_with(str(model_file_path))
-    # Check values returned by load_model
     assert loaded_model == dummy_loaded_model
-    assert env_name == "TestEnv"
+    assert env_config["env_name"] == "TestEnv"
 
 @patch("stable_baselines3.A2C.load")
 def test_load_model_success_a2c(mock_a2c_load, tmp_path):
     """
-    Test that load_model successfully loads A2C when logs specify model_type: A2C.
+    Test that load_model successfully loads A2C when logs specify 'model_type: A2C'.
     """
     model_file_path = tmp_path / "another_model.zip"
     model_file_path.touch()
 
     log_file_path = tmp_path / f"logs_{model_file_path.stem}.txt"
-    log_contents = """env_name: SomeOtherEnv
+    log_contents = """Environment Configuration:
+env_name: SomeOtherEnv
+---
 model_type: A2C
 extra_info: 456
 """
@@ -76,24 +75,23 @@ extra_info: 456
     dummy_loaded_model = MagicMock(spec=A2C)
     mock_a2c_load.return_value = dummy_loaded_model
 
-    loaded_model, env_name = load_model(
+    loaded_model, env_config = load_model(
         str(model_file_path),
         logs_dir=str(tmp_path),
         models_dir=str(tmp_path)
     )
     mock_a2c_load.assert_called_once_with(str(model_file_path))
     assert loaded_model == dummy_loaded_model
-    assert env_name == "SomeOtherEnv"
+    assert env_config["env_name"] == "SomeOtherEnv"
 
 def test_load_model_missing_info(tmp_path):
     """
-    Test that load_model raises ValueError if the env_name or model_type is missing in the log file.
+    Test that load_model raises ValueError if 'env_name' or 'model_type' is missing.
     """
-    # Create a dummy model file
     model_file_path = tmp_path / "model_missing_info.zip"
     model_file_path.touch()
 
-    # Create a matching dummy log file missing 'env_name' or 'model_type'
+    # Missing both 'env_name' and 'model_type'
     log_file_path = tmp_path / f"logs_{model_file_path.stem}.txt"
     log_contents = "mean_reward: 0.123\nstd_reward: 0.456\n"
     with open(log_file_path, "w") as f:
@@ -119,5 +117,5 @@ model_type: INVALID_MODEL
     with pytest.raises(ValueError):
         load_model(str(model_file_path), logs_dir=str(tmp_path), models_dir=str(tmp_path))
 
-cd /Users/eam/Documents/GIT/STACHE
-pytest tests/utils_test.py
+# cd /Users/eam/Documents/GIT/STACHE
+# pytest tests/utils_test.py

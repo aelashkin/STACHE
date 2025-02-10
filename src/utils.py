@@ -134,11 +134,6 @@ def get_device(config_device=None):
 
 
 def load_model(model_name, logs_dir="data/logs/", models_dir="data/models/"):
-    """
-    Load a model by its file name (with or without 'data/models/') and retrieve
-    both the model type and environment name from the corresponding log file.
-    Raises an error if either file or required info is not found.
-    """
     import os
     from stable_baselines3 import PPO, A2C
 
@@ -161,20 +156,34 @@ def load_model(model_name, logs_dir="data/logs/", models_dir="data/models/"):
     if not os.path.exists(log_path):
         raise FileNotFoundError(f"Log file not found: {log_path}")
 
-    # Parse log file for env_name and model_type
     model_type = None
-    env_name = None
+    env_config = {}
+    in_env_section = False
+
+    # Parse log file for environment configuration and model type
     with open(log_path, "r") as lf:
         for line in lf:
-            line = line.strip()
-            if line.startswith("env_name:"):
-                env_name = line.split(":", 1)[1].strip()
-            elif line.startswith("model_type:"):
+            line = line.rstrip()
+            if "Environment Configuration:" in line:
+                in_env_section = True
+                continue
+            if "---" in line and in_env_section:
+                in_env_section = False
+
+            if in_env_section and ":" in line:
+                key, value = line.split(":", 1)
+                env_config[key.strip()] = value.strip()
+
+            if line.startswith("model_type:"):
                 model_type = line.split(":", 1)[1].strip()
 
-    # Confirm both were found
-    if not env_name or not model_type:
-        raise ValueError("Missing 'env_name' or 'model_type' in the logs.")
+    # Check for missing env_name
+    if "env_name" not in env_config:
+        raise ValueError("Missing 'env_name' in the logs.")
+
+    # Confirm model_type was found
+    if not model_type:
+        raise ValueError("Missing 'model_type' in the logs.")
 
     # Map model type to actual classes
     model_map = {
@@ -184,6 +193,6 @@ def load_model(model_name, logs_dir="data/logs/", models_dir="data/models/"):
     if model_type not in model_map:
         raise ValueError(f"Unsupported model type: {model_type}")
 
-    # Load and return the appropriate model
+    # Load and return the model plus env_config
     loaded_model = model_map[model_type].load(model_path)
-    return loaded_model, env_name
+    return loaded_model, env_config
