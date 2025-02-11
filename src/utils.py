@@ -1,7 +1,8 @@
 import os
-from datetime import datetime
-from stable_baselines3.common.evaluation import evaluate_policy
 import yaml
+from datetime import datetime
+from stable_baselines3 import PPO, A2C
+from stable_baselines3.common.evaluation import evaluate_policy
 import torch
 from enum import Enum
 
@@ -10,44 +11,109 @@ class ModelType(Enum):
     A2C = "A2C"
     PPO = "PPO"
 
-def save_model(model, model_dir="data/models/", env_name=None, model_type=None, timestamp=None):
+def save_model(model, experiment_dir):
     """
-    Save the model with a timestamped filename, including the environment name.
+    Save the model as model.zip inside the experiment directory.
     """
-    os.makedirs(model_dir, exist_ok=True)
-    if not timestamp:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    model_path = os.path.join(model_dir, f"{env_name}_{model_type}_model_{timestamp}.zip")
+    model_path = os.path.join(experiment_dir, "model.zip")
     model.save(model_path)
     print(f"Model saved at: {model_path}")
     return model_path
 
-def save_logs(logs, log_dir="data/logs/", env_name=None, model_type=None, timestamp=None):
+
+def save_config(env_config, model_config, experiment_dir):
     """
-    Save logs into a timestamped file, with the same name as the model but prefixed with 'logs_'.
+    Save environment and model configurations in config.yaml inside the experiment directory.
     """
-    os.makedirs(log_dir, exist_ok=True)
-    if not timestamp:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    print(f"model_type: {model_type}")
-    log_path = os.path.join(log_dir, f"logs_{env_name}_{model_type}_model_{timestamp}.txt")
+    config_path = os.path.join(experiment_dir, "config.yaml")
+    config_data = {
+        "env_config": env_config,
+        "model_config": model_config,
+    }
+    with open(config_path, "w") as file:
+        yaml.dump(config_data, file)
+    print(f"Configuration saved at: {config_path}")
+    return config_path
+
+
+def save_training_log(training_log, experiment_dir):
+    """
+    Save training logs into training.log inside the experiment directory.
+    """
+    log_path = os.path.join(experiment_dir, "training.log")
     with open(log_path, "w") as file:
-        file.write("Environment Configuration:\n")
-        for key, val in logs["environment_config"].items():
-            file.write(f"  {key}: {val}\n")
-        file.write("\n---\n\n")
-
-        file.write("Model Configuration:\n")
-        for key, val in logs["model_config"].items():
-            file.write(f"  {key}: {val}\n")
-        file.write("\n---\n\n")
-
-        file.write("Evaluation Results:\n")
-        for key, val in logs["evaluation_results"].items():
-            file.write(f"  {key}: {val}\n")
-
-    print(f"Logs saved at: {log_path}")
+        file.write(training_log)
+    print(f"Training log saved at: {log_path}")
     return log_path
+
+
+def save_experiment(model, env_config, model_config, training_log, experiments_base_dir="data/experiments"):
+    """
+    Create an experiment folder and save the model, configuration, and training log.
+    
+    The experiment folder is named as:
+    {env_name}_{model_type}_model_{timestamp}
+
+    Files created:
+        - model.zip : the saved model.
+        - config.yaml : merged environment and model configurations.
+        - training.log : a summary log of the training and evaluation.
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    env_name = env_config.get("env_name", "unknown_env")
+    model_type = model_config.get("model_type", "unknown_model")
+    experiment_folder_name = f"{env_name}_{model_type}_model_{timestamp}"
+    experiment_dir = os.path.join(experiments_base_dir, experiment_folder_name)
+    os.makedirs(experiment_dir, exist_ok=True)
+
+    model_path = save_model(model, experiment_dir)
+    config_path = save_config(env_config, model_config, experiment_dir)
+    log_path = save_training_log(training_log, experiment_dir)
+
+    return {
+        "experiment_dir": experiment_dir,
+        "model_path": model_path,
+        "config_path": config_path,
+        "log_path": log_path,
+    }
+
+
+def load_experiment(experiment_dir):
+    """
+    Load an experiment from the given folder. It will read the configuration and load the model.
+
+    Expects:
+      - {experiment_dir}/config.yaml
+      - {experiment_dir}/model.zip
+
+    Returns:
+      A tuple (model, config_data) where:
+          model      : the loaded model.
+          config_data: the dictionary with 'env_config' and 'model_config'.
+    """
+    # Load configuration
+    config_path = os.path.join(experiment_dir, "config.yaml")
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+    with open(config_path, "r") as file:
+        config_data = yaml.safe_load(file)
+
+    # Load model
+    model_path = os.path.join(experiment_dir, "model.zip")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found: {model_path}")
+
+    model_type = config_data.get("model_config", {}).get("model_type")
+    model_map = {
+        "PPO": PPO,
+        "A2C": A2C,
+    }
+    if model_type not in model_map:
+        raise ValueError(f"Unsupported model type: {model_type}")
+
+    model = model_map[model_type].load(model_path)
+    print(f"Loaded model from: {model_path}")
+    return model, config_data
 
 def evaluate_agent(model, env, n_eval_episodes=50):
     """
@@ -131,68 +197,3 @@ def get_device(config_device=None):
         return torch.device("cpu")
     else:
         raise ValueError(f"Unsupported device specified: {config_device}. Choose from 'cpu', 'cuda', or 'mps'.")
-
-
-def load_model(model_name, logs_dir="data/logs/", models_dir="data/models/"):
-    import os
-    from stable_baselines3 import PPO, A2C
-
-    # Build absolute path for the model
-    if not model_name.startswith(models_dir):
-        model_path = os.path.join(models_dir, model_name)
-    else:
-        model_path = model_name
-
-    # Check if model file exists
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model file not found: {model_path}")
-
-    # Derive log file name from model base name
-    base_name = os.path.splitext(os.path.basename(model_path))[0]
-    log_file_name = f"logs_{base_name}.txt"
-    log_path = os.path.join(logs_dir, log_file_name)
-
-    # Check if log file exists
-    if not os.path.exists(log_path):
-        raise FileNotFoundError(f"Log file not found: {log_path}")
-
-    model_type = None
-    env_config = {}
-    in_env_section = False
-
-    # Parse log file for environment configuration and model type
-    with open(log_path, "r") as lf:
-        for line in lf:
-            line = line.rstrip()
-            if "Environment Configuration:" in line:
-                in_env_section = True
-                continue
-            if "---" in line and in_env_section:
-                in_env_section = False
-
-            if in_env_section and ":" in line:
-                key, value = line.split(":", 1)
-                env_config[key.strip()] = value.strip()
-
-            if line.startswith("model_type:"):
-                model_type = line.split(":", 1)[1].strip()
-
-    # Check for missing env_name
-    if "env_name" not in env_config:
-        raise ValueError("Missing 'env_name' in the logs.")
-
-    # Confirm model_type was found
-    if not model_type:
-        raise ValueError("Missing 'model_type' in the logs.")
-
-    # Map model type to actual classes
-    model_map = {
-        "PPO": PPO,
-        "A2C": A2C
-    }
-    if model_type not in model_map:
-        raise ValueError(f"Unsupported model type: {model_type}")
-
-    # Load and return the model plus env_config
-    loaded_model = model_map[model_type].load(model_path)
-    return loaded_model, env_config

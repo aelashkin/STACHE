@@ -345,8 +345,16 @@ if __name__ == '__main__':
     # Import the load_model function from utils
     from utils import load_model
     # Load the model from the specified file; load_model returns (model, env_name)
-    # model_file = "data/models/MiniGrid-Empty-5x5-v0_PPO_model_20250204_015716.zip"
-    model, env_name = load_model(model_file)
+    model_file = "data/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250210_205058.zip"
+
+    model, env_config = load_model(model_file)
+
+    #Enable human rendering
+    env_config["render_mode"] = "human"
+
+    print(f"Loaded model for environment: {env_config['env_name']}")
+    print(f"Configuration: {env_config}")
+
 
     # --- Create the symbolic MiniGrid environment ---
     # Import create_minigrid_env from environment_utils
@@ -354,13 +362,13 @@ if __name__ == '__main__':
 
     # Define the environment configuration dictionary.
     # The env will be created with render_mode "human" so that it renders the initial state.
-    env_config = {
-        "env_name": env_name,           # env_name from the loaded model (should be "MiniGrid-Empty-5x5-v0")
-        "render_mode": "human",         # Enable human rendering
-        "max_objects": 10,               # Maximum number of objects (adjust as needed)
-        "max_walls": 32,                # Maximum number of outer walls
-        "representation": "symbolic"    # Use the symbolic representation
-    }
+    # env_config = {
+    #     "env_name": env_name,           # env_name from the loaded model (should be "MiniGrid-Empty-5x5-v0")
+    #     "render_mode": "human",         # Enable human rendering
+    #     "max_objects": 10,               # Maximum number of objects (adjust as needed)
+    #     "max_walls": 32,                # Maximum number of outer walls
+    #     "representation": "symbolic"    # Use the symbolic representation
+    # }
 
     # Create the environment. (create_minigrid_env calls gym.make and applies the wrappers.)
     env = create_minigrid_env(env_config)

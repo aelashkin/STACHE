@@ -1,18 +1,17 @@
 import sys
 import os
 import traceback
+from datetime import datetime
+import yaml
 
 pythonpath = os.getenv("PYTHONPATH")
 if (pythonpath and pythonpath not in sys.path):
     sys.path.append(pythonpath)
 
 from stable_baselines3 import PPO, A2C
-from src.utils import save_model, save_logs, evaluate_agent, load_config, get_device
+from src.utils import save_experiment, evaluate_agent, load_config, get_device
 from src.environment_utils import create_minigrid_env, MinigridFeaturesExtractor
 from src.utils import ModelType
-
-from datetime import datetime
-import yaml
 
 MODEL_TYPE = ModelType.PPO
 
@@ -86,7 +85,7 @@ def train_agent(env_config, model_config):
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
 
-    # Determine model type string for saving/evaluation
+    # Determine model type string for logging purposes
     if isinstance(model, PPO):
         model_type_str = "PPO"
         print("The model is PPO.")
@@ -96,34 +95,28 @@ def train_agent(env_config, model_config):
     else:
         raise ValueError("Unsupported model type or instance.")
 
-    # Step 5: Train the model (wraps in Monitor and DummyVecEnv internally)
+    # Step 5: Train the model (the environment is already wrapped properly)
     print(f"Starting training for {model_config['total_timesteps']} timesteps...")
     model.learn(total_timesteps=model_config["total_timesteps"])
 
-    # Step 6: Save the trained model and logs with the same timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    print("Training complete. Saving the model...")
-    model_path = save_model(model, env_name=env_name, model_type=model_type_str, timestamp=timestamp)
-
-    # Step 7: Evaluate the agent
+    # Step 6: Evaluate the agent
     n_eval_episodes = 100
     print("Evaluating the agent...")
     mean_reward, std_reward = evaluate_agent(model, env, n_eval_episodes=n_eval_episodes)
 
-    # Step 8: Save evaluation results
-    print("Saving evaluation results...")
-    logs = {
-        "environment_config": env_config,
-        "model_config": model_config,
-        "evaluation_results": {
-            "n_eval_episodes": n_eval_episodes,
-            "mean_reward": mean_reward,
-            "std_reward": std_reward,
-            "model_path": model_path
-        }
-    }
-    save_logs(logs, env_name=env_name, model_type=model_type_str, timestamp=timestamp)
-    print("Training and evaluation complete. Logs saved.")
+    # Step 7: Create a summary log for the training and evaluation.
+    training_log = (
+        f"Training completed for {model_config['total_timesteps']} timesteps.\n"
+        f"Using device: {device}\n"
+        f"Evaluation over {n_eval_episodes} episodes:\n"
+        f"Mean Reward: {mean_reward}\n"
+        f"Std Reward: {std_reward}\n"
+    )
+
+    # Step 8: Save the experiment (model, configuration and training log)
+    experiment_info = save_experiment(model, env_config, model_config, training_log)
+    print("Training and evaluation complete. Experiment saved:")
+    print(experiment_info)
 
 
 if __name__ == "__main__":
@@ -139,7 +132,6 @@ if __name__ == "__main__":
             model_config = load_config("config/training_config_PPO.yml")
         elif MODEL_TYPE == ModelType.A2C:
             model_config = load_config("config/training_config_A2C.yml")
-
         print("Model configuration loaded successfully.")
     except (FileNotFoundError, PermissionError, yaml.YAMLError, ValueError) as e:
         print(f"Error loading configuration: {e}")
