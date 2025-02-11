@@ -301,7 +301,7 @@ def bfs_rr(initial_state, model, max_objects=10, max_walls=25):
     Computes the Robustness Region for the given initial_state under the policy
     represented by `model`. The region is defined as the set of all symbolic states
     for which the model produces the same action as for the initial_state.
-    
+
     Parameters:
       - initial_state: a dictionary representing the factored state.
       - model: a Stable Baselines 3 model (or similar) that has a predict(obs, deterministic=True)
@@ -321,6 +321,10 @@ def bfs_rr(initial_state, model, max_objects=10, max_walls=25):
     queue = deque([initial_state])
 
     while queue:
+# Debug: Print progress every 50 visited states.
+        if len(visited) % 50 == 0:
+            print(f"Debug: Visited {len(visited)} states; Queue size: {len(queue)}")
+            
         state = queue.popleft()
         key = state_to_key(state)
         if key in visited:
@@ -341,67 +345,40 @@ def bfs_rr(initial_state, model, max_objects=10, max_walls=25):
 
 # === Example Usage ===
 if __name__ == '__main__':
-    # --- Load the model ---
-    # Import the load_model function from utils
-    from utils import load_model
-    # Load the model from the specified file; load_model returns (model, env_name)
-    model_file = "data/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250210_205058.zip"
+    # Hardcode the model path (folder) to load the saved model.
+    model_path = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022817"
 
-    model, env_config = load_model(model_file)
+    # Replace load_model with load_experiment.
+    from utils import load_experiment
+    model, config_data = load_experiment(model_path)
+    env_config = config_data["env_config"]  # Extract the environment configuration
 
-    #Enable human rendering
+    # Set render_mode to human for rendering.
     env_config["render_mode"] = "human"
 
     print(f"Loaded model for environment: {env_config['env_name']}")
     print(f"Configuration: {env_config}")
 
-
     # --- Create the symbolic MiniGrid environment ---
-    # Import create_minigrid_env from environment_utils
     from environment_utils import create_minigrid_env
-
-    # Define the environment configuration dictionary.
-    # The env will be created with render_mode "human" so that it renders the initial state.
-    # env_config = {
-    #     "env_name": env_name,           # env_name from the loaded model (should be "MiniGrid-Empty-5x5-v0")
-    #     "render_mode": "human",         # Enable human rendering
-    #     "max_objects": 10,               # Maximum number of objects (adjust as needed)
-    #     "max_walls": 32,                # Maximum number of outer walls
-    #     "representation": "symbolic"    # Use the symbolic representation
-    # }
-
-    # Create the environment. (create_minigrid_env calls gym.make and applies the wrappers.)
     env = create_minigrid_env(env_config)
-
-    # For model evaluation (i.e. in bfs_rr), we need the symbolic state.
     symbolic_env = get_symbolic_env(env)
 
-    # Now, reset the symbolic environment to get a dictionary state.
+    # Reset the environment to get the initial symbolic state.
     initial_symbolic_state, info = symbolic_env.reset(seed=42, options={})
-
-    # (Optionally) render using your original env (if desired)
     env.render()
 
-
-    # --- Reset the environment with a fixed seed using Gymnasium 1.0.0 API ---
-    # The reset call returns (observation, info). Here, observation is a dict (symbolic state).
+    # Reset the full environment.
     initial_state, info = env.reset(seed=42, options={})
-
-    # Render the initial state. With render_mode "human", this should display a window.
     env.render()
 
     # --- Calculate the Robustness Region ---
-    # Pass the initial state and the loaded model to bfs_rr.
-    # Use the same max_objects and max_walls as defined in env_config.
     rr_states = bfs_rr(initial_symbolic_state, model,
                        max_objects=env_config["max_objects"],
                        max_walls=env_config["max_walls"])
 
     print(f"Found {len(rr_states)} states in the robustness region.")
-
-    # For inspection, print each state's canonical key.
     for state in rr_states:
         print(state_to_key(state))
 
-    # Close the environment.
     env.close()
