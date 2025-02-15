@@ -9,20 +9,6 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import torch
 import torch.nn as nn
 
-def create_symbolic_minigrid_env(env_config: dict) -> gym.Env:
-    """
-    Create and set up the MiniGrid environment.
-    """
-    env_name = env_config.get("env_name")
-    render_mode = env_config.get("render_mode")
-    env = gym.make(env_name, render_mode=render_mode)
-    env = FullyObsWrapper(env)
-    env = FactorizedSymbolicWrapper(env)
-    env = PaddedObservationWrapper(env, max_objects=env_config["max_objects"], max_walls=env_config["max_walls"])
-    env = Monitor(env)
-    return env
-
-
 def create_standard_minigrid_env(env_config: dict) -> gym.Env:
     """
     Create and set up the MiniGrid environment without symbolic observation.
@@ -38,8 +24,21 @@ def create_standard_minigrid_env(env_config: dict) -> gym.Env:
         print(f"Failed to create the environment: {env_name}")
     return env
 
+def create_symbolic_minigrid_env(env_config: dict) -> gym.Env:
+    """
+    Create and set up the MiniGrid environment.
+    """
+    env_name = env_config.get("env_name")
+    render_mode = env_config.get("render_mode")
+    env = gym.make(env_name, render_mode=render_mode)
+    env = FullyObsWrapper(env)
+    env = FactorizedSymbolicWrapper(env)
+    env = PaddedObservationWrapper(env, max_objects=env_config["max_objects"], max_walls=env_config["max_walls"])
+    env = Monitor(env)
+    return env
+
 def create_image_minigrid_env(env_config: dict) -> gym.Env:
-    pass
+    raise NotImplementedError("Image-based observation is not yet supported.")
 
 def create_minigrid_env(env_config: dict) -> gym.Env:
     env_name = env_config["env_name"]

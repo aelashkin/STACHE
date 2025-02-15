@@ -141,7 +141,7 @@ def get_occupied_positions(state, exclude_idx=None):
     return occupied
 
 
-def get_neighbors(state, max_objects=10):
+def get_neighbors(state, max_gen_objects=10):
     """
     Given a symbolic state (dict), returns a list of neighbor states that are
     exactly one atomic modification (L1 difference of 1) away.
@@ -152,12 +152,12 @@ def get_neighbors(state, max_objects=10):
       - For each non-agent object:
             • Changing its color (to any other allowed color)
             • Changing its type (allowed types: key and ball)
-            • Changing its state (if current state is 0, allowed new state is 1;
-              if 1 then allowed are 0 and 2; if 2 then allowed is 1)
+            • Changing its state (0=open, 1=closed, 2=locked) **only if object is a door**
             • Changing its position by one step (only one coordinate, provided the new position is in bounds, not on an outer wall, and not colliding with another object)
-      - Creating a new object (if len(objects) < max_objects) with a full specification
+      - Creating a new object (if len(objects) < max_gen_objects) with a full specification
         (type from {key, ball}, any allowed color, and a valid position)
     """
+
     neighbors = []
     # --- 1. Modify agent's direction ---
     current_direction = state["direction"]
@@ -217,15 +217,16 @@ def get_neighbors(state, max_objects=10):
                 new_state["objects"].sort(key=lambda o: (o[0], o[3], o[4]))
                 neighbors.append(new_state)
 
-        # c. Change object's state (if the state is one of 0,1,2)
-        if obj_state in [0, 1, 2]:
-            possible_states = []
-            if obj_state == 0:
-                possible_states = [1]
-            elif obj_state == 1:
-                possible_states = [0, 2]
-            elif obj_state == 2:
-                possible_states = [1]
+        # c. Change object's state ONLY if it's a door
+        #    (0=open, 1=closed, 2=locked)
+        if obj_idx == OBJECT_TO_IDX["door"] and obj_state in [0, 1, 2]:
+            if obj_state == 0:        # open
+                possible_states = [1] # can go to closed
+            elif obj_state == 1:      # closed
+                possible_states = [0, 2] # open or locked
+            elif obj_state == 2:      # locked
+                possible_states = [1] # can go to closed
+
             for new_obj_state in possible_states:
                 new_state = copy.deepcopy(state)
                 new_state["objects"][i][2] = new_obj_state
@@ -257,7 +258,7 @@ def get_neighbors(state, max_objects=10):
                         neighbors.append(new_state)
 
     # --- 4. Create a new object (if allowed) ---
-    if len(state["objects"]) < max_objects:
+    if len(state["objects"]) < max_gen_objects:
         # Only allow objects of type key or ball.
         allowed_types = [OBJECT_TO_IDX["key"], OBJECT_TO_IDX["ball"]]
         # Compute all valid positions in the interior (positions not on outer walls)
@@ -272,13 +273,14 @@ def get_neighbors(state, max_objects=10):
             for col_name, col_idx in COLOR_TO_IDX.items():
                 for pos in valid_positions:
                     new_state = copy.deepcopy(state)
-                    default_state = 0  # default state for a new object
+                    default_state = 0  # default door state is not relevant here for key/ball
                     new_obj = [t, col_idx, default_state, pos[0], pos[1]]
                     new_state["objects"].append(new_obj)
                     new_state["objects"].sort(key=lambda o: (o[0], o[3], o[4]))
                     neighbors.append(new_state)
 
     return neighbors
+
 
 
 
@@ -296,51 +298,72 @@ def get_symbolic_env(env):
 
 # === BFS-RR Algorithm ===
 
-def bfs_rr(initial_state, model, max_objects=10, max_walls=25):
+def bfs_rr(
+    initial_state,
+    model,
+    max_obs_objects=10,        # For symbolic_to_array / PaddedObservation
+    max_walls=25,
+    max_neighbors_objects=2     # For neighbor generation only
+):
     """
     Computes the Robustness Region for the given initial_state under the policy
-    represented by `model`. The region is defined as the set of all symbolic states
+    represented by model. The region is defined as the set of all symbolic states
     for which the model produces the same action as for the initial_state.
 
     Parameters:
       - initial_state: a dictionary representing the factored state.
       - model: a Stable Baselines 3 model (or similar) that has a predict(obs, deterministic=True)
                method. The observation must be produced via symbolic_to_array().
-      - max_objects: maximum number of objects allowed in a valid state.
+      - max_obs_objects: maximum number of objects used for the observation's fixed-size array.
       - max_walls: maximum number of outer walls (used for observation conversion).
+      - max_neighbors_objects: maximum number of objects allowed in the state when
+         generating neighbors (i.e., the BFS expansions).
     
     Returns:
       - A list of symbolic states (each a dict) in the robustness region.
     """
-    # Get the initial action (using deterministic prediction)
-    initial_obs = symbolic_to_array(initial_state, max_objects, max_walls)
+    # 1. Get the initial action
+    initial_obs = symbolic_to_array(initial_state, max_obs_objects, max_walls)
     initial_action, _ = model.predict(initial_obs, deterministic=True)
 
-    region = {}     # key -> state; these are the states in the RR
-    visited = set() # keys for states that have been explored
-    queue = deque([initial_state])
+    # 2. Initialize BFS structures
+    region = {}        # key -> state (those in the robustness region)
+    visited = set()    # set of keys for states we've enqueued/visited
+    queue = deque()
 
+    # 3. Enqueue the initial state
+    init_key = state_to_key(initial_state)
+    visited.add(init_key)
+    queue.append(initial_state)
+
+    # 4. BFS
     while queue:
-# Debug: Print progress every 50 visited states.
-        if len(visited) % 50 == 0:
+        # Debug: Print progress every 50 visited states.
+        if len(visited) % 200 == 0:
             print(f"Debug: Visited {len(visited)} states; Queue size: {len(queue)}")
             
         state = queue.popleft()
         key = state_to_key(state)
-        if key in visited:
-            continue
-        visited.add(key)
-        obs = symbolic_to_array(state, max_objects, max_walls)
+
+        # Predict action for this state
+        obs = symbolic_to_array(state, max_obs_objects, max_walls)
         action, _ = model.predict(obs, deterministic=True)
+
+        # If the action matches the initial state's action, add to region
         if action == initial_action:
             region[key] = state
-            for neighbor in get_neighbors(state, max_objects):
+
+            # Expand neighbors
+            neighbors = get_neighbors(state, max_neighbors_objects)
+            for neighbor in neighbors:
                 nkey = state_to_key(neighbor)
                 if nkey not in visited:
+                    visited.add(nkey)  # Mark visited right when enqueuing
                     queue.append(neighbor)
 
-    # Return the list of states in the robustness region.
+    # 5. Return the list of states in the region
     return list(region.values())
+
 
 
 # === Example Usage ===
@@ -374,8 +397,8 @@ if __name__ == '__main__':
 
     # --- Calculate the Robustness Region ---
     rr_states = bfs_rr(initial_symbolic_state, model,
-                       max_objects=env_config["max_objects"],
-                       max_walls=env_config["max_walls"])
+                       max_obs_objects=env_config["max_objects"],
+                       max_walls=env_config["max_walls"], max_neighbors_objects=2)
 
     print(f"Found {len(rr_states)} states in the robustness region.")
     for state in rr_states:
