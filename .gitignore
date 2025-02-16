@@ -53,5 +53,8 @@ Pipfile.lock
 # Training runs
 runs/
 
+# for now we will omit rr files, but later we will set up LFS support
 #robustness region
 data/experiments/rr/
+#robustness region files
+data/experiments/rr/**/*.yaml
