@@ -316,19 +316,29 @@ def bfs_rr(
                method. The observation must be produced via symbolic_to_array().
       - max_obs_objects: maximum number of objects used for the observation's fixed-size array.
       - max_walls: maximum number of outer walls (used for observation conversion).
-      - max_neighbors_objects: maximum number of objects allowed in the state when
-         generating neighbors (i.e., the BFS expansions).
-    
+      - max_neighbors_objects: maximum number of objects allowed in the state when generating neighbors
+         (i.e., the BFS expansions).
+
     Returns:
-      - A list of symbolic states (each a dict) in the robustness region.
+      - robustness_region: a list of symbolic states (each a dict) in the robustness region, ordered by discovery.
+      - stats: a dictionary containing statistics about the BFS, including:
+          * "region_size": number of states in the robustness region,
+          * "total_opened_nodes": total number of nodes expanded (popped from the queue),
+          * "visited_count": total number of visited states,
+          * "elapsed_time": time taken in seconds to compute the region.
     """
+    import time
+    start_time = time.time()
+    total_opened_nodes = 0
+
     # 1. Get the initial action
     initial_obs = symbolic_to_array(initial_state, max_obs_objects, max_walls)
     initial_action, _ = model.predict(initial_obs, deterministic=True)
 
     # 2. Initialize BFS structures
-    region = {}        # key -> state (those in the robustness region)
-    visited = set()    # set of keys for states we've enqueued/visited
+    region = {}               # Mapping key -> state (for uniqueness)
+    robustness_region = []    # List of states in order discovered
+    visited = set()           # Set of keys for states we've enqueued/visited
     queue = deque()
 
     # 3. Enqueue the initial state
@@ -337,9 +347,9 @@ def bfs_rr(
     queue.append(initial_state)
 
     # 4. BFS
-    while queue:
-        # Debug: Print progress every 50 visited states.
-        if len(visited) % 200 == 0:
+    while queue and total_opened_nodes < 10:
+        total_opened_nodes += 1
+        if len(visited) % 500 == 0:
             print(f"Debug: Visited {len(visited)} states; Queue size: {len(queue)}")
             
         state = queue.popleft()
@@ -348,10 +358,15 @@ def bfs_rr(
         # Predict action for this state
         obs = symbolic_to_array(state, max_obs_objects, max_walls)
         action, _ = model.predict(obs, deterministic=True)
+        print(f"Debug: Predicted action for state {key}: {action}")
+        print(f"Debug: Initial action: {initial_action}")
+        print(f"Debug: Action match: {action == initial_action}")
 
-        # If the action matches the initial state's action, add to region
+        # If the action matches the initial state's action, add to region.
         if action == initial_action:
-            region[key] = state
+            if key not in region:
+                region[key] = state
+                robustness_region.append(state)
 
             # Expand neighbors
             neighbors = get_neighbors(state, max_neighbors_objects)
@@ -361,13 +376,25 @@ def bfs_rr(
                     visited.add(nkey)  # Mark visited right when enqueuing
                     queue.append(neighbor)
 
-    # 5. Return the list of states in the region
-    return list(region.values())
+    elapsed_time = time.time() - start_time
+    stats = {
+        "initial_action": initial_action,
+        "region_size": len(region),
+        "total_opened_nodes": total_opened_nodes,
+        "visited_count": len(visited),
+        "elapsed_time": elapsed_time,
+    }
+    return robustness_region, stats
+
 
 
 
 # === Example Usage ===
 if __name__ == '__main__':
+    import os
+    import yaml
+    import datetime
+
     # Hardcode the model path (folder) to load the saved model.
     model_path = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022817"
 
@@ -387,21 +414,64 @@ if __name__ == '__main__':
     env = create_minigrid_env(env_config)
     symbolic_env = get_symbolic_env(env)
 
+    # Use a fixed seed value
+    seed_value = 42
+
     # Reset the environment to get the initial symbolic state.
-    initial_symbolic_state, info = symbolic_env.reset(seed=42, options={})
+    initial_symbolic_state, info = symbolic_env.reset(seed=seed_value, options={})
     env.render()
 
     # Reset the full environment.
-    initial_state, info = env.reset(seed=42, options={})
+    initial_state, info = env.reset(seed=seed_value, options={})
     env.render()
 
-    # --- Calculate the Robustness Region ---
-    rr_states = bfs_rr(initial_symbolic_state, model,
-                       max_obs_objects=env_config["max_objects"],
-                       max_walls=env_config["max_walls"], max_neighbors_objects=2)
+    action, _ = model.predict(initial_state, deterministic=True)
+    print(f"Initial action: {action}")
+    print(f"Initial symbolic state: {initial_symbolic_state}")
+    print(f"Initial state: {initial_state}")
 
-    print(f"Found {len(rr_states)} states in the robustness region.")
-    for state in rr_states:
+    # --- Calculate the Robustness Region ---
+    robustness_region, stats = bfs_rr(initial_symbolic_state, model,
+                                        max_obs_objects=env_config["max_objects"],
+                                        max_walls=env_config["max_walls"],
+                                        max_neighbors_objects=2)
+
+    # Print useful statistics
+    print("\nRobustness Region Statistics:")
+    print(f"Inital action: {stats['initial_action']}")
+    print(f"Region size: {stats['region_size']}")
+    print(f"Total opened nodes: {stats['total_opened_nodes']}")
+    print(f"Visited nodes count: {stats['visited_count']}")
+    print(f"Elapsed time: {stats['elapsed_time']:.2f} seconds")
+    print("\nFirst 10 states in the robustness region:")
+    for state in robustness_region[:10]:
         print(state_to_key(state))
 
+    # Prepare metadata for YAML file
+    model_name = os.path.basename(model_path)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    rr_dir = os.path.join("data", "experiments", "rr", model_name, f"seed_{seed_value}_time_{timestamp}")
+    os.makedirs(rr_dir, exist_ok=True)
+    yaml_file_path = os.path.join(rr_dir, "robustness_region.yaml")
+
+    metadata = {
+        "metadata": {
+            "model_name": model_name,
+            "seed": seed_value,
+            "timestamp": timestamp,
+            "region_size": stats["region_size"],
+            "total_opened_nodes": stats["total_opened_nodes"],
+            "visited_count": stats["visited_count"],
+            "elapsed_time": stats["elapsed_time"],
+            "env_config": env_config,
+        },
+        "robustness_region": robustness_region,
+    }
+
+    with open(yaml_file_path, "w") as f:
+        yaml.dump(metadata, f)
+
+    print(f"\nRobustness region and metadata saved to: {yaml_file_path}")
+
     env.close()
+

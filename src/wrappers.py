@@ -29,6 +29,23 @@ STATE_TO_IDX = {
     "locked": 2,
 }
 
+from enum import IntEnum
+
+class Actions(IntEnum):
+    # Turn left, turn right, move forward
+    left = 0
+    right = 1
+    forward = 2
+    # Pick up an object
+    pickup = 3
+    # Drop an object
+    drop = 4
+    # Toggle/activate an object
+    toggle = 5
+
+    # Done completing task
+    done = 6
+
 
 def extract_objects_from_state(grid):
     """
@@ -57,32 +74,41 @@ def extract_objects_from_state(grid):
 
 def extract_outer_walls(grid):
     """
-    Extract the positions (x, y) of the outer walls.
+    Extract the positions (x, y) of the outer walls without duplicates.
     """
     height, width, _ = grid.shape
     wall_positions = []
 
-    # Top and bottom rows
+    # Process top row.
     for x in range(width):
         top_idx, top_color, top_state = grid[0, x]
         if top_idx == OBJECT_TO_IDX["wall"]:
-            wall_positions.append((x, 0))
+            pos = (x, 0)
+            wall_positions.append(pos)
 
+    # Process bottom row.
+    for x in range(width):
         bottom_idx, bottom_color, bottom_state = grid[height - 1, x]
         if bottom_idx == OBJECT_TO_IDX["wall"]:
-            wall_positions.append((x, height - 1))
+            pos = (x, height - 1)
+            wall_positions.append(pos)
 
-    # Left and right columns
-    for y in range(height):
+    # Process left column (skip the first and last rows to avoid duplicates of corners).
+    for y in range(1, height - 1):
         left_idx, left_color, left_state = grid[y, 0]
         if left_idx == OBJECT_TO_IDX["wall"]:
-            wall_positions.append((0, y))
+            pos = (0, y)
+            wall_positions.append(pos)
 
+    # Process right column (skip the first and last rows to avoid duplicates of corners).
+    for y in range(1, height - 1):
         right_idx, right_color, right_state = grid[y, width - 1]
         if right_idx == OBJECT_TO_IDX["wall"]:
-            wall_positions.append((width - 1, y))
+            pos = (width - 1, y)
+            wall_positions.append(pos)
 
     return wall_positions
+
 
 
 class FactorizedSymbolicWrapper(ObservationWrapper):

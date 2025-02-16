@@ -1,0 +1,737 @@
+metadata:
+  elapsed_time: 0.016740083694458008
+  env_config:
+    env_name: MiniGrid-Fetch-5x5-N2-v0
+    max_objects: 10
+    max_walls: 32
+    render_mode: human
+    representation: symbolic
+  model_name: MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022817
+  region_size: 10
+  seed: 42
+  timestamp: '20250216_041044'
+  total_opened_nodes: 10
+  visited_count: 161
+robustness_region:
+- direction: !!python/object/apply:numpy.core.multiarray.scalar
+  - &id002 !!python/object/apply:numpy.dtype
+    args:
+    - i8
+    - false
+    - true
+    state: !!python/tuple
+    - 3
+    - <
+    - null
+    - null
+    - null
+    - -1
+    - -1
+    - 0
+  - !!binary |
+    AAAAAAAAAAA=
+  goal:
+  - 5
+  - 4
+  objects:
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - &id001 !!python/object/apply:numpy.dtype
+        args:
+        - u1
+        - false
+        - true
+        state: !!python/tuple
+        - 3
+        - '|'
+        - null
+        - null
+        - null
+        - -1
+        - -1
+        - 0
+      - !!binary |
+        Cg==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 1
+    - 2
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 2
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 3
+    - 3
+  outer_walls:
+  - &id003 !!python/tuple
+    - 0
+    - 0
+  - &id004 !!python/tuple
+    - 1
+    - 0
+  - &id005 !!python/tuple
+    - 2
+    - 0
+  - &id006 !!python/tuple
+    - 3
+    - 0
+  - &id007 !!python/tuple
+    - 4
+    - 0
+  - &id008 !!python/tuple
+    - 0
+    - 4
+  - &id009 !!python/tuple
+    - 1
+    - 4
+  - &id010 !!python/tuple
+    - 2
+    - 4
+  - &id011 !!python/tuple
+    - 3
+    - 4
+  - &id012 !!python/tuple
+    - 4
+    - 4
+  - &id013 !!python/tuple
+    - 0
+    - 1
+  - &id014 !!python/tuple
+    - 0
+    - 2
+  - &id015 !!python/tuple
+    - 0
+    - 3
+  - &id016 !!python/tuple
+    - 4
+    - 1
+  - &id017 !!python/tuple
+    - 4
+    - 2
+  - &id018 !!python/tuple
+    - 4
+    - 3
+- direction: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id002
+  - !!binary |
+    AQAAAAAAAAA=
+  goal:
+  - 5
+  - 4
+  objects:
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        Cg==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 1
+    - 2
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 2
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 3
+    - 3
+  outer_walls:
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - *id007
+  - *id008
+  - *id009
+  - *id010
+  - *id011
+  - *id012
+  - *id013
+  - *id014
+  - *id015
+  - *id016
+  - *id017
+  - *id018
+- direction: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id002
+  - !!binary |
+    AAAAAAAAAAA=
+  goal:
+  - 5
+  - 0
+  objects:
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        Cg==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 1
+    - 2
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 2
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 3
+    - 3
+  outer_walls:
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - *id007
+  - *id008
+  - *id009
+  - *id010
+  - *id011
+  - *id012
+  - *id013
+  - *id014
+  - *id015
+  - *id016
+  - *id017
+  - *id018
+- direction: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id002
+  - !!binary |
+    AAAAAAAAAAA=
+  goal:
+  - 5
+  - 1
+  objects:
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        Cg==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 1
+    - 2
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 2
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 3
+    - 3
+  outer_walls:
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - *id007
+  - *id008
+  - *id009
+  - *id010
+  - *id011
+  - *id012
+  - *id013
+  - *id014
+  - *id015
+  - *id016
+  - *id017
+  - *id018
+- direction: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id002
+  - !!binary |
+    AAAAAAAAAAA=
+  goal:
+  - 5
+  - 2
+  objects:
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        Cg==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 1
+    - 2
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 2
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 3
+    - 3
+  outer_walls:
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - *id007
+  - *id008
+  - *id009
+  - *id010
+  - *id011
+  - *id012
+  - *id013
+  - *id014
+  - *id015
+  - *id016
+  - *id017
+  - *id018
+- direction: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id002
+  - !!binary |
+    AAAAAAAAAAA=
+  goal:
+  - 5
+  - 3
+  objects:
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        Cg==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 1
+    - 2
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 2
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 3
+    - 3
+  outer_walls:
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - *id007
+  - *id008
+  - *id009
+  - *id010
+  - *id011
+  - *id012
+  - *id013
+  - *id014
+  - *id015
+  - *id016
+  - *id017
+  - *id018
+- direction: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id002
+  - !!binary |
+    AAAAAAAAAAA=
+  goal:
+  - 5
+  - 5
+  objects:
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        Cg==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 1
+    - 2
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 2
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 3
+    - 3
+  outer_walls:
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - *id007
+  - *id008
+  - *id009
+  - *id010
+  - *id011
+  - *id012
+  - *id013
+  - *id014
+  - *id015
+  - *id016
+  - *id017
+  - *id018
+- direction: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id002
+  - !!binary |
+    AAAAAAAAAAA=
+  goal:
+  - 6
+  - 4
+  objects:
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        Cg==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 1
+    - 2
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 2
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 3
+    - 3
+  outer_walls:
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - *id007
+  - *id008
+  - *id009
+  - *id010
+  - *id011
+  - *id012
+  - *id013
+  - *id014
+  - *id015
+  - *id016
+  - *id017
+  - *id018
+- direction: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id002
+  - !!binary |
+    AAAAAAAAAAA=
+  goal:
+  - 5
+  - 4
+  objects:
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - 1
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 2
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 3
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        Cg==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 1
+    - 2
+  outer_walls:
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - *id007
+  - *id008
+  - *id009
+  - *id010
+  - *id011
+  - *id012
+  - *id013
+  - *id014
+  - *id015
+  - *id016
+  - *id017
+  - *id018
+- direction: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id002
+  - !!binary |
+    AAAAAAAAAAA=
+  goal:
+  - 5
+  - 4
+  objects:
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - 2
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 2
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BQ==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        BA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 3
+    - 3
+  - - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        Cg==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AA==
+    - 1
+    - 2
+  outer_walls:
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - *id007
+  - *id008
+  - *id009
+  - *id010
+  - *id011
+  - *id012
+  - *id013
+  - *id014
+  - *id015
+  - *id016
+  - *id017
+  - *id018
