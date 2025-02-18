@@ -303,7 +303,8 @@ def bfs_rr(
     model,
     max_obs_objects=10,        # For symbolic_to_array / PaddedObservation
     max_walls=25,
-    max_neighbors_objects=2     # For neighbor generation only
+    max_neighbors_objects=2,     # For neighbor generation only
+    max_depth=10,
 ):
     """
     Computes the Robustness Region for the given initial_state under the policy
@@ -347,7 +348,7 @@ def bfs_rr(
     queue.append(initial_state)
 
     # 4. BFS
-    while queue and total_opened_nodes < 10:
+    while queue and total_opened_nodes < max_depth:
         total_opened_nodes += 1
         if len(visited) % 500 == 0:
             print(f"Debug: Visited {len(visited)} states; Queue size: {len(queue)}")
@@ -434,7 +435,8 @@ if __name__ == '__main__':
     robustness_region, stats = bfs_rr(initial_symbolic_state, model,
                                         max_obs_objects=env_config["max_objects"],
                                         max_walls=env_config["max_walls"],
-                                        max_neighbors_objects=2)
+                                        max_neighbors_objects=2,
+                                        max_depth=100)
 
     # Print useful statistics
     print("\nRobustness Region Statistics:")
