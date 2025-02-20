@@ -138,6 +138,7 @@ def evaluate_single_policy_run(model, env_config, seed=42):
         model (object): Trained RL model.
         env_config (dict): Environment config dict.
         seed (int): The random seed for reproducibility.
+        max_steps (int, optional): Maximum number of steps for the episode. If None, run until done.
 
     Returns:
         None
