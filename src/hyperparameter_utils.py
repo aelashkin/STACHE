@@ -7,7 +7,15 @@ from stable_baselines3.common.callbacks import EvalCallback
 
 
 def sample_a2c_params(trial: optuna.Trial) -> Dict[str, Any]:
-    """Sampler for A2C hyperparameters."""
+    """
+    Sample hyperparameters for A2C optimization using Optuna.
+
+    Parameters:
+        trial (optuna.Trial): Optuna trial object.
+
+    Returns:
+        Dict[str, Any]: Dictionary of sampled hyperparameter values.
+    """
     gamma = 1.0 - trial.suggest_float("gamma", 0.0001, 0.1, log=True)
     max_grad_norm = trial.suggest_float("max_grad_norm", 0.3, 5.0, log=True)
     gae_lambda = 1.0 - trial.suggest_float("gae_lambda", 0.001, 0.2, log=True)
@@ -40,7 +48,15 @@ def sample_a2c_params(trial: optuna.Trial) -> Dict[str, Any]:
     }
 
 def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
-    """Sampler for PPO hyperparameters."""
+    """
+    Sample hyperparameters for PPO optimization using Optuna.
+
+    Args:
+        trial (optuna.Trial): Optuna trial object.
+
+    Returns:
+        Dict[str, Any]: Dictionary of sampled hyperparameter values.
+    """
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
 
     n_steps = 2 ** trial.suggest_int("exponent_n_steps", 3, 10)

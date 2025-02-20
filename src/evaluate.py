@@ -7,11 +7,15 @@ from src.environment_utils import create_symbolic_minigrid_env, create_standard_
 
 def evaluate_model(model_path, env_name='MiniGrid-Fetch-5x5-N2-v0', n_eval_episodes=10):
     """
-    Load the PPO model from the given path and evaluate it on the specified environment.
+    Load a PPO model from the given path and evaluate it on the specified environment.
     
-    :param model_path: Path to the model zip file
-    :param env_name: Name of the MiniGrid environment
-    :param n_eval_episodes: Number of episodes to evaluate the model on
+    Parameters:
+model_path (str): Path to the saved model .zip file.
+env_name (str): Name of the MiniGrid environment to use.
+n_eval_episodes (int): Number of episodes for evaluation.
+
+    Returns:
+        None
     """
     # Load environment
     env = gym.make(env_name, render_mode='rgb_array')
@@ -30,7 +34,11 @@ def evaluate_symbolic_env(env_config):
     """
     Create a symbolic MiniGrid environment and interact with it step-by-step.
     
-    :param env_config: Configuration dictionary for the environment
+    Parameters:
+env_config (dict): Configuration dictionary with environment parameters.
+
+    Returns:
+        None
     """
     env = create_symbolic_minigrid_env(env_config)
     # env = create_standard_minigrid_env(env_config)
@@ -55,18 +63,18 @@ def evaluate_symbolic_env(env_config):
 
 
 
-def evaluate_policy_statistics(model_path, env_config, n_eval_episodes=50, histogram_bins=20):
+def evaluate_policy_performance(model, env_config, n_eval_episodes=50, histogram_bins=20):
     """
-    Load the PPO model from the given path and evaluate it on the specified symbolic environment
-    over multiple episodes. Computes statistics including mean, median, standard deviation,
-    minimum, and maximum reward as well as the reward distribution. Additionally, a histogram
-    of rewards is generated using the specified number of bins.
+    Evaluate the model on a symbolic environment, collecting rewards over multiple episodes.
 
-    :param model_path: Path to the model zip file.
-    :param env_config: Configuration dictionary for the environment.
-    :param n_eval_episodes: Number of episodes to evaluate (default is 50).
-    :param histogram_bins: Number of bins for the histogram (default is 20).
-    :return: Dictionary containing reward statistics.
+    Parameters:
+        model (object): Trained RL model with a predict() method.
+        env_config (dict): Environment configuration dict.
+        n_eval_episodes (int): Number of episodes to evaluate.
+        histogram_bins (int): Bin count for reward histogram.
+
+    Returns:
+        dict: Summary statistics including mean, median, std, min, max, and distribution.
     """
     import numpy as np
     import matplotlib.pyplot as plt
@@ -74,7 +82,6 @@ def evaluate_policy_statistics(model_path, env_config, n_eval_episodes=50, histo
     # Create environment using the symbolic MiniGrid environment
     env_config["render_mode"] = None  # Disable rendering for evaluation
     env = create_symbolic_minigrid_env(env_config)
-    model = PPO.load(model_path)
     
     rewards = []
     for ep in range(n_eval_episodes):
@@ -123,29 +130,23 @@ def evaluate_policy_statistics(model_path, env_config, n_eval_episodes=50, histo
     }
 
 
-def evaluate_detailed_policy_run(model_path, env_config, seed=42):
+def evaluate_single_policy_run(model, env_config, seed=42):
     """
-    Run a detailed evaluation of the PPO model on a single episode with a fixed seed.
-    At each step, logs the observation, the action chosen by the policy, reward, termination flags,
-    and additional debug info. In addition, the function saves the rendered image (using rgb_array mode)
-    for each step into a subfolder. The outputs are saved in:
-    
-        data/experiments/evaluation/<model_name>/<seed>_<timestamp>/
-    
-    This folder will contain a text log (evaluation_log.txt) and a subfolder "images" with one image per step.
-    
-    :param model_path: Path to the PPO model zip file.
-    :param env_config: Configuration dictionary for the environment.
-    :param seed: Seed to use for environment reset (default is 42).
+    Run a single evaluation episode with a fixed seed, saving frames and logs.
+
+    Parameters:
+        model (object): Trained RL model.
+        env_config (dict): Environment config dict.
+        seed (int): The random seed for reproducibility.
+
+    Returns:
+        None
     """
     import os
     from datetime import datetime
     from PIL import Image
 
-    # Extract model name from the model file path (e.g., "huggingface_ppo-MiniGrid-Fetch-5x5-N2-v0")
-    model_name = os.path.splitext(os.path.basename(model_path))[0]
-    
-    # Create the output directory with a timestamp and the seed number
+    model_name = "evaluation_model"
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     base_dir = os.path.join("data", "experiments", "evaluation", model_name, f"{seed}_{timestamp}")
     os.makedirs(base_dir, exist_ok=True)
@@ -154,9 +155,6 @@ def evaluate_detailed_policy_run(model_path, env_config, seed=42):
     
     log_file_path = os.path.join(base_dir, "evaluation_log.txt")
     log_file = open(log_file_path, "w")
-    
-    # Load the model
-    model = PPO.load(model_path)
     
     # Create the environment using the symbolic MiniGrid environment and reset with a fixed seed
     env = create_symbolic_minigrid_env(env_config)
@@ -205,48 +203,20 @@ def evaluate_detailed_policy_run(model_path, env_config, seed=42):
     print(f"Detailed evaluation saved at: {base_dir}")
 
 
-# if __name__ == "__main__":
-#     # model_name = "huggingface_ppo-MiniGrid-Fetch-5x5-N2-v0.zip"  # Change to your actual model name
-#     # model_path = os.path.join("data", "models", model_name)
-    
-#     # if os.path.exists(model_path):
-#     #     evaluate_model(model_path)
-#     # else:
-#     #     print(f"Model file {model_path} not found.")
-    
-#     # Example configuration for symbolic environment
-#     env_config = {
-#         "env_name": "MiniGrid-Fetch-5x5-N2-v0",
-#         "max_objects": 10,
-#         "max_walls": 25,
-#         "representation": "symbolic",
-#         "render_mode": "human"
-#     }
-#     evaluate_symbolic_env(env_config)
-
-
 if __name__ == "__main__":
-    # Model path for evaluation
-    model_path = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250216_040438/model.zip"
+    from src.utils import load_experiment
+    experiment_dir = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250216_040438"
+    model, config_data = load_experiment(experiment_dir)
+    env_config = config_data["env_config"]
     
-    # Environment configuration for symbolic evaluation
-    env_config = {
-        "env_name": "MiniGrid-Fetch-5x5-N2-v0",
-        "max_objects": 10,
-        "max_walls": 32,
-        "representation": "symbolic",
-        "render_mode": "human"
-    }
-    
-    # Manual toggle for evaluation modes
     run_statistics_evaluation = True
-    run_detailed_evaluation = True
+    run_detailed_evaluation = False
 
     if run_statistics_evaluation:
         print("Running policy statistics evaluation over 50 episodes...")
-        stats = evaluate_policy_statistics(model_path, env_config, n_eval_episodes=50)
+        stats = evaluate_policy_performance(model, env_config, n_eval_episodes=50)
         print("Statistics:", stats)
     
     if run_detailed_evaluation:
         print("Running detailed policy evaluation for a single episode with seed 42...")
-        evaluate_detailed_policy_run(model_path, env_config, seed=42)
+        evaluate_single_policy_run(model, env_config, seed=42)
