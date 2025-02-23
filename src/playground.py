@@ -9,6 +9,26 @@ from minigrid.core.mission import MissionSpace
 from minigrid.wrappers import ImgObsWrapper
 import numpy as np
 
+
+class CountBasedExplorationWrapper(gym.Wrapper):
+    def __init__(self, env, coefficient=0.005):
+        super().__init__(env)
+        self.counts = {}
+        self.coefficient = coefficient
+
+    def _get_state_key(self):
+        agent_x, agent_y = self.env.agent_pos
+        direction = self.env.agent_dir
+        return (agent_x, agent_y, direction)
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        state_key = self._get_state_key()
+        self.counts[state_key] = self.counts.get(state_key, 0) + 1
+        bonus = self.coefficient / np.sqrt(self.counts[state_key])
+        modified_reward = reward + bonus
+        return obs, modified_reward, done, info
+
 # Step 1: Define a custom wrapper to handle the observation space
 class CustomObsWrapper(gym.ObservationWrapper):
     def __init__(self, env):
@@ -112,6 +132,10 @@ def main():
     # Create and wrap the environment
     env = gym.make('MiniGrid-Fetch-5x5-N2-v0')
     env = CustomObsWrapper(env)
+
+    # train_env = gym.make('MiniGrid-Fetch-5x5-N2-v0')
+    # train_env = CountBasedExplorationWrapper(train_env, coefficient=0.005)
+    # env = CustomObsWrapper(train_env)
     
     # Define policy kwargs for the custom feature extractor
     policy_kwargs = {
@@ -138,7 +162,7 @@ def main():
     }
     
     # Train the model
-    model.learn(total_timesteps=100000)
+    model.learn(total_timesteps=800000)
     
     # Save the trained model
     save_model(model, experiment_dir)

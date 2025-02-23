@@ -1,0 +1,13 @@
+env_config:
+  env_id: MiniGrid-Fetch-5x5-N2-v0
+model_config:
+  algorithm: PPO
+  batch_size: 64
+  learning_rate: 0.0003
+  n_epochs: 10
+  n_steps: 2048
+  policy: MultiInputPolicy
+  policy_kwargs:
+    features_extractor_class: !!python/name:__main__.CustomCombinedExtractor ''
+    features_extractor_kwargs:
+      features_dim: 256
