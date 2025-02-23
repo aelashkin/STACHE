@@ -7,39 +7,47 @@ import torch
 from gymnasium.wrappers import FlattenObservation
 from minigrid.core.mission import MissionSpace
 from minigrid.wrappers import ImgObsWrapper
+import numpy as np
 
 # Step 1: Define a custom wrapper to handle the observation space
 class CustomObsWrapper(gym.ObservationWrapper):
     def __init__(self, env):
         super(CustomObsWrapper, self).__init__(env)
-        # Assuming the mission space is a string, we'll need to process it
         self.observation_space = gym.spaces.Dict({
             'image': env.observation_space['image'],
-            'mission': gym.spaces.Box(low=0, high=1, shape=(8,))  # Example: one-hot encoding for mission
+            'mission': gym.spaces.Box(low=0, high=1, shape=(8,)),
+            'direction': gym.spaces.Box(low=0, high=1, shape=(4,))
         })
 
     def observation(self, obs):
-        # Process the mission string into a numerical representation
         mission_str = obs['mission']
-        # Simple example: one-hot encode the last two words (color and type)
         words = mission_str.split()
-        color = words[-2]  # Assuming the color is the second last word
-        obj_type = words[-1]  # Assuming the type is the last word
-        # Define possible colors and types
+        color = words[-2]
+        obj_type = words[-1]
         colors = ['red', 'green', 'blue', 'purple', 'yellow', 'grey']
         types = ['key', 'ball']
         color_idx = colors.index(color)
         type_idx = types.index(obj_type)
-        mission_encoding = torch.zeros(8)  # 6 for colors, 2 for types
+        mission_encoding = np.zeros(8)
         mission_encoding[color_idx] = 1
         mission_encoding[6 + type_idx] = 1
-        return {'image': obs['image'], 'mission': mission_encoding}
+        direction = obs['direction']
+        direction_onehot = np.zeros(4)
+        direction_onehot[direction] = 1
+        return {
+            'image': obs['image'],
+            'mission': mission_encoding,
+            'direction': direction_onehot
+        }
 
 # Step 2: Define a custom features extractor for the policy
+import torch
+import torch.nn as nn
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+
 class CustomCombinedExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space: gym.spaces.Dict, features_dim: int = 256):
         super(CustomCombinedExtractor, self).__init__(observation_space, features_dim)
-        # Define extractors for image and mission
         self.cnn = nn.Sequential(
             nn.Conv2d(3, 16, (2, 2)),
             nn.ReLU(),
@@ -55,40 +63,98 @@ class CustomCombinedExtractor(BaseFeaturesExtractor):
         )
         # Compute the output dimension
         with torch.no_grad():
-            sample_image = torch.zeros(1, 3, 7, 7)  # Assuming 7x7 image
+            sample_image = torch.zeros(1, 3, 7, 7)
             cnn_output_dim = self.cnn(sample_image).shape[1]
-        self._features_dim = cnn_output_dim + 16  # From mission MLP
+        self._features_dim = cnn_output_dim + 16 + 4  # +4 for direction
 
-    def forward(self, observations):
-        image = observations['image']
-        # print("Image shape:", image.shape)  # Should be [1, 3, 7, 7]
-        image_features = self.cnn(image)  # Pass directly to CNN
+    def forward(self, observations):        
+        # Convert to float and normalize
+        image = observations['image'].float() / 255.0
+        # Transpose from (batch_size, 7, 7, 3) to (batch_size, 3, 7, 7)
+        # image = image.permute(0, 3, 1, 2)
+        image_features = self.cnn(image)
         mission = observations['mission']
         mission_features = self.mission_mlp(mission)
-        return torch.cat([image_features, mission_features], dim=1)
+        direction = observations['direction']
+        return torch.cat([image_features, mission_features, direction], dim=1)
+
+
 
 # Step 3: Create the environment and wrap it
-env = gym.make('MiniGrid-Fetch-5x5-N2-v0')
-env = CustomObsWrapper(env)
+import os
+import yaml
+from datetime import datetime
+import gymnasium as gym
+import minigrid
+from stable_baselines3 import PPO
+from stable_baselines3.common.logger import configure
+from stable_baselines3.common.evaluation import evaluate_policy
 
-# Step 4: Define the policy kwargs with the custom features extractor
-policy_kwargs = {
-    "features_extractor_class": CustomCombinedExtractor,
-    "features_extractor_kwargs": {"features_dim": 256},
-}
+# Assume CustomObsWrapper and CustomCombinedExtractor are defined as above
 
-# Step 5: Create and train the PPO agent
-model = PPO("MultiInputPolicy", env, policy_kwargs=policy_kwargs, verbose=1)
-model.learn(total_timesteps=100000)
+from utils import save_model, save_config
+# Add the new import for evaluation
+from stable_baselines3.common.evaluation import evaluate_policy
 
-# Step 6: Save the model
-model.save("ppo_minigrid_fetch")
+# ... (other existing imports like gym, PPO, datetime, os, etc., remain unchanged)
+# ... (CustomObsWrapper and CustomCombinedExtractor definitions remain unchanged)
+# ... (save_model and save_config functions remain unchanged if defined elsewhere)
 
-# Step 7: Evaluate the agent (optional)
-obs = env.reset()
-for _ in range(100):
-    action, _states = model.predict(obs)
-    obs, rewards, dones, info = env.step(action)
-    env.render()
-    if dones:
-        obs = env.reset()
+def main():
+    """Main function to set up, train, and evaluate the reinforcement learning agent."""
+    # Create experiment directory with a timestamp
+    experiment_dir = f"experiments/{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    os.makedirs(experiment_dir, exist_ok=True)
+    
+    # Set up logger
+    logger = configure(experiment_dir, ["stdout", "log"])
+    
+    # Create and wrap the environment
+    env = gym.make('MiniGrid-Fetch-5x5-N2-v0')
+    env = CustomObsWrapper(env)
+    
+    # Define policy kwargs for the custom feature extractor
+    policy_kwargs = {
+        "features_extractor_class": CustomCombinedExtractor,
+        "features_extractor_kwargs": {"features_dim": 256},
+    }
+    
+    # Initialize the PPO model
+    model = PPO("MultiInputPolicy", env, policy_kwargs=policy_kwargs, verbose=1)
+    model.set_logger(logger)
+    
+    # Define configuration dictionaries
+    env_config = {
+        "env_id": "MiniGrid-Fetch-5x5-N2-v0",
+    }
+    model_config = {
+        "algorithm": "PPO",
+        "policy": "MultiInputPolicy",
+        "policy_kwargs": policy_kwargs,
+        "learning_rate": model.learning_rate,
+        "n_steps": model.n_steps,
+        "batch_size": model.batch_size,
+        "n_epochs": model.n_epochs,
+    }
+    
+    # Train the model
+    model.learn(total_timesteps=100000)
+    
+    # Save the trained model
+    save_model(model, experiment_dir)
+    
+    # Save the configurations
+    save_config(env_config, model_config, experiment_dir)
+    
+    # Evaluate the agent over 100 episodes
+    mean_reward, std_reward = evaluate_policy(
+        model, 
+        env, 
+        n_eval_episodes=100, 
+        deterministic=True
+    )
+    print(f"Mean reward: {mean_reward:.2f} +/- {std_reward:.2f}")
+
+# Run the main function when the script is executed directly
+if __name__ == "__main__":
+    main()
