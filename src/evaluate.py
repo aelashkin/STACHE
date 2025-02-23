@@ -10,9 +10,9 @@ def evaluate_model(model_path, env_name='MiniGrid-Fetch-5x5-N2-v0', n_eval_episo
     Load a PPO model from the given path and evaluate it on the specified environment.
     
     Parameters:
-model_path (str): Path to the saved model .zip file.
-env_name (str): Name of the MiniGrid environment to use.
-n_eval_episodes (int): Number of episodes for evaluation.
+        model_path (str): Path to the saved model .zip file.
+        env_name (str): Name of the MiniGrid environment to use.
+        n_eval_episodes (int): Number of episodes for evaluation.
 
     Returns:
         None
@@ -35,7 +35,7 @@ def evaluate_symbolic_env(env_config):
     Create a symbolic MiniGrid environment and interact with it step-by-step.
     
     Parameters:
-env_config (dict): Configuration dictionary with environment parameters.
+        nv_config (dict): Configuration dictionary with environment parameters.
 
     Returns:
         None
@@ -130,7 +130,7 @@ def evaluate_policy_performance(model, env_config, n_eval_episodes=50, histogram
     }
 
 
-def evaluate_single_policy_run(model, env_config, seed=42):
+def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None):
     """
     Run a single evaluation episode with a fixed seed, saving frames and logs.
 
@@ -147,7 +147,7 @@ def evaluate_single_policy_run(model, env_config, seed=42):
     from datetime import datetime
     from PIL import Image
 
-    model_name = "evaluation_model"
+    model_name = env_config["env_name"] + "_" + model.__class__.__name__
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     base_dir = os.path.join("data", "experiments", "evaluation", model_name, f"{seed}_{timestamp}")
     os.makedirs(base_dir, exist_ok=True)
@@ -158,6 +158,7 @@ def evaluate_single_policy_run(model, env_config, seed=42):
     log_file = open(log_file_path, "w")
     
     # Create the environment using the symbolic MiniGrid environment and reset with a fixed seed
+    env_config["render_mode"] = "rgb_array"  # Enable rendering for evaluation
     env = create_symbolic_minigrid_env(env_config)
     obs, info = env.reset(seed=seed)
     log_file.write(f"Episode start (seed={seed}):\n")
@@ -166,14 +167,14 @@ def evaluate_single_policy_run(model, env_config, seed=42):
     
     # Save the initial frame
     step_count = 0
-    frame = env.render(mode="rgb_array")
+    frame = env.render()
     if frame is not None:
         img_path = os.path.join(images_dir, f"step_{step_count:03d}.png")
         Image.fromarray(frame).save(img_path)
         log_file.write(f"Step {step_count}: Saved initial frame at {img_path}\n\n")
     
     done = False
-    while not done:
+    while not done and (max_steps is None or step_count < max_steps):
         # Get action from the policy
         action, _ = model.predict(obs, deterministic=True)
         log_file.write(f"Step {step_count}: Observation: {obs}\n")
@@ -188,7 +189,7 @@ def evaluate_single_policy_run(model, env_config, seed=42):
         log_file.write(f"Step {step_count}: Info: {info}\n")
         
         # Capture and save the current frame (using rgb_array mode for image capture)
-        frame = env.render(mode="rgb_array")
+        frame = env.render()
         if frame is not None:
             img_path = os.path.join(images_dir, f"step_{step_count:03d}.png")
             Image.fromarray(frame).save(img_path)
@@ -206,12 +207,16 @@ def evaluate_single_policy_run(model, env_config, seed=42):
 
 if __name__ == "__main__":
     from src.utils import load_experiment
-    experiment_dir = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250216_040438"
-    model, config_data = load_experiment(experiment_dir)
-    env_config = config_data["env_config"]
+    # experiment_dir = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022445"
+    experiment_dir = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022445"
+    model, experiment_config = load_experiment(experiment_dir)
+    env_config = experiment_config["env_config"]
     
-    run_statistics_evaluation = True
-    run_detailed_evaluation = False
+    run_statistics_evaluation = False
+    run_detailed_evaluation = True
+
+    # run_statistics_evaluation = True
+    # run_detailed_evaluation = False
 
     if run_statistics_evaluation:
         print("Running policy statistics evaluation over 50 episodes...")
@@ -220,4 +225,4 @@ if __name__ == "__main__":
     
     if run_detailed_evaluation:
         print("Running detailed policy evaluation for a single episode with seed 42...")
-        evaluate_single_policy_run(model, env_config, seed=42)
+        evaluate_single_policy_run(model, env_config, seed=42, max_steps=10)

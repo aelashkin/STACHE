@@ -1,0 +1,5 @@
+Training completed for 50000 timesteps.
+Using device: cpu
+Evaluation over 100 episodes:
+Mean Reward: 0.079424
+Std Reward: 0.2693398882898706

@@ -47,7 +47,7 @@ def save_training_log(training_log, experiment_dir):
     return log_path
 
 
-def save_experiment(model, env_config, model_config, training_log, experiments_base_dir="data/experiments"):
+def save_experiment(model, env_config, model_config, training_log, experiments_base_dir="data/experiments/models"):
     """
     Create an experiment folder and save the model, configuration, and training log.
     
