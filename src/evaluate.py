@@ -3,7 +3,7 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 from minigrid.wrappers import FlatObsWrapper
 from stable_baselines3.common.evaluation import evaluate_policy
-from src.environment_utils import create_symbolic_minigrid_env, create_standard_minigrid_env
+from src.environment_utils import create_minigrid_env, create_symbolic_minigrid_env, create_standard_minigrid_env
 
 def evaluate_model(model_path, env_name='MiniGrid-Fetch-5x5-N2-v0', n_eval_episodes=10):
     """
@@ -81,7 +81,7 @@ def evaluate_policy_performance(model, env_config, n_eval_episodes=50, histogram
     
     # Create environment using the symbolic MiniGrid environment
     env_config["render_mode"] = None  # Disable rendering for evaluation
-    env = create_symbolic_minigrid_env(env_config)
+    env = create_minigrid_env(env_config)
     
     rewards = []
     for ep in range(n_eval_episodes):
@@ -159,7 +159,7 @@ def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None):
     
     # Create the environment using the symbolic MiniGrid environment and reset with a fixed seed
     env_config["render_mode"] = "rgb_array"  # Enable rendering for evaluation
-    env = create_symbolic_minigrid_env(env_config)
+    env = create_minigrid_env(env_config)
     obs, info = env.reset(seed=seed)
     log_file.write(f"Episode start (seed={seed}):\n")
     log_file.write(f"Initial observation: {obs}\n")
@@ -207,12 +207,13 @@ def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None):
 
 if __name__ == "__main__":
     from src.utils import load_experiment
+    experiment_dir = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_A2C_model_20250222_040448"
+    # experiment_dir = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250222_032038"
     # experiment_dir = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022445"
-    experiment_dir = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022445"
     model, experiment_config = load_experiment(experiment_dir)
     env_config = experiment_config["env_config"]
     
-    run_statistics_evaluation = False
+    run_statistics_evaluation = True
     run_detailed_evaluation = True
 
     # run_statistics_evaluation = True

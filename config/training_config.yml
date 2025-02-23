@@ -1,8 +1,0 @@
-env_name: MiniGrid-Fetch-5x5-N2-v0
-total_timesteps: 50000
-n_steps: 256
-batch_size: 64
-ent_coef: 0.01
-max_objects: 10
-max_walls: 16
-device: "cpu"  # This key may or may not exist

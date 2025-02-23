@@ -6,11 +6,11 @@ env_name: "MiniGrid-Fetch-5x5-N2-v0"
 # env_name: "MiniGrid-Empty-Random-6x6-v0"
 
 # Possible values for representation: "symbolic", "image", "standard"
-# representation: "standard"
+representation: "standard"
 # representation: "image"
-representation: "symbolic"
+# representation: "symbolic"
 
-render_mode: "human"
+render_mode: "rgb"
 
 #parameters for symbplic representation
 max_objects: 10

@@ -1,0 +1,17 @@
+env_config:
+  env_name: MiniGrid-Fetch-5x5-N2-v0
+  max_objects: 10
+  max_walls: 32
+  render_mode: null
+  representation: standard
+model_config:
+  device: cpu
+  ent_coef: 8.639729568554588e-05
+  env_name: MiniGrid-Fetch-5x5-N2-v0
+  gae_lambda: 0.011645833117335965
+  gamma: 0.0018465168554889055
+  learning_rate: 0.0047826169116580676
+  max_grad_norm: 0.46937108004931655
+  model_type: A2C
+  n_steps: 6
+  total_timesteps: 1000000
