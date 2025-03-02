@@ -58,3 +58,6 @@ runs/
 data/experiments/rr/
 #robustness region files
 data/experiments/rr/**/*.yaml
+
+
+src/deir/*

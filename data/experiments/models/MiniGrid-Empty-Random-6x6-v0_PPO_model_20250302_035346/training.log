@@ -1,0 +1,8 @@
+Training completed for 40000 timesteps.
+Using device: cpu
+Evaluation on training environment over 100 episodes:
+Mean Reward: 0.9671874999999999
+Std Reward: 0.013210288367405155
+
+Best Model Evaluation Results (from callbacks):
+Final evaluation at timestep 40064: Mean reward: 0.9671249999999999 +/- 0.013009011299864415

@@ -47,26 +47,40 @@ def save_training_log(training_log, experiment_dir):
     return log_path
 
 
-def save_experiment(model, env_config, model_config, training_log, experiments_base_dir="data/experiments/models"):
+def save_experiment(model, env_config, model_config, training_log, experiment_dir=None, experiments_base_dir="data/experiments/models"):
     """
-    Create an experiment folder and save the model, configuration, and training log.
+    Save the experiment data (model, configuration, training log) into the specified experiment directory.
+    If experiment_dir is None, a new experiment folder is created under experiments_base_dir with a timestamp.
+    If model is None, the function assumes the model is already saved at {experiment_dir}/model.zip.
     
-    The experiment folder is named as:
-    {env_name}_{model_type}_model_{timestamp}
-
     Files created:
-        - model.zip : the saved model.
+        - model.zip : the saved model (if model is provided, otherwise it should already exist).
         - config.yaml : merged environment and model configurations.
         - training.log : a summary log of the training and evaluation.
+        
+    Raises:
+        FileNotFoundError: If model is None and no model.zip exists in the experiment directory.
     """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    env_name = env_config.get("env_name", "unknown_env")
-    model_type = model_config.get("model_type", "unknown_model")
-    experiment_folder_name = f"{env_name}_{model_type}_model_{timestamp}"
-    experiment_dir = os.path.join(experiments_base_dir, experiment_folder_name)
-    os.makedirs(experiment_dir, exist_ok=True)
+    if experiment_dir is None:
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        env_name = env_config.get("env_name", "unknown_env")
+        model_type = model_config.get("model_type", "unknown_model")
+        experiment_folder_name = f"{env_name}_{model_type}_model_{timestamp}"
+        experiment_dir = os.path.join(experiments_base_dir, experiment_folder_name)
+        os.makedirs(experiment_dir, exist_ok=True)
 
-    model_path = save_model(model, experiment_dir)
+    # Handle model saving or validation
+    if model is not None:
+        # Save the model if provided
+        model_path = save_model(model, experiment_dir)
+    else:
+        # Check if a model already exists at the expected path
+        model_path = os.path.join(experiment_dir, "model.zip")
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"No model provided and no existing model found at {model_path}")
+        print(f"Using existing model at: {model_path}")
+
     config_path = save_config(env_config, model_config, experiment_dir)
     log_path = save_training_log(training_log, experiment_dir)
 

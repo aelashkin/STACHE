@@ -20,7 +20,7 @@ def create_standard_minigrid_env(env_config: dict) -> gym.Env:
     env_name = env_config.get("env_name")
     render_mode = env_config.get("render_mode")
     env = gym.make(env_name, render_mode=render_mode)
-    env = FullyObsWrapper(env)
+    # env = FullyObsWrapper(env)
     # env = ImgObsWrapper(env)
     env = FlatObsWrapper(env)
     env = Monitor(env)
