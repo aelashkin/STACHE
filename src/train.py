@@ -25,7 +25,7 @@ class CustomEvalAndSaveCallback(BaseCallback):
     """
     Custom callback for evaluating the model during training and saving the best model.
     
-    Evaluates the model every (total_timesteps / 20) timesteps over n_eval_episodes.
+    Evaluates the model every max(total_timesteps // 20, 5000) timesteps over n_eval_episodes.
     If the current evaluation (using the current timestep as timestamp) shows a higher mean reward 
     than all previous evaluations, the model is immediately saved (using save_model), replacing the old best.
     All evaluation results are stored in a list so that at the end a complete log can be created.
@@ -36,7 +36,7 @@ class CustomEvalAndSaveCallback(BaseCallback):
         self.experiment_dir = experiment_dir
         self.total_timesteps = total_timesteps
         self.n_eval_episodes = n_eval_episodes
-        self.eval_interval = total_timesteps // 20  # evaluation every total_timesteps/20 steps
+        self.eval_interval = max(5000, total_timesteps // 20) # Evaluate no less than 5000 timesteps
         self.next_eval = self.eval_interval
         self.best_mean_reward = -np.inf
         self.best_std_reward = None

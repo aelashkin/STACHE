@@ -1,14 +1,38 @@
 import gymnasium as gym
 from stable_baselines3.common.monitor import Monitor
-from minigrid.wrappers import FullyObsWrapper
-from minigrid.wrappers import ImgObsWrapper
-from minigrid.wrappers import FlatObsWrapper
+from minigrid.wrappers import FullyObsWrapper, ImgObsWrapper, FlatObsWrapper, ActionBonus, PositionBonus
 from src.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
 
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import torch
 import torch.nn as nn
 
+
+def apply_reward_wrappers(env, wrapper_config):
+    """
+    Apply reward wrappers based on configuration.
+    
+    Args:
+        env: The environment to wrap
+        wrapper_config: Dictionary with wrapper configuration
+        
+    Returns:
+        The wrapped environment
+    """
+    if wrapper_config is None:
+        return env
+        
+    # Apply ActionBonus wrapper if enabled
+    if wrapper_config.get("action_bonus", False):
+        env = ActionBonus(env)
+        print("Applied ActionBonus wrapper")
+        
+    # Apply PositionBonus wrapper if enabled
+    if wrapper_config.get("position_bonus", False):
+        env = PositionBonus(env)
+        print("Applied PositionBonus wrapper")
+
+    return env
 
 def create_image_minigrid_env(env_config: dict) -> gym.Env:
     raise NotImplementedError("Image-based observation is not yet supported.")
@@ -20,10 +44,10 @@ def create_standard_minigrid_env(env_config: dict) -> gym.Env:
     env_name = env_config.get("env_name")
     render_mode = env_config.get("render_mode")
     env = gym.make(env_name, render_mode=render_mode)
-    # env = FullyObsWrapper(env)
+    env = FullyObsWrapper(env)
     # env = ImgObsWrapper(env)
     env = FlatObsWrapper(env)
-    env = Monitor(env)
+        
     if env is None:
         print(f"Failed to create the environment: {env_name}")
     return env
@@ -37,8 +61,9 @@ def create_symbolic_minigrid_env(env_config: dict) -> gym.Env:
     env = gym.make(env_name, render_mode=render_mode)
     env = FullyObsWrapper(env)
     env = FactorizedSymbolicWrapper(env)
+    
     env = PaddedObservationWrapper(env, max_objects=env_config["max_objects"], max_walls=env_config["max_walls"])
-    env = Monitor(env)
+
     return env
 
 def create_minigrid_env(env_config: dict) -> gym.Env:
@@ -50,18 +75,22 @@ def create_minigrid_env(env_config: dict) -> gym.Env:
     if representation == "symbolic":
         env = create_symbolic_minigrid_env(env_config)
         print("Using symbolic representation.")
-        return env
     elif representation == "image":
         env = create_image_minigrid_env(env_config)
         print("Using image representation.")
-        return env
     elif representation == "standard":
         env = create_standard_minigrid_env(env_config)
         print("Using standard representation.")
-        return env
     else:
         raise ValueError(f"Unknown representation: {representation}. Valid options are: 'symbolic', 'image', 'standard'.")
+    
+    # Apply reward wrappers based on configuration
+    wrapper_config = env_config.get("reward_wrappers", {})
+    env = apply_reward_wrappers(env, wrapper_config)
 
+    env = Monitor(env)
+
+    return env
 
 
 
