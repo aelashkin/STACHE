@@ -23,14 +23,14 @@ def apply_reward_wrappers(env, wrapper_config):
         return env
         
     # Apply ActionBonus wrapper if enabled
-    if wrapper_config.get("action_bonus", False):
+    if wrapper_config.get("action_bonus", True):
         env = ActionBonus(env)
-        print("Applied ActionBonus wrapper")
+        print("Applied ActionBonus wrapper.")
         
     # Apply PositionBonus wrapper if enabled
-    if wrapper_config.get("position_bonus", False):
+    if wrapper_config.get("position_bonus", True):
         env = PositionBonus(env)
-        print("Applied PositionBonus wrapper")
+        print("Applied PositionBonus wrapper.")
 
     return env
 

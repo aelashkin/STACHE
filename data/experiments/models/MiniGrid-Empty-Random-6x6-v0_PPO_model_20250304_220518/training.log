@@ -1,0 +1,27 @@
+Training completed for 100000 timesteps.
+Using device: cpu
+Evaluation of the best agent (on timestamp 85000) over 100 episodes:
+Mean Reward: 0.97, Std Reward: 0.01
+
+*Evaluation of all agents over 100 episodes, in chronological order*
+
+5000 - Mean Reward: 0.15, Std Reward: 0.35
+10000 - Mean Reward: 0.25, Std Reward: 0.43
+15000 - Mean Reward: 0.27, Std Reward: 0.44
+20000 - Mean Reward: 0.70, Std Reward: 0.43
+25000 - Mean Reward: 0.82, Std Reward: 0.35
+30000 - Mean Reward: 0.42, Std Reward: 0.48
+35000 - Mean Reward: 0.97, Std Reward: 0.01
+40000 - Mean Reward: 0.97, Std Reward: 0.01
+45000 - Mean Reward: 0.67, Std Reward: 0.45
+50000 - Mean Reward: 0.59, Std Reward: 0.47
+55000 - Mean Reward: 0.82, Std Reward: 0.35
+60000 - Mean Reward: 0.97, Std Reward: 0.01
+65000 - Mean Reward: 0.97, Std Reward: 0.01
+70000 - Mean Reward: 0.97, Std Reward: 0.01
+75000 - Mean Reward: 0.81, Std Reward: 0.37
+80000 - Mean Reward: 0.97, Std Reward: 0.10
+85000 - Mean Reward: 0.97, Std Reward: 0.01
+90000 - Mean Reward: 0.96, Std Reward: 0.10
+95000 - Mean Reward: 0.97, Std Reward: 0.01
+100000 - Mean Reward: 0.97, Std Reward: 0.01

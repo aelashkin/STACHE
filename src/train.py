@@ -3,6 +3,7 @@ import os
 import traceback
 from datetime import datetime
 import yaml
+import copy
 
 pythonpath = os.getenv("PYTHONPATH")
 if (pythonpath and pythonpath not in sys.path):
@@ -26,9 +27,16 @@ class CustomEvalAndSaveCallback(BaseCallback):
     Custom callback for evaluating the model during training and saving the best model.
     
     Evaluates the model every max(total_timesteps // 20, 5000) timesteps over n_eval_episodes.
-    If the current evaluation (using the current timestep as timestamp) shows a higher mean reward 
-    than all previous evaluations, the model is immediately saved (using save_model), replacing the old best.
-    All evaluation results are stored in a list so that at the end a complete log can be created.
+    If the current evaluation shows a higher mean reward than all previous evaluations,
+    the model is immediately saved (using save_model), replacing the old best model.
+    All evaluation results are stored for creating a complete training log.
+    
+    Parameters:
+        eval_env (gym.Env): Environment used for evaluation.
+        experiment_dir (str): Directory where the best model will be saved.
+        total_timesteps (int): Total number of training timesteps.
+        n_eval_episodes (int): Number of episodes to evaluate on.
+        verbose (int): Verbosity level (0: no output, 1: info).
     """
     def __init__(self, eval_env, experiment_dir, total_timesteps, n_eval_episodes=100, verbose=1):
         super(CustomEvalAndSaveCallback, self).__init__(verbose)
@@ -85,8 +93,29 @@ class CustomEvalAndSaveCallback(BaseCallback):
 
 def train_agent(env_config, model_config):
     """
-    Train the agent and save the model, configuration, and logs.
-    Also record the best model evaluation results.
+    Train a reinforcement learning agent based on provided configurations.
+    
+    Sets up the environment and model according to configurations, trains the model,
+    evaluates its performance, and saves all experiment artifacts.
+    
+    Parameters:
+        env_config (dict): Environment configuration containing parameters like:
+            - env_name: Name of the Gymnasium/MiniGrid environment.
+            - representation: Observation type ("symbolic", "image", or "standard").
+            - reward_wrappers: Optional reward modification wrappers.
+            - max_objects: Maximum number of objects for symbolic representation.
+            - max_walls: Maximum number of walls for symbolic representation.
+            - evaluate_with_modified_reward: Whether to use reward wrappers during evaluation.
+            
+        model_config (dict): Model configuration containing parameters like:
+            - model_type: Type of RL algorithm ("PPO" or "A2C").
+            - total_timesteps: Number of timesteps to train.
+            - n_steps, batch_size, learning_rate, etc.: Algorithm-specific parameters.
+            - device: Computing device to use ("cpu", "cuda", or "mps").
+    
+    Notes:
+        The function saves the trained model, configuration files, and training logs 
+        to the experiment directory using save_experiment(). It does not return any values.
     """
     # Generate a unified experiment directory under data/experiments/models
     from datetime import datetime
@@ -168,9 +197,14 @@ def train_agent(env_config, model_config):
 
 
     # Initialize the evaluation environment
-    eval_env = create_minigrid_env(env_config)
+    eval_env_config = copy.deepcopy(env_config)
+    if eval_env_config.get("evaluate_with_modified_reward") == False:
+        # Disable reward wrappers for evaluation
+        eval_env_config["reward_wrappers"] = None
 
-    total_timesteps = model_config["total_timesteps"]
+    eval_env = create_minigrid_env(eval_env_config)
+
+    total_timesteps = env_config["total_timesteps"]
 
     # Instantiate the custom evaluation callback
     eval_callback = CustomEvalAndSaveCallback(
@@ -183,7 +217,7 @@ def train_agent(env_config, model_config):
 
     # Step 5: Train the model
     print(f"Starting training for {total_timesteps} timesteps...")
-    model.learn(total_timesteps=total_timesteps, callback=eval_callback)
+    model.learn(total_timesteps=total_timesteps, callback=eval_callback, log_interval=10)
 
 
 
