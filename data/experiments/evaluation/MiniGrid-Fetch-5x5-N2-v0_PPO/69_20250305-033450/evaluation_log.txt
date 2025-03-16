@@ -1,0 +1,20 @@
+Episode start (seed=69):
+Initial observation: [ 2. 10.  0.  2.  3.  3.  6.  4.  0.  3.  2.  5.  3.  0.  2.  3.  0.  0.
+  0.  0.  0.  0.  0.  1.  0.  2.  0.  3.  0.  4.  0.  0.  4.  1.  4.  2.
+  4.  3.  4.  4.  4.  0.  1.  0.  2.  0.  3.  4.  1.  4.  2.  4.  3.  0.
+  0.  0.  0.  0.  0.  0.  0.  6.  4.]
+Initial info: {}
+
+Step 0: Saved initial frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/69_20250305-033450/images/step_000.png
+
+Step 0: Observation: [ 2. 10.  0.  2.  3.  3.  6.  4.  0.  3.  2.  5.  3.  0.  2.  3.  0.  0.
+  0.  0.  0.  0.  0.  1.  0.  2.  0.  3.  0.  4.  0.  0.  4.  1.  4.  2.
+  4.  3.  4.  4.  4.  0.  1.  0.  2.  0.  3.  4.  1.  4.  2.  4.  3.  0.
+  0.  0.  0.  0.  0.  0.  0.  6.  4.]
+Step 0: Action taken: 3
+Step 0: Reward: 0.9928
+Step 0: Terminated: True, Truncated: False
+Step 0: Info: {}
+Step 0: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/69_20250305-033450/images/step_000.png
+
+Episode ended.

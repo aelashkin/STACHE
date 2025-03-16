@@ -1,12 +1,16 @@
 # env_name: "MiniGrid-Fetch-5x5-N2-v0"
 model_type: "PPO"
 # total_timesteps: 100000
-n_steps: 128
-batch_size: 64
-ent_coef: 0.01
-learning_rate: 0.0003
-gamma: 0.99
-gae_lambda: 0.95
+
+
+# n_steps: 256
+# batch_size: 64
+# ent_coef: 0.001
+# learning_rate: 0.00025
+# gamma: 0.99
+# gae_lambda: 0.95
+
+
 # max_grad_norm: 0.5
 # ortho_init: True
 # net_arch: "small"
@@ -15,3 +19,18 @@ n_epochs: 10
 # clip_range: 0.2
 normalize_advantage: True
 device: "cpu"
+
+
+
+
+
+
+learning_rate: 0.002237219279503045
+exponent_n_steps: 7
+batch_size: 64
+n_epochs: 4
+ent_coef: 4.3795655188504955e-05
+vf_coef: 0.4579538461064703
+gae_lambda: 0.9407484464831842
+gamma: 0.8834470663443045
+n_steps: 128

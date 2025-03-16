@@ -62,7 +62,7 @@ def create_symbolic_minigrid_env(env_config: dict) -> gym.Env:
     env = FullyObsWrapper(env)
     env = FactorizedSymbolicWrapper(env)
     
-    env = PaddedObservationWrapper(env, max_objects=env_config["max_objects"], max_walls=env_config["max_walls"])
+    env = PaddedObservationWrapper(env, max_objects=env_config["max_objects"], max_walls=env_config["max_walls"], include_walls=False)
 
     return env
 

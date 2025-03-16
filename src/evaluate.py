@@ -208,9 +208,11 @@ def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None):
 if __name__ == "__main__":
     from src.utils import load_experiment
     # experiment_dir = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022445"
-    experiment_dir = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022445"
+    experiment_dir = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_040208"
     model, experiment_config = load_experiment(experiment_dir)
     env_config = experiment_config["env_config"]
+
+    seed = 71
     
     run_statistics_evaluation = False
     run_detailed_evaluation = True
@@ -224,5 +226,5 @@ if __name__ == "__main__":
         print("Statistics:", stats)
     
     if run_detailed_evaluation:
-        print("Running detailed policy evaluation for a single episode with seed 42...")
-        evaluate_single_policy_run(model, env_config, seed=42, max_steps=10)
+        print(f"Running detailed policy evaluation for a single episode with seed {seed}...")
+        evaluate_single_policy_run(model, env_config, seed=seed, max_steps=100)

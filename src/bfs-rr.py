@@ -397,7 +397,7 @@ if __name__ == '__main__':
     import datetime
 
     # Hardcode the model path (folder) to load the saved model.
-    model_path = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022817"
+    model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
 
     # Replace load_model with load_experiment.
     from utils import load_experiment

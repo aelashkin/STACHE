@@ -58,30 +58,30 @@ def sample_ppo_params(trial: optuna.Trial) -> Dict[str, Any]:
         Dict[str, Any]: Dictionary of sampled hyperparameter values.
     """
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-
-    n_steps = 2 ** trial.suggest_int("exponent_n_steps", 3, 10)
-    # Filter batch_size options to ensure compatibility with n_steps
-    valid_batch_sizes = [b for b in [32, 64, 128, 256] if n_steps % b == 0]
-    if not valid_batch_sizes:
-        raise ValueError(f"No valid batch_size for n_steps={n_steps}. Adjust ranges.")
     
-    # Sample compatible batch_size
-    batch_size = trial.suggest_categorical("batch_size", valid_batch_sizes)
-
+    # Sample from a power of 2 for the exponent
+    exponent = trial.suggest_int("exponent_n_steps", 3, 10)
+    n_steps_base = 2 ** exponent
+    
+    # Fixed batch size options
+    batch_size = trial.suggest_categorical("batch_size", [8, 16, 32, 64, 128, 256])
+    
+    # Adjust n_steps to be divisible by batch_size
+    n_steps = (n_steps_base // batch_size) * batch_size
+    if n_steps == 0:  # In case n_steps_base is smaller than batch_size
+        n_steps = batch_size
+    
     n_epochs = trial.suggest_int("n_epochs", 3, 12)
 
     gamma = 1.0 - trial.suggest_float("gamma", 0.0001, 0.2, log=True)
-    gae_lambda = 1.0 - trial.suggest_float("gae_lambda", 0.05, 0.2, log=True) #екн keep 0.95 as default
+    gae_lambda = 1.0 - trial.suggest_float("gae_lambda", 0.05, 0.2, log=True)
 
     ent_coef = trial.suggest_float("ent_coef", 1e-8, 1e-2, log=True)
     vf_coef = trial.suggest_float("vf_coef", 0.1, 1.0)
 
-    #check on these
-
     trial.set_user_attr("n_steps", n_steps)    
     trial.set_user_attr("gamma_", gamma)
     trial.set_user_attr("gae_lambda_", gae_lambda)
-
 
     return {
         "learning_rate": learning_rate,
@@ -125,3 +125,46 @@ class TrialEvalCallback(EvalCallback):
                 self.is_pruned = True
                 return False
         return True
+
+
+# class TrialEvalCallback(EvalCallback):
+#     def __init__(
+#         self,
+#         eval_env: gym.Env,
+#         trial: optuna.Trial,
+#         n_eval_episodes: int = 5,
+#         eval_freq: int = 10000,
+#         deterministic: bool = True,
+#         verbose: int = 0,
+#     ):
+#         super().__init__(
+#             eval_env=eval_env,
+#             n_eval_episodes=n_eval_episodes,
+#             eval_freq=eval_freq,
+#             deterministic=deterministic,
+#             verbose=verbose,
+#         )
+#         self.trial = trial
+#         self.eval_idx = 0
+#         self.is_pruned = False
+#         # New attributes for tracking the best evaluation reward and timestep.
+#         self.best_mean_reward = -float("inf")
+#         self.best_timestep = 0
+
+#     def _on_step(self) -> bool:
+#         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+#             super()._on_step()
+#             self.eval_idx += 1
+
+#             # Update best evaluation reward and corresponding timestep if improved
+#             if self.last_mean_reward > self.best_mean_reward:
+#                 self.best_mean_reward = self.last_mean_reward
+#                 self.best_timestep = self.n_calls
+#                 self.trial.set_user_attr("best_eval_reward", self.best_mean_reward)
+#                 self.trial.set_user_attr("best_timestep", self.best_timestep)
+
+#             self.trial.report(self.last_mean_reward, self.eval_idx)
+#             if self.trial.should_prune():
+#                 self.is_pruned = True
+#                 return False
+#         return True

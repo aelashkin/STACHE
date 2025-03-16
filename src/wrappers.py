@@ -230,26 +230,36 @@ class PaddedObservationWrapper(gym.ObservationWrapper):
 
       [direction,
        objects[0], objects[1], ..., objects[MAX_OBJECTS-1],
-       outer_walls[0], ..., outer_walls[MAX_WALLS-1],
+       outer_walls[0], ..., outer_walls[MAX_WALLS-1],  # only if include_walls=True
        goal_obj_idx, goal_color_idx]
 
     If there are fewer objects than MAX_OBJECTS, we pad the rest with 0s.
     If there are more objects, we truncate.
+    
+    Same for outer walls (if included).
 
-    Same for outer walls.
+    Parameters:
+        env (gym.Env): Environment to wrap
+        max_objects (int): Maximum number of objects to include in observation
+        max_walls (int): Maximum number of wall positions to include in observation
+        include_walls (bool): Whether to include outer walls in the observation
+
+    Returns:
+        np.ndarray: Fixed-size 1D numpy array representing the observation
     """
-    def __init__(self, env, max_objects=10, max_walls=25):
+    def __init__(self, env, max_objects=10, max_walls=25, include_walls=True):
         super().__init__(env)
 
         self.max_objects = max_objects
         self.max_walls = max_walls
+        self.include_walls = include_walls
 
         # Each object has 5 values: obj_idx, color_idx, state, x, y
         # We'll store them as float32 for convenience in neural nets.
         object_dim = 5 * self.max_objects
 
         # Each wall has 2 values (x, y)
-        wall_dim = 2 * self.max_walls
+        wall_dim = 2 * self.max_walls if self.include_walls else 0
 
         # We'll store direction as 1 dimension, and the goal as 2 dimensions.
         # So total = direction (1) + objects (object_dim) + walls (wall_dim) + goal (2).
@@ -267,18 +277,21 @@ class PaddedObservationWrapper(gym.ObservationWrapper):
 
     def observation(self, obs):
         """
-        Obs is a dict:
-          {
-            "direction": int in [0..3],
-            "objects": list of [obj_idx, color_idx, obj_state, x, y],
-            "outer_walls": list of (x, y),
-            "goal": [obj_idx, color_idx]
-          }
-        We convert it into a float32 array of size self.obs_dim.
+        Converts dictionary observation from FactorizedSymbolicWrapper to a fixed-size array.
+        
+        Parameters:
+            obs (dict): Dictionary containing:
+              - "direction": int in [0..3]
+              - "objects": list of [obj_idx, color_idx, obj_state, x, y]
+              - "outer_walls": list of (x, y)
+              - "goal": [obj_idx, color_idx]
+              
+        Returns:
+            np.ndarray: Fixed-size array containing the flattened observation
         """
         direction = obs["direction"]
         objects = obs["objects"]
-        outer_walls = obs["outer_walls"]
+        outer_walls = obs["outer_walls"] if self.include_walls else []
         goal = obs["goal"]
 
         # Prepare the final array
@@ -294,15 +307,18 @@ class PaddedObservationWrapper(gym.ObservationWrapper):
             start_idx = 1 + i * 5
             obs_array[start_idx : start_idx + 5] = obj_info
 
-        # 3) Insert outer_walls (up to max_walls)
-        # each wall is (x, y)
-        wall_offset = 1 + self.max_objects * 5
-        for i, wall_xy in enumerate(outer_walls[: self.max_walls]):
-            start_idx = wall_offset + i * 2
-            obs_array[start_idx : start_idx + 2] = wall_xy
+        # 3) Insert outer_walls (up to max_walls) if include_walls is True
+        if self.include_walls:
+            wall_offset = 1 + self.max_objects * 5
+            for i, wall_xy in enumerate(outer_walls[: self.max_walls]):
+                start_idx = wall_offset + i * 2
+                obs_array[start_idx : start_idx + 2] = wall_xy
+            goal_offset = wall_offset + self.max_walls * 2
+        else:
+            # If walls are not included, goal comes right after objects
+            goal_offset = 1 + self.max_objects * 5
 
         # 4) Insert goal (last 2 slots: obj_idx, color_idx)
-        goal_offset = wall_offset + self.max_walls * 2
         obs_array[goal_offset : goal_offset + 2] = goal
 
         return obs_array

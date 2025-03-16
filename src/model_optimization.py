@@ -12,11 +12,11 @@ import yaml
 from datetime import datetime
 
 from src.utils import load_config, get_device, ModelType
-from src.environment_utils import create_symbolic_minigrid_env
+from src.environment_utils import create_symbolic_minigrid_env, create_minigrid_env
 from src.hyperparameter_utils import sample_a2c_params, sample_ppo_params, TrialEvalCallback
 
 
-N_TRIALS = 50  # Total number of Optuna trials for hyperparameter optimization
+N_TRIALS = 10  # Total number of Optuna trials for hyperparameter optimization
 N_STARTUP_TRIALS = 5  # Initial random trials before optimization logic is applied
 N_EVALUATIONS = 2  # Number of evaluations during each training trial
 N_TIMESTEPS = 10000  # Total timesteps for training the agent in each trial
@@ -27,6 +27,53 @@ N_EVAL_EPISODES = 50  # Number of episodes to average performance during evaluat
 MODEL_TYPE = ModelType.A2C
 MULTICORE = False
 
+
+# def objective(trial: optuna.Trial) -> float:
+#     try:
+#         if MODEL_TYPE == ModelType.A2C:
+#             config_file = "config/training_config_A2C.yml"
+#             sample_params_func = sample_a2c_params
+#             ModelClass = A2C
+#         else:
+#             config_file = "config/training_config_PPO.yml"
+#             sample_params_func = sample_ppo_params
+#             ModelClass = PPO
+
+#         env_config = load_config("config/training_config_env.yml")
+#         model_config = load_config(config_file)
+#     except (FileNotFoundError, yaml.YAMLError) as e:
+#         raise RuntimeError(f"Configuration loading failed: {e}")
+
+#     device = get_device(model_config.get("device", "cpu"))
+#     env = create_symbolic_minigrid_env(env_config)
+
+#     kwargs = sample_params_func(trial)
+#     kwargs["env"] = env
+#     kwargs["policy"] = "MlpPolicy"
+#     kwargs["device"] = device
+
+#     model = ModelClass(**kwargs)
+#     eval_env = Monitor(env)
+#     eval_callback = TrialEvalCallback(
+#         eval_env, trial, n_eval_episodes=N_EVAL_EPISODES, eval_freq=EVAL_FREQ, deterministic=True
+#     )
+
+#     nan_encountered = False
+#     try:
+#         model.learn(total_timesteps=model_config["total_timesteps"], callback=eval_callback)
+#     except Exception as e:
+#         print(e)
+#         nan_encountered = True
+#     finally:
+#         model.env.close()
+#         eval_env.close()
+
+#     if nan_encountered:
+#         return float("nan")
+#     if eval_callback.is_pruned:
+#         raise optuna.exceptions.TrialPruned()
+
+#     return eval_callback.last_mean_reward
 
 def objective(trial: optuna.Trial) -> float:
     try:
@@ -45,7 +92,7 @@ def objective(trial: optuna.Trial) -> float:
         raise RuntimeError(f"Configuration loading failed: {e}")
 
     device = get_device(model_config.get("device", "cpu"))
-    env = create_symbolic_minigrid_env(env_config)
+    env = create_minigrid_env(env_config)
 
     kwargs = sample_params_func(trial)
     kwargs["env"] = env
@@ -73,7 +120,9 @@ def objective(trial: optuna.Trial) -> float:
     if eval_callback.is_pruned:
         raise optuna.exceptions.TrialPruned()
 
-    return eval_callback.last_mean_reward
+    # Return the best evaluation reward observed (the early stopping point)
+    return eval_callback.best_mean_reward
+
 
 
 if __name__ == "__main__":

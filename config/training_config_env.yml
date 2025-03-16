@@ -1,11 +1,15 @@
 #sample env: "MiniGrid-Fetch-5x5-N2-v0", "MiniGrid-Empty-8x8-v0"
-# env_name: "MiniGrid-Fetch-5x5-N2-v0"
+
+env_name: "MiniGrid-Fetch-5x5-N2-v0"
 # env_name: "MiniGrid-Empty-Random-5x5-v0"
 
 # env_name: "MiniGrid-Empty-8x8-v0"
-env_name: "MiniGrid-Empty-Random-6x6-v0"
+# env_name: "MiniGrid-Empty-Random-6x6-v0"
 
-total_timesteps: 100000
+# env_name: "MiniGrid-DoorKey-5x5-v0"
+
+
+total_timesteps: 150000
 
 # Possible values for representation: "symbolic", "image", "standard"
 # representation: "standard"
@@ -13,11 +17,11 @@ total_timesteps: 100000
 representation: "symbolic"
 
 # Define render mode for gymnasium.make
-render_mode: "rgb"
+render_mode: "rgb_array"
 
 #parameters for symbolic representation
-max_objects: 10
-max_walls: 32
+max_objects: 4
+max_walls: 20
 
 # Reward wrappers configuration
 reward_wrappers:

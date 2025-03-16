@@ -1,0 +1,808 @@
+Episode start (seed=71):
+Initial observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Initial info: {}
+
+Step 0: Saved initial frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_000.png
+
+Step 0: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 0: Action taken: 3
+Step 0: Reward: 0
+Step 0: Terminated: False, Truncated: False
+Step 0: Info: {}
+Step 0: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_000.png
+
+Step 1: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 1: Action taken: 3
+Step 1: Reward: 0
+Step 1: Terminated: False, Truncated: False
+Step 1: Info: {}
+Step 1: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_001.png
+
+Step 2: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 2: Action taken: 3
+Step 2: Reward: 0
+Step 2: Terminated: False, Truncated: False
+Step 2: Info: {}
+Step 2: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_002.png
+
+Step 3: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 3: Action taken: 3
+Step 3: Reward: 0
+Step 3: Terminated: False, Truncated: False
+Step 3: Info: {}
+Step 3: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_003.png
+
+Step 4: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 4: Action taken: 3
+Step 4: Reward: 0
+Step 4: Terminated: False, Truncated: False
+Step 4: Info: {}
+Step 4: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_004.png
+
+Step 5: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 5: Action taken: 3
+Step 5: Reward: 0
+Step 5: Terminated: False, Truncated: False
+Step 5: Info: {}
+Step 5: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_005.png
+
+Step 6: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 6: Action taken: 3
+Step 6: Reward: 0
+Step 6: Terminated: False, Truncated: False
+Step 6: Info: {}
+Step 6: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_006.png
+
+Step 7: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 7: Action taken: 3
+Step 7: Reward: 0
+Step 7: Terminated: False, Truncated: False
+Step 7: Info: {}
+Step 7: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_007.png
+
+Step 8: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 8: Action taken: 3
+Step 8: Reward: 0
+Step 8: Terminated: False, Truncated: False
+Step 8: Info: {}
+Step 8: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_008.png
+
+Step 9: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 9: Action taken: 3
+Step 9: Reward: 0
+Step 9: Terminated: False, Truncated: False
+Step 9: Info: {}
+Step 9: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_009.png
+
+Step 10: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 10: Action taken: 3
+Step 10: Reward: 0
+Step 10: Terminated: False, Truncated: False
+Step 10: Info: {}
+Step 10: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_010.png
+
+Step 11: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 11: Action taken: 3
+Step 11: Reward: 0
+Step 11: Terminated: False, Truncated: False
+Step 11: Info: {}
+Step 11: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_011.png
+
+Step 12: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 12: Action taken: 3
+Step 12: Reward: 0
+Step 12: Terminated: False, Truncated: False
+Step 12: Info: {}
+Step 12: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_012.png
+
+Step 13: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 13: Action taken: 3
+Step 13: Reward: 0
+Step 13: Terminated: False, Truncated: False
+Step 13: Info: {}
+Step 13: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_013.png
+
+Step 14: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 14: Action taken: 3
+Step 14: Reward: 0
+Step 14: Terminated: False, Truncated: False
+Step 14: Info: {}
+Step 14: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_014.png
+
+Step 15: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 15: Action taken: 3
+Step 15: Reward: 0
+Step 15: Terminated: False, Truncated: False
+Step 15: Info: {}
+Step 15: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_015.png
+
+Step 16: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 16: Action taken: 3
+Step 16: Reward: 0
+Step 16: Terminated: False, Truncated: False
+Step 16: Info: {}
+Step 16: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_016.png
+
+Step 17: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 17: Action taken: 3
+Step 17: Reward: 0
+Step 17: Terminated: False, Truncated: False
+Step 17: Info: {}
+Step 17: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_017.png
+
+Step 18: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 18: Action taken: 3
+Step 18: Reward: 0
+Step 18: Terminated: False, Truncated: False
+Step 18: Info: {}
+Step 18: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_018.png
+
+Step 19: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 19: Action taken: 3
+Step 19: Reward: 0
+Step 19: Terminated: False, Truncated: False
+Step 19: Info: {}
+Step 19: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_019.png
+
+Step 20: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 20: Action taken: 3
+Step 20: Reward: 0
+Step 20: Terminated: False, Truncated: False
+Step 20: Info: {}
+Step 20: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_020.png
+
+Step 21: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 21: Action taken: 3
+Step 21: Reward: 0
+Step 21: Terminated: False, Truncated: False
+Step 21: Info: {}
+Step 21: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_021.png
+
+Step 22: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 22: Action taken: 3
+Step 22: Reward: 0
+Step 22: Terminated: False, Truncated: False
+Step 22: Info: {}
+Step 22: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_022.png
+
+Step 23: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 23: Action taken: 3
+Step 23: Reward: 0
+Step 23: Terminated: False, Truncated: False
+Step 23: Info: {}
+Step 23: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_023.png
+
+Step 24: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 24: Action taken: 3
+Step 24: Reward: 0
+Step 24: Terminated: False, Truncated: False
+Step 24: Info: {}
+Step 24: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_024.png
+
+Step 25: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 25: Action taken: 3
+Step 25: Reward: 0
+Step 25: Terminated: False, Truncated: False
+Step 25: Info: {}
+Step 25: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_025.png
+
+Step 26: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 26: Action taken: 3
+Step 26: Reward: 0
+Step 26: Terminated: False, Truncated: False
+Step 26: Info: {}
+Step 26: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_026.png
+
+Step 27: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 27: Action taken: 3
+Step 27: Reward: 0
+Step 27: Terminated: False, Truncated: False
+Step 27: Info: {}
+Step 27: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_027.png
+
+Step 28: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 28: Action taken: 3
+Step 28: Reward: 0
+Step 28: Terminated: False, Truncated: False
+Step 28: Info: {}
+Step 28: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_028.png
+
+Step 29: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 29: Action taken: 3
+Step 29: Reward: 0
+Step 29: Terminated: False, Truncated: False
+Step 29: Info: {}
+Step 29: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_029.png
+
+Step 30: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 30: Action taken: 3
+Step 30: Reward: 0
+Step 30: Terminated: False, Truncated: False
+Step 30: Info: {}
+Step 30: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_030.png
+
+Step 31: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 31: Action taken: 3
+Step 31: Reward: 0
+Step 31: Terminated: False, Truncated: False
+Step 31: Info: {}
+Step 31: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_031.png
+
+Step 32: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 32: Action taken: 3
+Step 32: Reward: 0
+Step 32: Terminated: False, Truncated: False
+Step 32: Info: {}
+Step 32: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_032.png
+
+Step 33: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 33: Action taken: 3
+Step 33: Reward: 0
+Step 33: Terminated: False, Truncated: False
+Step 33: Info: {}
+Step 33: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_033.png
+
+Step 34: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 34: Action taken: 3
+Step 34: Reward: 0
+Step 34: Terminated: False, Truncated: False
+Step 34: Info: {}
+Step 34: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_034.png
+
+Step 35: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 35: Action taken: 3
+Step 35: Reward: 0
+Step 35: Terminated: False, Truncated: False
+Step 35: Info: {}
+Step 35: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_035.png
+
+Step 36: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 36: Action taken: 3
+Step 36: Reward: 0
+Step 36: Terminated: False, Truncated: False
+Step 36: Info: {}
+Step 36: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_036.png
+
+Step 37: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 37: Action taken: 3
+Step 37: Reward: 0
+Step 37: Terminated: False, Truncated: False
+Step 37: Info: {}
+Step 37: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_037.png
+
+Step 38: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 38: Action taken: 3
+Step 38: Reward: 0
+Step 38: Terminated: False, Truncated: False
+Step 38: Info: {}
+Step 38: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_038.png
+
+Step 39: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 39: Action taken: 3
+Step 39: Reward: 0
+Step 39: Terminated: False, Truncated: False
+Step 39: Info: {}
+Step 39: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_039.png
+
+Step 40: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 40: Action taken: 3
+Step 40: Reward: 0
+Step 40: Terminated: False, Truncated: False
+Step 40: Info: {}
+Step 40: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_040.png
+
+Step 41: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 41: Action taken: 3
+Step 41: Reward: 0
+Step 41: Terminated: False, Truncated: False
+Step 41: Info: {}
+Step 41: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_041.png
+
+Step 42: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 42: Action taken: 3
+Step 42: Reward: 0
+Step 42: Terminated: False, Truncated: False
+Step 42: Info: {}
+Step 42: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_042.png
+
+Step 43: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 43: Action taken: 3
+Step 43: Reward: 0
+Step 43: Terminated: False, Truncated: False
+Step 43: Info: {}
+Step 43: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_043.png
+
+Step 44: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 44: Action taken: 3
+Step 44: Reward: 0
+Step 44: Terminated: False, Truncated: False
+Step 44: Info: {}
+Step 44: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_044.png
+
+Step 45: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 45: Action taken: 3
+Step 45: Reward: 0
+Step 45: Terminated: False, Truncated: False
+Step 45: Info: {}
+Step 45: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_045.png
+
+Step 46: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 46: Action taken: 3
+Step 46: Reward: 0
+Step 46: Terminated: False, Truncated: False
+Step 46: Info: {}
+Step 46: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_046.png
+
+Step 47: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 47: Action taken: 3
+Step 47: Reward: 0
+Step 47: Terminated: False, Truncated: False
+Step 47: Info: {}
+Step 47: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_047.png
+
+Step 48: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 48: Action taken: 3
+Step 48: Reward: 0
+Step 48: Terminated: False, Truncated: False
+Step 48: Info: {}
+Step 48: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_048.png
+
+Step 49: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 49: Action taken: 3
+Step 49: Reward: 0
+Step 49: Terminated: False, Truncated: False
+Step 49: Info: {}
+Step 49: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_049.png
+
+Step 50: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 50: Action taken: 3
+Step 50: Reward: 0
+Step 50: Terminated: False, Truncated: False
+Step 50: Info: {}
+Step 50: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_050.png
+
+Step 51: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 51: Action taken: 3
+Step 51: Reward: 0
+Step 51: Terminated: False, Truncated: False
+Step 51: Info: {}
+Step 51: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_051.png
+
+Step 52: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 52: Action taken: 3
+Step 52: Reward: 0
+Step 52: Terminated: False, Truncated: False
+Step 52: Info: {}
+Step 52: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_052.png
+
+Step 53: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 53: Action taken: 3
+Step 53: Reward: 0
+Step 53: Terminated: False, Truncated: False
+Step 53: Info: {}
+Step 53: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_053.png
+
+Step 54: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 54: Action taken: 3
+Step 54: Reward: 0
+Step 54: Terminated: False, Truncated: False
+Step 54: Info: {}
+Step 54: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_054.png
+
+Step 55: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 55: Action taken: 3
+Step 55: Reward: 0
+Step 55: Terminated: False, Truncated: False
+Step 55: Info: {}
+Step 55: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_055.png
+
+Step 56: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 56: Action taken: 3
+Step 56: Reward: 0
+Step 56: Terminated: False, Truncated: False
+Step 56: Info: {}
+Step 56: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_056.png
+
+Step 57: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 57: Action taken: 3
+Step 57: Reward: 0
+Step 57: Terminated: False, Truncated: False
+Step 57: Info: {}
+Step 57: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_057.png
+
+Step 58: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 58: Action taken: 3
+Step 58: Reward: 0
+Step 58: Terminated: False, Truncated: False
+Step 58: Info: {}
+Step 58: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_058.png
+
+Step 59: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 59: Action taken: 3
+Step 59: Reward: 0
+Step 59: Terminated: False, Truncated: False
+Step 59: Info: {}
+Step 59: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_059.png
+
+Step 60: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 60: Action taken: 3
+Step 60: Reward: 0
+Step 60: Terminated: False, Truncated: False
+Step 60: Info: {}
+Step 60: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_060.png
+
+Step 61: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 61: Action taken: 3
+Step 61: Reward: 0
+Step 61: Terminated: False, Truncated: False
+Step 61: Info: {}
+Step 61: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_061.png
+
+Step 62: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 62: Action taken: 3
+Step 62: Reward: 0
+Step 62: Terminated: False, Truncated: False
+Step 62: Info: {}
+Step 62: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_062.png
+
+Step 63: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 63: Action taken: 3
+Step 63: Reward: 0
+Step 63: Terminated: False, Truncated: False
+Step 63: Info: {}
+Step 63: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_063.png
+
+Step 64: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 64: Action taken: 3
+Step 64: Reward: 0
+Step 64: Terminated: False, Truncated: False
+Step 64: Info: {}
+Step 64: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_064.png
+
+Step 65: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 65: Action taken: 3
+Step 65: Reward: 0
+Step 65: Terminated: False, Truncated: False
+Step 65: Info: {}
+Step 65: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_065.png
+
+Step 66: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 66: Action taken: 3
+Step 66: Reward: 0
+Step 66: Terminated: False, Truncated: False
+Step 66: Info: {}
+Step 66: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_066.png
+
+Step 67: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 67: Action taken: 3
+Step 67: Reward: 0
+Step 67: Terminated: False, Truncated: False
+Step 67: Info: {}
+Step 67: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_067.png
+
+Step 68: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 68: Action taken: 3
+Step 68: Reward: 0
+Step 68: Terminated: False, Truncated: False
+Step 68: Info: {}
+Step 68: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_068.png
+
+Step 69: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 69: Action taken: 3
+Step 69: Reward: 0
+Step 69: Terminated: False, Truncated: False
+Step 69: Info: {}
+Step 69: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_069.png
+
+Step 70: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 70: Action taken: 3
+Step 70: Reward: 0
+Step 70: Terminated: False, Truncated: False
+Step 70: Info: {}
+Step 70: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_070.png
+
+Step 71: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 71: Action taken: 3
+Step 71: Reward: 0
+Step 71: Terminated: False, Truncated: False
+Step 71: Info: {}
+Step 71: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_071.png
+
+Step 72: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 72: Action taken: 3
+Step 72: Reward: 0
+Step 72: Terminated: False, Truncated: False
+Step 72: Info: {}
+Step 72: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_072.png
+
+Step 73: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 73: Action taken: 3
+Step 73: Reward: 0
+Step 73: Terminated: False, Truncated: False
+Step 73: Info: {}
+Step 73: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_073.png
+
+Step 74: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 74: Action taken: 3
+Step 74: Reward: 0
+Step 74: Terminated: False, Truncated: False
+Step 74: Info: {}
+Step 74: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_074.png
+
+Step 75: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 75: Action taken: 3
+Step 75: Reward: 0
+Step 75: Terminated: False, Truncated: False
+Step 75: Info: {}
+Step 75: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_075.png
+
+Step 76: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 76: Action taken: 3
+Step 76: Reward: 0
+Step 76: Terminated: False, Truncated: False
+Step 76: Info: {}
+Step 76: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_076.png
+
+Step 77: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 77: Action taken: 3
+Step 77: Reward: 0
+Step 77: Terminated: False, Truncated: False
+Step 77: Info: {}
+Step 77: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_077.png
+
+Step 78: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 78: Action taken: 3
+Step 78: Reward: 0
+Step 78: Terminated: False, Truncated: False
+Step 78: Info: {}
+Step 78: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_078.png
+
+Step 79: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 79: Action taken: 3
+Step 79: Reward: 0
+Step 79: Terminated: False, Truncated: False
+Step 79: Info: {}
+Step 79: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_079.png
+
+Step 80: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 80: Action taken: 3
+Step 80: Reward: 0
+Step 80: Terminated: False, Truncated: False
+Step 80: Info: {}
+Step 80: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_080.png
+
+Step 81: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 81: Action taken: 3
+Step 81: Reward: 0
+Step 81: Terminated: False, Truncated: False
+Step 81: Info: {}
+Step 81: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_081.png
+
+Step 82: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 82: Action taken: 3
+Step 82: Reward: 0
+Step 82: Terminated: False, Truncated: False
+Step 82: Info: {}
+Step 82: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_082.png
+
+Step 83: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 83: Action taken: 3
+Step 83: Reward: 0
+Step 83: Terminated: False, Truncated: False
+Step 83: Info: {}
+Step 83: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_083.png
+
+Step 84: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 84: Action taken: 3
+Step 84: Reward: 0
+Step 84: Terminated: False, Truncated: False
+Step 84: Info: {}
+Step 84: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_084.png
+
+Step 85: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 85: Action taken: 3
+Step 85: Reward: 0
+Step 85: Terminated: False, Truncated: False
+Step 85: Info: {}
+Step 85: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_085.png
+
+Step 86: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 86: Action taken: 3
+Step 86: Reward: 0
+Step 86: Terminated: False, Truncated: False
+Step 86: Info: {}
+Step 86: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_086.png
+
+Step 87: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 87: Action taken: 3
+Step 87: Reward: 0
+Step 87: Terminated: False, Truncated: False
+Step 87: Info: {}
+Step 87: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_087.png
+
+Step 88: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 88: Action taken: 3
+Step 88: Reward: 0
+Step 88: Terminated: False, Truncated: False
+Step 88: Info: {}
+Step 88: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_088.png
+
+Step 89: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 89: Action taken: 3
+Step 89: Reward: 0
+Step 89: Terminated: False, Truncated: False
+Step 89: Info: {}
+Step 89: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_089.png
+
+Step 90: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 90: Action taken: 3
+Step 90: Reward: 0
+Step 90: Terminated: False, Truncated: False
+Step 90: Info: {}
+Step 90: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_090.png
+
+Step 91: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 91: Action taken: 3
+Step 91: Reward: 0
+Step 91: Terminated: False, Truncated: False
+Step 91: Info: {}
+Step 91: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_091.png
+
+Step 92: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 92: Action taken: 3
+Step 92: Reward: 0
+Step 92: Terminated: False, Truncated: False
+Step 92: Info: {}
+Step 92: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_092.png
+
+Step 93: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 93: Action taken: 3
+Step 93: Reward: 0
+Step 93: Terminated: False, Truncated: False
+Step 93: Info: {}
+Step 93: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_093.png
+
+Step 94: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 94: Action taken: 3
+Step 94: Reward: 0
+Step 94: Terminated: False, Truncated: False
+Step 94: Info: {}
+Step 94: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_094.png
+
+Step 95: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 95: Action taken: 3
+Step 95: Reward: 0
+Step 95: Terminated: False, Truncated: False
+Step 95: Info: {}
+Step 95: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_095.png
+
+Step 96: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 96: Action taken: 3
+Step 96: Reward: 0
+Step 96: Terminated: False, Truncated: False
+Step 96: Info: {}
+Step 96: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_096.png
+
+Step 97: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 97: Action taken: 3
+Step 97: Reward: 0
+Step 97: Terminated: False, Truncated: False
+Step 97: Info: {}
+Step 97: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_097.png
+
+Step 98: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 98: Action taken: 3
+Step 98: Reward: 0
+Step 98: Terminated: False, Truncated: False
+Step 98: Info: {}
+Step 98: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_098.png
+
+Step 99: Observation: [ 0. 10.  0.  0.  1.  3.  6.  0.  0.  3.  1.  6.  1.  0.  2.  2.  0.  0.
+  0.  0.  0.  6.  1.]
+Step 99: Action taken: 3
+Step 99: Reward: 0
+Step 99: Terminated: False, Truncated: False
+Step 99: Info: {}
+Step 99: Saved frame at data/experiments/evaluation/MiniGrid-Fetch-5x5-N2-v0_PPO/71_20250305-035613/images/step_099.png
+
+Episode ended.

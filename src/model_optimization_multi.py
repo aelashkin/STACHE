@@ -23,14 +23,17 @@ import yaml
 from datetime import datetime
 
 from src.utils import load_config, get_device, ModelType
-from src.environment_utils import create_symbolic_minigrid_env
+from src.environment_utils import create_minigrid_env, create_symbolic_minigrid_env
 from src.hyperparameter_utils import sample_a2c_params, sample_ppo_params, TrialEvalCallback
+from utils import save_config
 
 
-N_TRIALS = 50  # Total number of Optuna trials for hyperparameter optimization
+from optuna.study import MaxTrialsCallback
+
+N_TRIALS = 70  # Total number of Optuna trials for hyperparameter optimization
 N_STARTUP_TRIALS = 5  # Initial random trials before optimization logic is applied
 N_EVALUATIONS = 2  # Number of evaluations during each training trial
-N_TIMESTEPS = 10000  # Total timesteps for training the agent in each trial
+N_TIMESTEPS = 50000  # Total timesteps for training the agent in each trial
 EVAL_FREQ = int(N_TIMESTEPS / N_EVALUATIONS)  # Timesteps between each evaluation
 N_EVAL_EPISODES = 50  # Number of episodes to average performance during evaluation
 
@@ -56,7 +59,7 @@ def objective(trial: optuna.Trial) -> float:
         raise RuntimeError(f"Configuration loading failed: {e}")
 
     device = get_device(model_config.get("device", "cpu"))
-    env = create_symbolic_minigrid_env(env_config)
+    env = create_minigrid_env(env_config)
 
     kwargs = sample_params_func(trial)
     kwargs["env"] = env
@@ -71,7 +74,7 @@ def objective(trial: optuna.Trial) -> float:
 
     nan_encountered = False
     try:
-        model.learn(total_timesteps=model_config["total_timesteps"], callback=eval_callback)
+        model.learn(total_timesteps=N_TIMESTEPS, callback=eval_callback)
     except Exception as e:
         print(e)
         nan_encountered = True
@@ -102,7 +105,7 @@ if __name__ == "__main__":
 
     #Check on the best way to define study name with date here
     if MODEL_TYPE == ModelType.PPO:
-        study_name = f"PPO_1"
+        study_name = f"PPO_4"
     elif MODEL_TYPE == ModelType.A2C:
         study_name = f"A2C_2"
 
@@ -127,8 +130,12 @@ if __name__ == "__main__":
     
     
     print("Starting optimization...")
+    # the study will stop when all processes reach N_TRIALS trials jointly
     try:
-        study.optimize(objective, n_trials=N_TRIALS, n_jobs=1, show_progress_bar=True)
+        study.optimize(objective, 
+                       callbacks=[MaxTrialsCallback(N_TRIALS, states=None)],
+                       n_jobs=1, 
+                       show_progress_bar=True)
     except KeyboardInterrupt:
         pass
 
@@ -142,3 +149,48 @@ if __name__ == "__main__":
     print("  User attrs:")
     for key, value in trial.user_attrs.items():
         print(f"    {key}: {value}")
+    
+    # Save best parameters to file
+    env_config = load_config("config/training_config_env.yml")
+    env_name = env_config.get("env_name", "unknown_env")
+    
+    # Create directory structure
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    model_name = "PPO" if MODEL_TYPE == ModelType.PPO else "A2C"
+    experiment_folder_name = f"{env_name}_{model_name}_model_{timestamp}"
+    experiment_base_dir = "data/experiments/optuna"
+    experiment_dir = os.path.join(project_root, experiment_base_dir, experiment_folder_name)
+    os.makedirs(experiment_dir, exist_ok=True)
+    
+    # Create model config from best parameters
+    model_config = {
+        "model_type": model_name,
+        **trial.params
+    }
+    # Add user attributes to model config
+    for key, value in trial.user_attrs.items():
+        model_config[key] = value
+    
+    # Save config
+    config_path = save_config(env_config, model_config, experiment_dir)
+    print(f"Best parameters saved at: {config_path}")
+    
+    # Create optimization log content
+    optimization_log = [
+        f"Optimization completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Study name: {study_name}",
+        f"Number of finished trials: {len(study.trials)}",
+        f"Best trial value: {trial.value}",
+        "\nBest parameters:"
+    ]
+    for key, value in trial.params.items():
+        optimization_log.append(f"  {key}: {value}")
+    optimization_log.append("\nUser attributes:")
+    for key, value in trial.user_attrs.items():
+        optimization_log.append(f"  {key}: {value}")
+    
+    # Save optimization log
+    log_path = os.path.join(experiment_dir, "optimization.log")
+    with open(log_path, "w") as file:
+        file.write("\n".join(optimization_log))
+    print(f"Optimization log saved at: {log_path}")
