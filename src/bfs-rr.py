@@ -28,9 +28,15 @@ import gymnasium as gym
 import numpy as np
 
 
+from utils import load_experiment
+from environment_utils import create_minigrid_env
+
+
 # variables for running main without console input
 
-model_file = "data/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250210_205058.zip"
+# Hardcode the model path (folder) to load the saved model.
+model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
+max_gen_objects = 2
 
 # === Global mappings (these must be consistent with your environment) ===
 
@@ -141,7 +147,37 @@ def get_occupied_positions(state, exclude_idx=None):
     return occupied
 
 
-def get_neighbors(state, max_gen_objects=10):
+def get_neighbors(state, env_name, max_gen_objects=2, **kwargs):
+    """
+    Dispatch to the correct environment-specific neighbor function
+    based on env_name.
+    """
+    if "fetch" in env_name.lower():
+        return get_neighbors_fetch_old(state, max_gen_objects=max_gen_objects, **kwargs)
+    elif "empty" in env_name.lower():
+        return get_neighbors_empty(state, max_gen_objects=max_gen_objects, **kwargs)
+    elif "doorkey" in env_name.lower():
+        return get_neighbors_doorkey(state, max_gen_objects=max_gen_objects, **kwargs)
+    else:
+        raise ValueError(f"get_neighbors not implemented for env_name: {env_name}")
+
+
+def get_neighbors_empty(state, max_gen_objects=10, **kwargs):
+    """
+    TODO: Implement neighbor-generation logic for 'MiniGrid-Empty' environments.
+    Currently returns an empty list as a placeholder.
+    """
+    return []
+
+def get_neighbors_doorkey(state, max_gen_objects=10, **kwargs):
+    """
+    TODO: Implement neighbor-generation logic for 'MiniGrid-DoorKey' environments.
+    Currently returns an empty list as a placeholder.
+    """
+    return []
+
+
+def get_neighbors_fetch_old(state, max_gen_objects, **kwargs):
     """
     Given a symbolic state (dict), returns a list of neighbor states that are
     exactly one atomic modification (L1 difference of 1) away.
@@ -301,9 +337,10 @@ def get_symbolic_env(env):
 def bfs_rr(
     initial_state,
     model,
-    max_obs_objects=10,        # For symbolic_to_array / PaddedObservation
+    env_name,
+    max_obs_objects=10,  # For symbolic_to_array / PaddedObservation
     max_walls=25,
-    max_neighbors_objects=2,     # For neighbor generation only
+    max_gen_objects=2,   # For neighbor generation only
     max_depth=10,
 ):
     """
@@ -312,34 +349,40 @@ def bfs_rr(
     for which the model produces the same action as for the initial_state.
 
     Parameters:
-      - initial_state: a dictionary representing the factored state.
+      - initial_state (dict): a dictionary representing the factored state.
       - model: a Stable Baselines 3 model (or similar) that has a predict(obs, deterministic=True)
                method. The observation must be produced via symbolic_to_array().
-      - max_obs_objects: maximum number of objects used for the observation's fixed-size array.
-      - max_walls: maximum number of outer walls (used for observation conversion).
-      - max_neighbors_objects: maximum number of objects allowed in the state when generating neighbors
-         (i.e., the BFS expansions).
+      - env_name (str): The name of the MiniGrid environment (e.g., 'MiniGrid-Fetch-5x5-N2-v0').
+      - max_obs_objects (int): maximum number of objects used for the observation's fixed-size array.
+      - max_walls (int): maximum number of outer walls (used for observation conversion).
+      - max_gen_objects (int): maximum number of objects allowed in the state when generating neighbors
+                               (i.e., the BFS expansions).
+      - max_depth (int): maximum number of nodes to dequeue/expand in the BFS.
 
     Returns:
-      - robustness_region: a list of symbolic states (each a dict) in the robustness region, ordered by discovery.
-      - stats: a dictionary containing statistics about the BFS, including:
-          * "region_size": number of states in the robustness region,
-          * "total_opened_nodes": total number of nodes expanded (popped from the queue),
-          * "visited_count": total number of visited states,
-          * "elapsed_time": time taken in seconds to compute the region.
+      - robustness_region (list): a list of symbolic states (each a dict) in the robustness region,
+                                  in the order discovered.
+      - stats (dict): dictionary containing statistics about the BFS, including:
+          * "initial_action"
+          * "region_size": number of states in the robustness region
+          * "total_opened_nodes": total number of nodes expanded
+          * "visited_count": total number of visited states
+          * "elapsed_time": time taken (seconds)
     """
     import time
+    from collections import deque
+    
     start_time = time.time()
     total_opened_nodes = 0
 
-    # 1. Get the initial action
+    # 1. Get the initial action for the starting state
     initial_obs = symbolic_to_array(initial_state, max_obs_objects, max_walls)
     initial_action, _ = model.predict(initial_obs, deterministic=True)
 
     # 2. Initialize BFS structures
-    region = {}               # Mapping key -> state (for uniqueness)
-    robustness_region = []    # List of states in order discovered
-    visited = set()           # Set of keys for states we've enqueued/visited
+    region = {}              # Maps a state key -> state
+    robustness_region = []   # States in the region (in order discovered)
+    visited = set()          # Keys of states we've already visited
     queue = deque()
 
     # 3. Enqueue the initial state
@@ -352,29 +395,29 @@ def bfs_rr(
         total_opened_nodes += 1
         if len(visited) % 500 == 0:
             print(f"Debug: Visited {len(visited)} states; Queue size: {len(queue)}")
-            
+
         state = queue.popleft()
         key = state_to_key(state)
 
-        # Predict action for this state
+        # Predict the action for this state
         obs = symbolic_to_array(state, max_obs_objects, max_walls)
         action, _ = model.predict(obs, deterministic=True)
         print(f"Debug: Predicted action for state {key}: {action}")
         print(f"Debug: Initial action: {initial_action}")
         print(f"Debug: Action match: {action == initial_action}")
 
-        # If the action matches the initial state's action, add to region.
+        # If action matches, this state is in the region
         if action == initial_action:
             if key not in region:
                 region[key] = state
                 robustness_region.append(state)
 
-            # Expand neighbors
-            neighbors = get_neighbors(state, max_neighbors_objects)
+            # Expand neighbors based on env-specific rules
+            neighbors = get_neighbors(state, env_name=env_name, max_gen_objects=max_gen_objects)
             for neighbor in neighbors:
                 nkey = state_to_key(neighbor)
                 if nkey not in visited:
-                    visited.add(nkey)  # Mark visited right when enqueuing
+                    visited.add(nkey)
                     queue.append(neighbor)
 
     elapsed_time = time.time() - start_time
@@ -386,6 +429,7 @@ def bfs_rr(
         "elapsed_time": elapsed_time,
     }
     return robustness_region, stats
+
 
 
 
@@ -433,10 +477,11 @@ if __name__ == '__main__':
 
     # --- Calculate the Robustness Region ---
     robustness_region, stats = bfs_rr(initial_symbolic_state, model,
+                                        env_name=env_config["env_name"],
                                         max_obs_objects=env_config["max_objects"],
                                         max_walls=env_config["max_walls"],
-                                        max_neighbors_objects=2,
-                                        max_depth=100)
+                                        max_gen_objects=max_gen_objects,
+                                        max_depth=10)
 
     # Print useful statistics
     print("\nRobustness Region Statistics:")

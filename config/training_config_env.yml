@@ -20,6 +20,7 @@ representation: "symbolic"
 render_mode: "rgb_array"
 
 #parameters for symbolic representation
+include_walls: True
 max_objects: 4
 max_walls: 20
 

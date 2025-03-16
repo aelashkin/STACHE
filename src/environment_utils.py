@@ -58,11 +58,16 @@ def create_symbolic_minigrid_env(env_config: dict) -> gym.Env:
     """
     env_name = env_config.get("env_name")
     render_mode = env_config.get("render_mode")
+    #TODO: fix this in future implementation, so proper config is saved and passed
+    include_walls = env_config.get("include_walls", True)
     env = gym.make(env_name, render_mode=render_mode)
     env = FullyObsWrapper(env)
     env = FactorizedSymbolicWrapper(env)
     
-    env = PaddedObservationWrapper(env, max_objects=env_config["max_objects"], max_walls=env_config["max_walls"], include_walls=False)
+    env = PaddedObservationWrapper(env, 
+                                   max_objects=env_config["max_objects"], 
+                                   max_walls=env_config["max_walls"], 
+                                   include_walls=include_walls)
 
     return env
 
