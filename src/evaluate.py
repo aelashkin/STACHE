@@ -4,6 +4,16 @@ from stable_baselines3 import PPO
 from minigrid.wrappers import FlatObsWrapper
 from stable_baselines3.common.evaluation import evaluate_policy
 from src.environment_utils import create_symbolic_minigrid_env, create_standard_minigrid_env
+from src.utils import load_experiment
+
+
+# Hardcoded main inputs for evaluation
+
+# experiment_dir = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_040208"
+experiment_dir = "data/experiments/models/MiniGrid-Empty-Random-6x6-v0_PPO_model_20250304_220518"
+
+
+
 
 def evaluate_model(model_path, env_name='MiniGrid-Fetch-5x5-N2-v0', n_eval_episodes=10):
     """
@@ -206,9 +216,8 @@ def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None):
 
 
 if __name__ == "__main__":
-    from src.utils import load_experiment
-    # experiment_dir = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022445"
-    experiment_dir = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_040208"
+    # # experiment_dir = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022445"
+    # experiment_dir = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_040208"
     model, experiment_config = load_experiment(experiment_dir)
     env_config = experiment_config["env_config"]
 

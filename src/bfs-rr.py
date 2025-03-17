@@ -26,7 +26,8 @@ from collections import deque
 
 import gymnasium as gym
 import numpy as np
-
+import re
+import math
 
 from utils import load_experiment
 from environment_utils import create_minigrid_env
@@ -35,8 +36,12 @@ from environment_utils import create_minigrid_env
 # variables for running main without console input
 
 # Hardcode the model path (folder) to load the saved model.
-model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
+model_path = "data/experiments/models/MiniGrid-Empty-Random-6x6-v0_PPO_model_20250304_220518"
+
+# model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
 max_gen_objects = 2
+max_nodes_expanded = None
+seed_value = 42
 
 # === Global mappings (these must be consistent with your environment) ===
 
@@ -149,25 +154,81 @@ def get_occupied_positions(state, exclude_idx=None):
 
 def get_neighbors(state, env_name, max_gen_objects=2, **kwargs):
     """
-    Dispatch to the correct environment-specific neighbor function
-    based on env_name.
+    Dispatch to the correct environment-specific neighbor function based on env_name.
     """
     if "fetch" in env_name.lower():
         return get_neighbors_fetch_old(state, max_gen_objects=max_gen_objects, **kwargs)
     elif "empty" in env_name.lower():
-        return get_neighbors_empty(state, max_gen_objects=max_gen_objects, **kwargs)
+        dims = get_env_dimensions_from_name(env_name)
+        return get_neighbors_empty(state, env_dimensions=dims, **kwargs)
     elif "doorkey" in env_name.lower():
         return get_neighbors_doorkey(state, max_gen_objects=max_gen_objects, **kwargs)
     else:
         raise ValueError(f"get_neighbors not implemented for env_name: {env_name}")
 
 
-def get_neighbors_empty(state, max_gen_objects=10, **kwargs):
+def get_neighbors_empty(state, env_dimensions=None, **kwargs):
     """
-    TODO: Implement neighbor-generation logic for 'MiniGrid-Empty' environments.
-    Currently returns an empty list as a placeholder.
+    Given a symbolic state (dict) for an EmptyEnv, returns a list of neighbor states
+    that are exactly one atomic modification away. The only allowed modifications are:
+      - Moving the agent's position by 1 step (up/down/left/right) within the valid interior.
+      - Changing the agent's direction by ±1, if still in [0,3].
+    
+    Notes:
+    - The 'goal' remains fixed in the bottom-right corner.
+    - No new objects are generated.
+    - If env_dimensions is provided as a (width, height) tuple, it is used; otherwise,
+      grid dimensions are computed from the outer walls or defaulted to 8x8.
     """
-    return []
+    import copy
+
+    neighbors = []
+
+    # --- 1. Modify agent's direction ---
+    current_direction = state["direction"]
+    # Direction wraps around [0, 3] interval
+    new_directions = ((current_direction - 1) % 4, (current_direction + 1) % 4)
+    for d in new_directions:
+        new_state = copy.deepcopy(state)
+        new_state["direction"] = d
+        neighbors.append(new_state)
+
+    # --- 2. Move the agent’s position by ±1 in x or y ---
+    # Find the agent object in 'objects'
+    agent_index = None
+    for i, obj in enumerate(state["objects"]):
+        if obj[0] == OBJECT_TO_IDX["agent"]:
+            agent_index = i
+            break
+
+    # If no agent object found, no positional moves can be made
+    if agent_index is None:
+        raise ValueError("Agent object not found in state['objects']")
+
+    # Use env_dimensions if provided; otherwise, compute from state or default to 8x8
+    if env_dimensions is None:
+        raise ValueError("env_dimensions must be provided for EmptyEnv.")
+    else:
+        grid_width, grid_height = env_dimensions
+
+    x, y = state["objects"][agent_index][3], state["objects"][agent_index][4]
+    deltas = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+    for dx, dy in deltas:
+        new_x = x + dx
+        new_y = y + dy
+        # Check if inside the valid interior: not on or outside the outer walls
+        if 1 <= new_x <= grid_width - 2 and 1 <= new_y <= grid_height - 2:
+            if (new_x, new_y) not in state["outer_walls"]:
+                new_state = copy.deepcopy(state)
+                new_state["objects"][agent_index][3] = new_x
+                new_state["objects"][agent_index][4] = new_y
+                # Sort objects for consistent state comparison
+                new_state["objects"].sort(key=lambda o: (o[0], o[3], o[4]))
+                neighbors.append(new_state)
+
+    return neighbors
+
 
 def get_neighbors_doorkey(state, max_gen_objects=10, **kwargs):
     """
@@ -197,14 +258,13 @@ def get_neighbors_fetch_old(state, max_gen_objects, **kwargs):
     neighbors = []
     # --- 1. Modify agent's direction ---
     current_direction = state["direction"]
-    if current_direction > 0:
+    # Direction wraps around [0, 3] interval
+    new_directions = ((current_direction - 1) % 4, (current_direction + 1) % 4)
+    for d in new_directions:
         new_state = copy.deepcopy(state)
-        new_state["direction"] = current_direction - 1
+        new_state["direction"] = d
         neighbors.append(new_state)
-    if current_direction < 3:
-        new_state = copy.deepcopy(state)
-        new_state["direction"] = current_direction + 1
-        neighbors.append(new_state)
+
 
     # --- 2. Modify goal ---
     current_goal = state["goal"]  # [obj_idx, color_idx]
@@ -318,6 +378,17 @@ def get_neighbors_fetch_old(state, max_gen_objects, **kwargs):
     return neighbors
 
 
+def get_env_dimensions_from_name(env_name):
+    """
+    Extracts grid dimensions (width, height) from the env_name.
+    Expects a pattern like 'empty-5x5'. Raises ValueError if not found.
+    """
+    match = re.search(r'(\d+)x(\d+)', env_name)
+    if not match:
+        raise ValueError("Invalid env name format. Expecting dimensions like 'empty-5x5'.")
+    width = int(match.group(1))
+    height = int(match.group(2))
+    return (width, height)
 
 
 def get_symbolic_env(env):
@@ -341,7 +412,7 @@ def bfs_rr(
     max_obs_objects=10,  # For symbolic_to_array / PaddedObservation
     max_walls=25,
     max_gen_objects=2,   # For neighbor generation only
-    max_depth=10,
+    max_nodes_expanded=100,       # Maximum number of nodes to dequeue/expand
 ):
     """
     Computes the Robustness Region for the given initial_state under the policy
@@ -357,7 +428,7 @@ def bfs_rr(
       - max_walls (int): maximum number of outer walls (used for observation conversion).
       - max_gen_objects (int): maximum number of objects allowed in the state when generating neighbors
                                (i.e., the BFS expansions).
-      - max_depth (int): maximum number of nodes to dequeue/expand in the BFS.
+      - max_nodes_expanded (int): maximum number of nodes to dequeue/expand in the BFS.
 
     Returns:
       - robustness_region (list): a list of symbolic states (each a dict) in the robustness region,
@@ -375,6 +446,10 @@ def bfs_rr(
     start_time = time.time()
     total_opened_nodes = 0
 
+    # Convert None to infinity for the loop check.
+    if max_nodes_expanded is None:
+        max_nodes_expanded = math.inf
+
     # 1. Get the initial action for the starting state
     initial_obs = symbolic_to_array(initial_state, max_obs_objects, max_walls)
     initial_action, _ = model.predict(initial_obs, deterministic=True)
@@ -391,7 +466,7 @@ def bfs_rr(
     queue.append(initial_state)
 
     # 4. BFS
-    while queue and total_opened_nodes < max_depth:
+    while queue and total_opened_nodes < max_nodes_expanded:
         total_opened_nodes += 1
         if len(visited) % 500 == 0:
             print(f"Debug: Visited {len(visited)} states; Queue size: {len(queue)}")
@@ -440,8 +515,9 @@ if __name__ == '__main__':
     import yaml
     import datetime
 
+    # Currently hardcoded at the top of the file
     # Hardcode the model path (folder) to load the saved model.
-    model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
+    # model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
 
     # Replace load_model with load_experiment.
     from utils import load_experiment
@@ -460,7 +536,7 @@ if __name__ == '__main__':
     symbolic_env = get_symbolic_env(env)
 
     # Use a fixed seed value
-    seed_value = 42
+    # seed_value = 42
 
     # Reset the environment to get the initial symbolic state.
     initial_symbolic_state, info = symbolic_env.reset(seed=seed_value, options={})
@@ -481,7 +557,7 @@ if __name__ == '__main__':
                                         max_obs_objects=env_config["max_objects"],
                                         max_walls=env_config["max_walls"],
                                         max_gen_objects=max_gen_objects,
-                                        max_depth=10)
+                                        max_nodes_expanded=max_nodes_expanded)
 
     # Print useful statistics
     print("\nRobustness Region Statistics:")
