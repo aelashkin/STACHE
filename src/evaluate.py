@@ -1,7 +1,7 @@
 import os
 import gymnasium as gym
 from stable_baselines3 import PPO
-from minigrid.wrappers import FlatObsWrapper
+from minigrid.wrappers import FlatObsWrapper, FullyObsWrapper
 from stable_baselines3.common.evaluation import evaluate_policy
 from src.environment_utils import create_symbolic_minigrid_env, create_standard_minigrid_env
 from src.utils import load_experiment
@@ -11,7 +11,13 @@ from src.utils import load_experiment
 
 # experiment_dir = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_040208"
 experiment_dir = "data/experiments/models/MiniGrid-Empty-Random-6x6-v0_PPO_model_20250304_220518"
+seed = 71
 
+run_statistics_evaluation = False
+run_detailed_evaluation = True
+
+# run_statistics_evaluation = True
+# run_detailed_evaluation = False
 
 
 
@@ -140,23 +146,39 @@ def evaluate_policy_performance(model, env_config, n_eval_episodes=50, histogram
     }
 
 
-def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None):
+def get_fully_obs_env(env):
+    """
+    Unwrap the environment and return the FullyObsWrapper that is closest to the original environment.
+    If no FullyObsWrapper is found, returns None.
+    """
+    current_env = env
+    last_fully_obs = None
+    # Traverse through the wrappers
+    while hasattr(current_env, 'env'):
+        if isinstance(current_env, FullyObsWrapper):
+            last_fully_obs = current_env
+        current_env = current_env.env
+    return last_fully_obs
+
+
+def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None, save_full_obs=False):
     """
     Run a single evaluation episode with a fixed seed, saving frames and logs.
-
+    
     Parameters:
         model (object): Trained RL model.
         env_config (dict): Environment config dict.
         seed (int): The random seed for reproducibility.
         max_steps (int, optional): Maximum number of steps for the episode. If None, run until done.
-
+        save_full_obs (bool): Toggle to save the fully observable observations (on by default).
+    
     Returns:
         None
     """
     import os
     from datetime import datetime
     from PIL import Image
-
+    
     model_name = env_config["env_name"] + "_" + model.__class__.__name__
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     base_dir = os.path.join("data", "experiments", "evaluation", model_name, f"{seed}_{timestamp}")
@@ -170,9 +192,23 @@ def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None):
     # Create the environment using the symbolic MiniGrid environment and reset with a fixed seed
     env_config["render_mode"] = "rgb_array"  # Enable rendering for evaluation
     env = create_symbolic_minigrid_env(env_config)
+    
+    # Find the FullyObsWrapper in the wrapper chain
+    fully_obs_env = get_fully_obs_env(env)
+    if fully_obs_env is None and save_full_obs:
+        print("Warning: FullyObsWrapper not found in environment chain")
+    
     obs, info = env.reset(seed=seed)
+    
+    # Log the initial observations
+    if save_full_obs:
+        fully_obs_obs = fully_obs_env.observation(fully_obs_env.env.unwrapped.gen_obs()) if fully_obs_env else "N/A"
+    else:
+        fully_obs_obs = "skipped"
+        
     log_file.write(f"Episode start (seed={seed}):\n")
     log_file.write(f"Initial observation: {obs}\n")
+    log_file.write(f"Initial fully observable observation: {fully_obs_obs}\n")
     log_file.write(f"Initial info: {info}\n\n")
     
     # Save the initial frame
@@ -192,10 +228,18 @@ def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None):
         
         # Take a step in the environment
         obs, reward, terminated, truncated, info = env.step(action)
+        
         done = terminated or truncated
         
         log_file.write(f"Step {step_count}: Reward: {reward}\n")
         log_file.write(f"Step {step_count}: Terminated: {terminated}, Truncated: {truncated}\n")
+        
+        if save_full_obs:
+            fully_obs_obs = fully_obs_env.observation(fully_obs_env.env.unwrapped.gen_obs()) if fully_obs_env else "N/A"
+            log_file.write(f"Step {step_count}: Fully obs observation: {fully_obs_obs}\n")
+        else:
+            log_file.write(f"Step {step_count}: Fully obs observation: skipped\n")
+        
         log_file.write(f"Step {step_count}: Info: {info}\n")
         
         # Capture and save the current frame (using rgb_array mode for image capture)
@@ -221,13 +265,6 @@ if __name__ == "__main__":
     model, experiment_config = load_experiment(experiment_dir)
     env_config = experiment_config["env_config"]
 
-    seed = 71
-    
-    run_statistics_evaluation = False
-    run_detailed_evaluation = True
-
-    # run_statistics_evaluation = True
-    # run_detailed_evaluation = False
 
     if run_statistics_evaluation:
         print("Running policy statistics evaluation over 50 episodes...")
