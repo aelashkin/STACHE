@@ -44,7 +44,7 @@ model_path = "data/experiments/models/MiniGrid-Empty-Random-6x6-v0_PPO_model_202
 # model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
 max_gen_objects = 2
 max_nodes_expanded = None
-seed_value = 42
+seed_value = 77
 
 # === Global mappings (these must be consistent with your environment) ===
 
@@ -74,6 +74,27 @@ OBJECT_TO_IDX = {
 IDX_TO_OBJECT = {v: k for k, v in OBJECT_TO_IDX.items()}
 
 STATE_TO_IDX = {"open": 0, "closed": 1, "locked": 2}
+
+# Hardcoded action values for "empty" and "fetch" environments
+ACTION_MAPPING_EMPTY = [
+    (0, "left", "Turn left"),
+    (1, "right", "Turn right"),
+    (2, "forward", "Move forward"),
+    (3, "pickup", "Unused"),
+    (4, "drop", "Unused"),
+    (5, "toggle", "Unused"),
+    (6, "done", "Unused"),
+]
+
+ACTION_MAPPING_FETCH = [
+    (0, "left", "Turn left"),
+    (1, "right", "Turn right"),
+    (2, "forward", "Move forward"),
+    (3, "pickup", "Pick up an object"),
+    (4, "drop", "Unused"),
+    (5, "toggle", "Unused"),
+    (6, "done", "Unused"),
+]
 
 # === Helper Functions ===
 
@@ -735,6 +756,18 @@ if __name__ == '__main__':
 
     action, _ = model.predict(initial_state, deterministic=True)
     print(f"Initial action: {action}")
+
+    # Print action mapping table based on the environment name
+    env_name_lower = env_config['env_name'].lower()
+    if "fetch" in env_name_lower:
+        print("Action space mapping for 'fetch': \n (Num, Name, Action)")
+        for row in ACTION_MAPPING_FETCH:
+            print(row)
+    elif "empty" in env_name_lower:
+        print("Action space mapping for 'empty': (Num, Name, Action)")
+        for row in ACTION_MAPPING_EMPTY:
+            print(row)
+
     print(f"Initial symbolic state: {initial_symbolic_state}")
     print(f"Initial state: {initial_state}")
 
