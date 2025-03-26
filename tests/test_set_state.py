@@ -9,8 +9,8 @@ from src.environment_utils import create_symbolic_minigrid_env
 from src.set_state_extention import SetStateWrapper, factorized_symbolic_to_fullobs
 
 # Global seed variables that can be modified from the command line in the future
-SEED_1 = 69  # Seed for the first environment (source state)
-SEED_2 = 42  # Seed for the second environment (target to be modified)
+SEED_1 = 1  # Seed for the first environment (source state)
+SEED_2 = 71  # Seed for the second environment (target to be modified)
 
 def get_symbolic_env(env):
     """
@@ -219,7 +219,7 @@ def test_set_state_minigrid():
     agent_pos1 = None
     for obj in initial_obs1["objects"]:
         if obj[0] == 10:  # 10 is OBJECT_TO_IDX["agent"]
-            agent_pos1 = (obj[3], obj[4])
+            agent_pos1 = (obj[4], obj[3])
             break
     
     if agent_pos1 is None:
@@ -391,8 +391,8 @@ def test_deep_comparison_set_state_minigrid():
 if __name__ == "__main__":
     print(f"\n=== Running tests with SEED_1={SEED_1}, SEED_2={SEED_2} ===")
 
-    # print("\n=== Running test_set_state_minigrid ===")
-    # test_set_state_minigrid()
+    print("\n=== Running test_set_state_minigrid ===")
+    test_set_state_minigrid()
     
     print("\n=== Running test_deep_comparison_set_state_minigrid ===")
     test_deep_comparison_set_state_minigrid()

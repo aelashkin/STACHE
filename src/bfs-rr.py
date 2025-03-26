@@ -31,6 +31,7 @@ import math
 
 from utils import load_experiment
 from environment_utils import create_minigrid_env
+from set_state_extention import set_standard_state_minigrid, factorized_symbolic_to_fullobs
 
 
 # variables for running main without console input
@@ -403,6 +404,113 @@ def get_symbolic_env(env):
     return symbolic_env
 
 
+
+import os
+import matplotlib.pyplot as plt
+
+def generate_rr_images(
+    robustness_region,
+    env,
+    output_dir="rr_images",
+    subset="all",
+    subset_count=None,
+):
+    """
+    Render and save images for states in the robustness region.
+    
+    Arguments:
+        robustness_region (list): List of dicts (symbolic states).
+            Each symbolic state must include the key "bfs_depth".
+        env (gym.Env): An environment compatible with set_standard_state_minigrid
+            (i.e., a standard MiniGrid env or a wrapper that delegates to it).
+        output_dir (str): Directory in which to save the images.
+        subset (str): One of {"all", "closest", "furthest"} controlling which states
+            to render:
+            - "all": Render all states in the RR
+            - "closest": Render only states whose "bfs_depth" is minimal in the RR
+            - "furthest": Render only states whose "bfs_depth" is maximal in the RR
+        subset_count (int or None): If given, limit the number of states to at most
+            this many (taken in BFS-discovery order).
+    """
+    # Create the output folder if needed
+    os.makedirs(output_dir, exist_ok=True)
+
+    if not robustness_region:
+        print("No states in the robustness region; nothing to render.")
+        return
+
+    # 1) Determine the min and max BFS depth in the region.
+    all_depths = [s["bfs_depth"] for s in robustness_region]
+    min_depth, max_depth = min(all_depths), max(all_depths)
+
+    # 2) Based on 'subset' pick which states we want
+    if subset == "all":
+        selected_states = robustness_region
+    elif subset == "closest":
+        # All states with BFS depth == min_depth
+        selected_states = [s for s in robustness_region if s["bfs_depth"] == min_depth]
+    elif subset == "furthest":
+        # All states with BFS depth == max_depth
+        selected_states = [s for s in robustness_region if s["bfs_depth"] == max_depth]
+    else:
+        raise ValueError(f"Invalid subset option: {subset}")
+
+    # 3) If subset_count is provided, truncate the list
+    if subset_count is not None and subset_count < len(selected_states):
+        selected_states = selected_states[:subset_count]
+
+    # 4) For each state, set the env’s state and save an imagey" for image generation
+    for i, state in enumerate(selected_states):
+        depth = state["bfs_depth"]create_minigrid_env
+    
+        # We need the grid dimensions the original env
+        w, h = get_grid_dimensions(state)ped.config if hasattr(env.unwrapped, 'config') else {})
+        if w is None or h is None:gb_array'  # Override render mode
+            # fallback if not provided in outer walls
+            w = env.widthnvironment for rendering images
+    render_env = create_minigrid_env(env_config)
+
+    # 4) For each state, set the env's state and save an image
+    for i, state in enumerate(selected_states):
+        depth = state["bfs_depth"]
+
+        # We need the grid dimensions
+        w, h = get_grid_dimensions(state)
+        if w is None or h is None:
+            # fallback if not provided in outer walls
+            w = render_env.width
+            h = render_env.height
+
+        # Convert the factorized (symbolic) state to a "fullobs" that set_standard_state_minigrid uses
+        full_obs = factorized_symbolic_to_fullobs(state, w, h)
+
+        # Actually inject that state into the environment
+        set_standard_state_minigrid(render_env, full_obs)
+
+        # Now render a frame (rgb_array)
+        img = render_env.render()
+        
+        # Skip if render returned None or invalid data
+        if img is None:
+            print(f"Warning: Couldn't render image for state {i}, skipping.")
+            continue
+
+        # Save the image
+        plt.figure()
+        plt.imshow(img)
+        plt.axis("off")
+
+        filename = f"depth_{depth}_idx_{i}.png"
+        filepath = os.path.join(output_dir, filename)
+        plt.savefig(filepath)
+        plt.close()
+
+    # Clean up the rendering environment
+    render_env.close()
+    
+    print(f"Saved {len(selected_states)} images to '{output_dir}'.")
+
+
 # === BFS-RR Algorithm ===
 
 def bfs_rr(
@@ -506,6 +614,113 @@ def bfs_rr(
     return robustness_region, stats
 
 
+def bfs_rr(
+    initial_state,
+    model,
+    env_name,
+    max_obs_objects=10,  # For symbolic_to_array / PaddedObservation
+    max_walls=25,
+    max_gen_objects=2,   # For neighbor generation only
+    max_nodes_expanded=100,       # Maximum number of nodes to dequeue/expand
+):
+    """
+    Computes the Robustness Region for the given initial_state under the policy
+    represented by model. The region is defined as the set of all symbolic states
+    for which the model produces the same action as for the initial_state.
+
+    Parameters:
+      - initial_state (dict): a dictionary representing the factored state.
+      - model: a Stable Baselines 3 model (or similar) that has a predict(obs, deterministic=True)
+               method. The observation must be produced via symbolic_to_array().
+      - env_name (str): The name of the MiniGrid environment (e.g., 'MiniGrid-Fetch-5x5-N2-v0').
+      - max_obs_objects (int): maximum number of objects used for the observation's fixed-size array.
+      - max_walls (int): maximum number of outer walls (used for observation conversion).
+      - max_gen_objects (int): maximum number of objects allowed in the state when generating neighbors
+                               (i.e., the BFS expansions).
+      - max_nodes_expanded (int): maximum number of nodes to dequeue/expand in the BFS.
+
+    TODO: Fix double returns in the docstring.
+
+    Returns:
+      - robustness_region (list): a list of symbolic states (each a dict) in the robustness region,
+                                  in the order discovered.
+      - stats (dict): dictionary containing statistics about the BFS, including:
+          * "initial_action"
+          * "region_size": number of states in the robustness region
+          * "total_opened_nodes": total number of nodes expanded
+          * "visited_count": total number of visited states
+          * "elapsed_time": time taken (seconds)
+
+    Returns:
+      - robustness_region (list): a list of symbolic states (each a dict) in the RR.
+        Each such dict will include an extra key "bfs_depth" storing the L1 distance
+        from the initial state.
+      - stats (dict): dictionary containing BFS stats.
+    """
+    import time
+    from collections import deque
+    import math
+
+    start_time = time.time()
+    total_opened_nodes = 0
+
+    if max_nodes_expanded is None:
+        max_nodes_expanded = math.inf
+
+    # 1. Predict initial action
+    initial_obs = symbolic_to_array(initial_state, max_obs_objects, max_walls)
+    initial_action, _ = model.predict(initial_obs, deterministic=True)
+
+    # 2. Initialize BFS data structures
+    region = {}            # Maps state_key -> the actual state (with "bfs_depth")
+    visited = set()        # set of state_keys
+    queue = deque()
+
+    # 3. Enqueue the initial state with depth=0
+    init_key = state_to_key(initial_state)
+    visited.add(init_key)
+    queue.append((initial_state, 0))
+
+    robustness_region = []  # final list of states in the region
+
+    # 4. BFS
+    while queue and total_opened_nodes < max_nodes_expanded:
+        total_opened_nodes += 1
+
+        state, depth = queue.popleft()
+        key = state_to_key(state)
+
+        # Predict the action for this state
+        obs = symbolic_to_array(state, max_obs_objects, max_walls)
+        action, _ = model.predict(obs, deterministic=True)
+
+        if action == initial_action:
+            # If not yet in region, store it with BFS depth
+            if key not in region:
+                state_copy = copy.deepcopy(state)
+                state_copy["bfs_depth"] = depth
+                region[key] = state_copy
+                robustness_region.append(state_copy)
+
+            # Expand neighbors
+            neighbors = get_neighbors(state, env_name=env_name, max_gen_objects=max_gen_objects)
+            for neighbor in neighbors:
+                nkey = state_to_key(neighbor)
+                if nkey not in visited:
+                    visited.add(nkey)
+                    queue.append((neighbor, depth + 1))
+
+    elapsed_time = time.time() - start_time
+    stats = {
+        "initial_action": initial_action,
+        "region_size": len(region),
+        "total_opened_nodes": total_opened_nodes,
+        "visited_count": len(visited),
+        "elapsed_time": elapsed_time,
+    }
+
+    return robustness_region, stats
+
 
 
 
@@ -524,7 +739,7 @@ if __name__ == '__main__':
     model, config_data = load_experiment(model_path)
     env_config = config_data["env_config"]  # Extract the environment configuration
 
-    # Set render_mode to human for rendering.
+    # Set render_mode to human for an on-screen render (optional).
     env_config["render_mode"] = "human"
 
     print(f"Loaded model for environment: {env_config['env_name']}")
@@ -535,7 +750,7 @@ if __name__ == '__main__':
     env = create_minigrid_env(env_config)
     symbolic_env = get_symbolic_env(env)
 
-    # Use a fixed seed value
+    # Use a fixed seed value (as defined earlier).
     # seed_value = 42
 
     # Reset the environment to get the initial symbolic state.
@@ -552,12 +767,15 @@ if __name__ == '__main__':
     print(f"Initial state: {initial_state}")
 
     # --- Calculate the Robustness Region ---
-    robustness_region, stats = bfs_rr(initial_symbolic_state, model,
-                                        env_name=env_config["env_name"],
-                                        max_obs_objects=env_config["max_objects"],
-                                        max_walls=env_config["max_walls"],
-                                        max_gen_objects=max_gen_objects,
-                                        max_nodes_expanded=max_nodes_expanded)
+    robustness_region, stats = bfs_rr(
+        initial_symbolic_state,
+        model,
+        env_name=env_config["env_name"],
+        max_obs_objects=env_config["max_objects"],
+        max_walls=env_config["max_walls"],
+        max_gen_objects=max_gen_objects,
+        max_nodes_expanded=max_nodes_expanded
+    )
 
     # Print useful statistics
     print("\nRobustness Region Statistics:")
@@ -571,6 +789,7 @@ if __name__ == '__main__':
         print(state_to_key(state))
 
     # Prepare metadata for YAML file
+    import time
     model_name = os.path.basename(model_path)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     rr_dir = os.path.join("data", "experiments", "rr", model_name, f"seed_{seed_value}_time_{timestamp}")
@@ -583,12 +802,12 @@ if __name__ == '__main__':
             "seed": seed_value,
             "timestamp": timestamp,
             "region_size": stats["region_size"],
-            "total_opened_nodes": stats["total_opened_nodes"],
-            "visited_count": stats["visited_count"],
-            "elapsed_time": stats["elapsed_time"],
-            "env_config": env_config,
+        subset="all",            # Render all statesd_nodes"],
+        subset_count=None        # No limit to how many we save
+    )       "elapsed_time": stats["elapsed_time"],
+    print(f"Rendered images for the entire RR to: {images_output_dir}")
         },
-        "robustness_region": robustness_region,
+    env.close()ness_region": robustness_region,
     }
 
     with open(yaml_file_path, "w") as f:
@@ -596,5 +815,15 @@ if __name__ == '__main__':
 
     print(f"\nRobustness region and metadata saved to: {yaml_file_path}")
 
-    env.close()
+    # --- Render and save images for all states in the robustness region ---
+    images_output_dir = os.path.join(rr_dir, "images")
+    generate_rr_images(
+        robustness_region=robustness_region,
+        env=env,
+        output_dir=images_output_dir,
+        subset="all",            # Render all states
+        subset_count=None        # No limit to how many we save
+    )
+    print(f"Rendered images for the entire RR to: {images_output_dir}")
 
+    env.close()

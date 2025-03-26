@@ -1,6 +1,6 @@
 === ENVIRONMENT COMPARISON AFTER SET_STATE ===
 
-Match percentage: 81.82%
+Match percentage: 100.00%
 
 === MATCHING ATTRIBUTES ===
 - width: 6
@@ -8,11 +8,11 @@ Match percentage: 81.82%
 - max_steps: 144
 - see_through_walls: True
 - agent_view_size: 7
+- mission: get to the green goal square
+- agent_pos: (2, 3)
 - agent_dir: 3
 - carrying: None
 - grid dimensions: 6x6
 - All grid cells match
 
 === DIFFERENCES ===
-- mission: env1=get to the green goal square, env2=
-- agent_pos: env1=(4, 3), env2=(3, 4)

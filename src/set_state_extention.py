@@ -25,7 +25,6 @@ def set_standard_state_minigrid(env, full_obs):
     - We rely on 'direction' from the dictionary for the agent's direction
       (rather than the 'agent' cell's state).
     """
-
     # Unwrap the environment
     env = env.unwrapped
 
@@ -35,16 +34,16 @@ def set_standard_state_minigrid(env, full_obs):
     env.grid = new_grid
 
     # 2) Find the agent cell
-    agent_pos = None
+    #    Note that 'img' has shape (width, height, 3), where the first dimension
+    #    corresponds to x, and the second dimension corresponds to y.
     width, height = img.shape[0], img.shape[1]
+    agent_pos = None
 
-    for i in range(width):
-        for j in range(height):
-            cell_type, _, _ = img[i, j]
+    for y in range(height):
+        for x in range(width):
+            cell_type, _, _ = img[x, y]
             if cell_type == OBJECT_TO_IDX["agent"]:
-                # Fix: Swap coordinates to match MiniGrid's coordinate system
-                # MiniGrid uses (x, y) where x is the column and y is the row
-                agent_pos = (j, i)  # Changed from (i, j) to (j, i)
+                agent_pos = (y, x)
                 break
         if agent_pos is not None:
             break
@@ -56,8 +55,12 @@ def set_standard_state_minigrid(env, full_obs):
     env.agent_pos = agent_pos
     env.agent_dir = full_obs["direction"]
 
-    # 4) Update the mission string
-    env.mission = full_obs["mission"]
+    # 4) Update the mission string only if env.mission is currently empty
+    if not env.mission:  # or env.mission.strip() == ''
+        env.mission = full_obs.get("mission", "")
+
+
+
 
 
 class SetStateWrapper(gym.Wrapper):
@@ -75,6 +78,7 @@ class SetStateWrapper(gym.Wrapper):
         set_state_minigrid helper.
         """
         set_standard_state_minigrid(self.env, obs)
+
 
 
 
@@ -97,33 +101,32 @@ def factorized_symbolic_to_fullobs(fact_obs, width, height, mission=""):
       - The mission is kept the same or set to "" if not available
     """
     direction = fact_obs["direction"]
-    # Create an empty 'image' array, defaulting to 'empty' object
-    # object=1('empty'), color=0, state=0
+    # Create an empty 'image' array, defaulting to 'empty' object.
+    # The image is created with shape (width, height, 3) so that the first index
+    # corresponds to the x-coordinate and the second to the y-coordinate.
     image = np.zeros((width, height, 3), dtype=np.uint8)
     image[:, :, 0] = 1  # OBJECT_TO_IDX["empty"] == 1 by default
 
-    # Mark outer walls as object=2('wall'), color=5('grey'), state=0
-    # (We pick 'grey' for walls by convention)
+    # Mark outer walls as object=2 ('wall'), color=5 ('grey'), state=0.
     for (wx, wy) in fact_obs["outer_walls"]:
         if 0 <= wx < width and 0 <= wy < height:
-            # Fix: Swap coordinates to match the expected image format
-            # In numpy arrays, indexing is [row, column] which is [y, x] in Cartesian
-            image[wy, wx, 0] = 2  # OBJECT_TO_IDX["wall"]
-            image[wy, wx, 1] = 5  # COLOR_TO_IDX["grey"]
-            image[wy, wx, 2] = 0  # state=0 (open/unlocked for walls)
+            # Index using (wx, wy) since first dimension is x and second is y.
+            image[wx, wy, 0] = 2  # OBJECT_TO_IDX["wall"]
+            image[wx, wy, 1] = 5  # COLOR_TO_IDX["grey"]
+            image[wx, wy, 2] = 0  # state=0
 
-    # Place each object from the 'objects' list
+    # Place each object from the 'objects' list.
     for obj_idx, color_idx, state, ox, oy in fact_obs["objects"]:
         if 0 <= ox < width and 0 <= oy < height:
-            # Fix: Swap coordinates here as well for consistency
-            image[oy, ox, 0] = obj_idx
-            image[oy, ox, 1] = color_idx
-            image[oy, ox, 2] = state
+            image[ox, oy, 0] = obj_idx
+            image[ox, oy, 1] = color_idx
+            image[ox, oy, 2] = state
 
-    # Return the standard full-obs dict
+    # Use mission from fact_obs if available.
+    mission = fact_obs.get("mission", mission)
+
     return {
         "image": image,
         "direction": direction,
-        # If you have a mission string to keep, store it here
         "mission": mission,
     }
