@@ -33,6 +33,8 @@ from utils import load_experiment
 from environment_utils import create_minigrid_env
 from set_state_extention import set_standard_state_minigrid, factorized_symbolic_to_fullobs
 
+import os
+from PIL import Image
 
 # variables for running main without console input
 
@@ -405,9 +407,6 @@ def get_symbolic_env(env):
 
 
 
-import os
-import matplotlib.pyplot as plt
-
 def generate_rr_images(
     robustness_region,
     env,
@@ -417,7 +416,7 @@ def generate_rr_images(
 ):
     """
     Render and save images for states in the robustness region.
-    
+
     Arguments:
         robustness_region (list): List of dicts (symbolic states).
             Each symbolic state must include the key "bfs_depth".
@@ -432,82 +431,55 @@ def generate_rr_images(
         subset_count (int or None): If given, limit the number of states to at most
             this many (taken in BFS-discovery order).
     """
-    # Create the output folder if needed
+    import os
+    from PIL import Image
+
     os.makedirs(output_dir, exist_ok=True)
 
     if not robustness_region:
         print("No states in the robustness region; nothing to render.")
         return
 
-    # 1) Determine the min and max BFS depth in the region.
+    # Determine min and max BFS depth
     all_depths = [s["bfs_depth"] for s in robustness_region]
     min_depth, max_depth = min(all_depths), max(all_depths)
 
-    # 2) Based on 'subset' pick which states we want
+    # Select subset of states
     if subset == "all":
         selected_states = robustness_region
     elif subset == "closest":
-        # All states with BFS depth == min_depth
         selected_states = [s for s in robustness_region if s["bfs_depth"] == min_depth]
     elif subset == "furthest":
-        # All states with BFS depth == max_depth
         selected_states = [s for s in robustness_region if s["bfs_depth"] == max_depth]
     else:
         raise ValueError(f"Invalid subset option: {subset}")
 
-    # 3) If subset_count is provided, truncate the list
     if subset_count is not None and subset_count < len(selected_states):
         selected_states = selected_states[:subset_count]
 
-    # 4) For each state, set the env’s state and save an imagey" for image generation
-    for i, state in enumerate(selected_states):
-        depth = state["bfs_depth"]create_minigrid_env
-    
-        # We need the grid dimensions the original env
-        w, h = get_grid_dimensions(state)ped.config if hasattr(env.unwrapped, 'config') else {})
-        if w is None or h is None:gb_array'  # Override render mode
-            # fallback if not provided in outer walls
-            w = env.widthnvironment for rendering images
-    render_env = create_minigrid_env(env_config)
-
-    # 4) For each state, set the env's state and save an image
+    # Render each selected state
     for i, state in enumerate(selected_states):
         depth = state["bfs_depth"]
 
-        # We need the grid dimensions
+        # Determine grid dimensions
         w, h = get_grid_dimensions(state)
         if w is None or h is None:
-            # fallback if not provided in outer walls
-            w = render_env.width
-            h = render_env.height
+            w = env.width
+            h = env.height
 
-        # Convert the factorized (symbolic) state to a "fullobs" that set_standard_state_minigrid uses
+        # Convert factorized state to fullobs and apply it
+        env.reset()
         full_obs = factorized_symbolic_to_fullobs(state, w, h)
+        set_standard_state_minigrid(env, full_obs)
 
-        # Actually inject that state into the environment
-        set_standard_state_minigrid(render_env, full_obs)
+        # Render as an RGB array
+        img = env.render()  # Should be a NumPy array (H x W x 3)
 
-        # Now render a frame (rgb_array)
-        img = render_env.render()
-        
-        # Skip if render returned None or invalid data
-        if img is None:
-            print(f"Warning: Couldn't render image for state {i}, skipping.")
-            continue
-
-        # Save the image
-        plt.figure()
-        plt.imshow(img)
-        plt.axis("off")
-
+        # Save the image using Pillow
         filename = f"depth_{depth}_idx_{i}.png"
         filepath = os.path.join(output_dir, filename)
-        plt.savefig(filepath)
-        plt.close()
+        Image.fromarray(img).save(filepath)
 
-    # Clean up the rendering environment
-    render_env.close()
-    
     print(f"Saved {len(selected_states)} images to '{output_dir}'.")
 
 
@@ -802,12 +774,12 @@ if __name__ == '__main__':
             "seed": seed_value,
             "timestamp": timestamp,
             "region_size": stats["region_size"],
-        subset="all",            # Render all statesd_nodes"],
-        subset_count=None        # No limit to how many we save
-    )       "elapsed_time": stats["elapsed_time"],
-    print(f"Rendered images for the entire RR to: {images_output_dir}")
+            "total_opened_nodes": stats["total_opened_nodes"],
+            "visited_count": stats["visited_count"],
+            "elapsed_time": stats["elapsed_time"],
+            "env_config": env_config,
         },
-    env.close()ness_region": robustness_region,
+        "robustness_region": robustness_region,
     }
 
     with open(yaml_file_path, "w") as f:
@@ -815,11 +787,14 @@ if __name__ == '__main__':
 
     print(f"\nRobustness region and metadata saved to: {yaml_file_path}")
 
+    env_config["render_mode"] = "rgb_array"
+    render_env = create_minigrid_env(env_config)
+
     # --- Render and save images for all states in the robustness region ---
     images_output_dir = os.path.join(rr_dir, "images")
     generate_rr_images(
         robustness_region=robustness_region,
-        env=env,
+        env=render_env,
         output_dir=images_output_dir,
         subset="all",            # Render all states
         subset_count=None        # No limit to how many we save
