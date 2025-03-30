@@ -1,7 +1,7 @@
 import gymnasium as gym
 from stable_baselines3.common.monitor import Monitor
 from minigrid.wrappers import FullyObsWrapper, ImgObsWrapper, FlatObsWrapper, ActionBonus, PositionBonus
-from src.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
+from src.minigrid.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
 
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import torch

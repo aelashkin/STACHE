@@ -11,7 +11,7 @@ if (pythonpath and pythonpath not in sys.path):
 
 from stable_baselines3 import PPO, A2C
 from src.utils import save_experiment, evaluate_agent, load_config, get_device
-from src.environment_utils import create_minigrid_env, MinigridFeaturesExtractor
+from src.envs.environment_utils import create_minigrid_env, MinigridFeaturesExtractor
 from src.utils import ModelType
 from src.utils import save_model, save_config
 

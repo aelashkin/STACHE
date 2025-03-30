@@ -3,7 +3,7 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 from minigrid.wrappers import FlatObsWrapper, FullyObsWrapper
 from stable_baselines3.common.evaluation import evaluate_policy
-from src.environment_utils import create_symbolic_minigrid_env, create_standard_minigrid_env
+from src.envs.environment_utils import create_symbolic_minigrid_env, create_standard_minigrid_env
 from src.utils import load_experiment
 
 
