@@ -23,7 +23,7 @@ import yaml
 from datetime import datetime
 
 from src.utils import load_config, get_device, ModelType
-from src.envs.environment_utils import create_minigrid_env, create_symbolic_minigrid_env
+from src.minigrid.environment_utils import create_minigrid_env, create_symbolic_minigrid_env
 from src.hyperparameter_utils import sample_a2c_params, sample_ppo_params, TrialEvalCallback
 from utils import save_config
 

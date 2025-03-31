@@ -1,50 +1,14 @@
+import numpy as np
 import gymnasium as gym
 from gymnasium.core import ObservationWrapper
 from gymnasium.spaces import Dict, Discrete, Box
 from gymnasium import spaces
-import numpy as np
 
-# Reuse your mappings
-COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
-IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
 
-OBJECT_TO_IDX = {
-    "unseen": 0,
-    "empty": 1,
-    "wall": 2,
-    "floor": 3,
-    "door": 4,
-    "key": 5,
-    "ball": 6,
-    "box": 7,
-    "goal": 8,
-    "lava": 9,
-    "agent": 10,
-}
-IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
-
-STATE_TO_IDX = {
-    "open": 0,
-    "closed": 1,
-    "locked": 2,
-}
-
-from enum import IntEnum
-
-class Actions(IntEnum):
-    # Turn left, turn right, move forward
-    left = 0
-    right = 1
-    forward = 2
-    # Pick up an object
-    pickup = 3
-    # Drop an object
-    drop = 4
-    # Toggle/activate an object
-    toggle = 5
-
-    # Done completing task
-    done = 6
+from .constants import (
+    COLOR_TO_IDX,
+    OBJECT_TO_IDX,
+)
 
 
 def extract_objects_from_state(grid):

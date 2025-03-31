@@ -5,8 +5,8 @@ from PIL import Image
 import pytest
 
 from minigrid.wrappers import FullyObsWrapper
-from src.envs.environment_utils import create_symbolic_minigrid_env
-from src.minigrid.set_state_extention import SetStateWrapper, factorized_symbolic_to_fullobs
+from src.minigrid.environment_utils import create_symbolic_minigrid_env
+from src.minigrid.set_state_extension import SetStateWrapper, factorized_symbolic_to_fullobs
 
 # Global seed variables that can be modified from the command line in the future
 SEED_1 = 1  # Seed for the first environment (source state)

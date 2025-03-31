@@ -1,10 +1,11 @@
 import os
-import yaml
 from datetime import datetime
+from enum import Enum
+
+import yaml
+import torch
 from stable_baselines3 import PPO, A2C
 from stable_baselines3.common.evaluation import evaluate_policy
-import torch
-from enum import Enum
 
 
 class ModelType(Enum):

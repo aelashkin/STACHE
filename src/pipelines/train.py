@@ -5,13 +5,13 @@ from datetime import datetime
 import yaml
 import copy
 
-pythonpath = os.getenv("PYTHONPATH")
-if (pythonpath and pythonpath not in sys.path):
-    sys.path.append(pythonpath)
+# pythonpath = os.getenv("PYTHONPATH")
+# if (pythonpath and pythonpath not in sys.path):
+#     sys.path.append(pythonpath)
 
 from stable_baselines3 import PPO, A2C
 from src.utils import save_experiment, evaluate_agent, load_config, get_device
-from src.envs.environment_utils import create_minigrid_env, MinigridFeaturesExtractor
+from src.minigrid.environment_utils import create_minigrid_env, MinigridFeaturesExtractor
 from src.utils import ModelType
 from src.utils import save_model, save_config
 
