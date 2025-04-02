@@ -11,7 +11,7 @@ import copy
 
 from stable_baselines3 import PPO, A2C
 from src.utils import save_experiment, evaluate_agent, load_config, get_device
-from src.minigrid.environment_utils import create_minigrid_env, MinigridFeaturesExtractor
+from src.minigrid_ext.environment_utils import create_minigrid_env, MinigridFeaturesExtractor
 from src.utils import ModelType
 from src.utils import save_model, save_config
 
