@@ -1,35 +1,23 @@
-import sys
 import os
-
-# Get the absolute path of the project's root directory
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(script_dir, '..'))
-
-# Ensure the project root is in sys.path
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-import optuna
-import optunahub
-from optuna.pruners import MedianPruner
-from optuna.samplers import TPESampler
+from datetime import datetime
 
 from stable_baselines3 import A2C, PPO
 from stable_baselines3.common.monitor import Monitor
 
 import torch
-
 import yaml
-from datetime import datetime
 
-from src.utils import load_config, get_device, ModelType
-from src.minigrid_ext.environment_utils import create_minigrid_env, create_symbolic_minigrid_env
-from src.hyperparameter_utils import sample_a2c_params, sample_ppo_params, TrialEvalCallback
-from utils import save_config
-
-
+import optuna
+import optunahub
+from optuna.pruners import MedianPruner
+from optuna.samplers import TPESampler
 from optuna.study import MaxTrialsCallback
 
+from utils.experiment_io import load_config, save_config, get_device, ModelType
+from minigrid_ext.environment_utils import create_minigrid_env, create_symbolic_minigrid_env
+from tuning.hyperparameter_utils import sample_a2c_params, sample_ppo_params, TrialEvalCallback
+
+# Set the internal variables
 N_TRIALS = 70  # Total number of Optuna trials for hyperparameter optimization
 N_STARTUP_TRIALS = 5  # Initial random trials before optimization logic is applied
 N_EVALUATIONS = 2  # Number of evaluations during each training trial

@@ -33,7 +33,7 @@ import yaml
 import gymnasium as gym
 import numpy as np
 
-from utils.utils import load_experiment
+from utils.experiment_io import load_experiment
 from minigrid_ext.environment_utils import create_minigrid_env
 from minigrid_ext.set_state_extension import set_standard_state_minigrid, factorized_symbolic_to_fullobs
 
