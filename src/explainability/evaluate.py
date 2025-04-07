@@ -1,8 +1,14 @@
 import os
+from datetime import datetime
+from PIL import Image
+
+import numpy as np
+import matplotlib.pyplot as plt
 import gymnasium as gym
 from stable_baselines3 import PPO
 from minigrid.wrappers import FlatObsWrapper, FullyObsWrapper
 from stable_baselines3.common.evaluation import evaluate_policy
+
 from src.minigrid_ext.environment_utils import create_symbolic_minigrid_env, create_standard_minigrid_env
 from src.utils import load_experiment
 
@@ -92,8 +98,6 @@ def evaluate_policy_performance(model, env_config, n_eval_episodes=50, histogram
     Returns:
         dict: Summary statistics including mean, median, std, min, max, and distribution.
     """
-    import numpy as np
-    import matplotlib.pyplot as plt
     
     # Create environment using the symbolic MiniGrid environment
     env_config["render_mode"] = None  # Disable rendering for evaluation
@@ -175,10 +179,7 @@ def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None, save_
     Returns:
         None
     """
-    import os
-    from datetime import datetime
-    from PIL import Image
-    
+
     model_name = env_config["env_name"] + "_" + model.__class__.__name__
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     base_dir = os.path.join("data", "experiments", "evaluation", model_name, f"{seed}_{timestamp}")

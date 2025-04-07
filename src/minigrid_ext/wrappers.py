@@ -4,8 +4,7 @@ from gymnasium.core import ObservationWrapper
 from gymnasium.spaces import Dict, Discrete, Box
 from gymnasium import spaces
 
-
-from .constants import (
+from minigrid_ext.constants import (
     COLOR_TO_IDX,
     OBJECT_TO_IDX,
 )

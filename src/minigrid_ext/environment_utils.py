@@ -1,12 +1,12 @@
-import gymnasium as gym
-from stable_baselines3.common.monitor import Monitor
-from minigrid.wrappers import FullyObsWrapper, ImgObsWrapper, FlatObsWrapper, ActionBonus, PositionBonus
-from src.minigrid_ext.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
-
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import torch
 import torch.nn as nn
 
+import gymnasium as gym
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+from minigrid.wrappers import FullyObsWrapper, FlatObsWrapper, ActionBonus, PositionBonus
+
+from minigrid_ext.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
 
 def apply_reward_wrappers(env, wrapper_config):
     """

@@ -1,0 +1,17 @@
+[project]
+name = "stache"
+version = "0.6.0"
+description = "Agent training & explainability in Gymnasium/Minigrid environments"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

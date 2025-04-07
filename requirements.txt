@@ -1,8 +1,8 @@
-gymnasium
-minigrid
-numpy
-stable-baselines3
-optuna
-optunahub
-torch
-PyYAML
+gymnasium==1.0.0
+minigrid==3.0.0
+numpy==1.26.4
+optuna==4.1.0
+optunahub==0.1.0
+torch==2.2.2
+stable-baselines3==2.4.1
+pyyaml==6.0.2

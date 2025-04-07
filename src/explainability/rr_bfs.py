@@ -21,20 +21,21 @@ This file uses Gymnasium 1.0.0 and assumes a Stable Baselines 3 model (or any ot
 agent that follows the Gymnasium API).
 """
 
+import os
 import copy
-from collections import deque
-
-import gymnasium as gym
-import numpy as np
 import re
 import math
-
-from utils import load_experiment
-from environment_utils import create_minigrid_env
-from set_state_extention import set_standard_state_minigrid, factorized_symbolic_to_fullobs
-
-import os
+import time
+from collections import deque
 from PIL import Image
+
+import yaml
+import gymnasium as gym
+import numpy as np
+
+from utils.utils import load_experiment
+from minigrid_ext.environment_utils import create_minigrid_env
+from minigrid_ext.set_state_extension import set_standard_state_minigrid, factorized_symbolic_to_fullobs
 
 # variables for running main without console input
 
@@ -204,7 +205,6 @@ def get_neighbors_empty(state, env_dimensions=None, **kwargs):
     - If env_dimensions is provided as a (width, height) tuple, it is used; otherwise,
       grid dimensions are computed from the outer walls or defaulted to 8x8.
     """
-    import copy
 
     neighbors = []
 
@@ -452,8 +452,6 @@ def generate_rr_images(
         subset_count (int or None): If given, limit the number of states to at most
             this many (taken in BFS-discovery order).
     """
-    import os
-    from PIL import Image
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -541,8 +539,6 @@ def bfs_rr(
           * "visited_count": total number of visited states
           * "elapsed_time": time taken (seconds)
     """
-    import time
-    from collections import deque
     
     start_time = time.time()
     total_opened_nodes = 0
@@ -650,9 +646,6 @@ def bfs_rr(
         from the initial state.
       - stats (dict): dictionary containing BFS stats.
     """
-    import time
-    from collections import deque
-    import math
 
     start_time = time.time()
     total_opened_nodes = 0
@@ -719,16 +712,11 @@ def bfs_rr(
 
 # === Example Usage ===
 if __name__ == '__main__':
-    import os
-    import yaml
-    import datetime
 
     # Currently hardcoded at the top of the file
     # Hardcode the model path (folder) to load the saved model.
     # model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
 
-    # Replace load_model with load_experiment.
-    from utils import load_experiment
     model, config_data = load_experiment(model_path)
     env_config = config_data["env_config"]  # Extract the environment configuration
 
@@ -739,7 +727,6 @@ if __name__ == '__main__':
     print(f"Configuration: {env_config}")
 
     # --- Create the symbolic MiniGrid environment ---
-    from environment_utils import create_minigrid_env
     env = create_minigrid_env(env_config)
     symbolic_env = get_symbolic_env(env)
 
@@ -794,7 +781,6 @@ if __name__ == '__main__':
         print(state_to_key(state))
 
     # Prepare metadata for YAML file
-    import time
     model_name = os.path.basename(model_path)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     rr_dir = os.path.join("data", "experiments", "rr", model_name, f"seed_{seed_value}_time_{timestamp}")

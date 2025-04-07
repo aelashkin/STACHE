@@ -63,7 +63,6 @@ def save_experiment(model, env_config, model_config, training_log, experiment_di
         FileNotFoundError: If model is None and no model.zip exists in the experiment directory.
     """
     if experiment_dir is None:
-        from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         env_name = env_config.get("env_name", "unknown_env")
         model_type = model_config.get("model_type", "unknown_model")
