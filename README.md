@@ -1,4 +1,4 @@
-# STACHE: Symbolic Training And CHaracterization Environment
+# STACHE: Smart Tools for Analyzing Counterfactuals and HEuristics
 
 A comprehensive framework for training and analyzing reinforcement learning agents in MiniGrid environments. STACHE supports multiple environment representations, agent algorithms, and provides explainability tools for understanding agent behavior.
 
