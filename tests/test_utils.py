@@ -1,9 +1,10 @@
 import pytest
-import os
 from unittest.mock import patch, MagicMock
 import yaml
-from src.utils import load_experiment
 from stable_baselines3 import PPO, A2C
+
+from utils.experiment_io import load_experiment
+
 
 def test_load_experiment_missing_config(tmp_path):
     """
@@ -125,4 +126,4 @@ def test_load_experiment_unsupported_model_type(tmp_path):
         load_experiment(str(tmp_path))
 
 # cd /Users/eam/Documents/GIT/STACHE
-# pytest tests/utils_test.py
+# pytest tests/test_utils.py

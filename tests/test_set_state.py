@@ -4,10 +4,8 @@ import gymnasium as gym
 from PIL import Image
 
 from minigrid.wrappers import FullyObsWrapper
-from src.minigrid_ext.environment_utils import create_symbolic_minigrid_env
-from src.minigrid_ext.set_state_extension import SetStateWrapper, factorized_symbolic_to_fullobs
-
-from minigrid_ext.wrappers import FactorizedSymbolicWrapper
+from minigrid_ext.environment_utils import create_symbolic_minigrid_env
+from minigrid_ext.set_state_extension import SetStateWrapper, factorized_symbolic_to_fullobs
 
 # Global seed variables that can be modified from the command line in the future
 SEED_1 = 1  # Seed for the first environment (source state)
