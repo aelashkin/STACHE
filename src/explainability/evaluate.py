@@ -10,7 +10,7 @@ from minigrid.wrappers import FlatObsWrapper, FullyObsWrapper
 from stable_baselines3.common.evaluation import evaluate_policy
 
 from minigrid_ext.environment_utils import create_symbolic_minigrid_env, create_standard_minigrid_env
-from utils import load_experiment
+from utils.experiment_io import load_experiment
 
 
 # Hardcoded main inputs for evaluation
