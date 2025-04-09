@@ -6,13 +6,13 @@ import yaml
 import copy
 
 from stable_baselines3 import PPO, A2C
-from utils import save_experiment, evaluate_agent, load_config, get_device
+from stable_baselines3.common.evaluation import evaluate_policy
+
+from utils.experiment_io import save_experiment, load_config, get_device
 from minigrid_ext.environment_utils import create_minigrid_env, MinigridFeaturesExtractor
-from utils import ModelType
-from utils import save_model, save_config
+from utils.experiment_io import ModelType
 
 MODEL_TYPE = ModelType.PPO
-
 
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -135,6 +135,8 @@ def train_agent(env_config, model_config):
 
     # Step 3: Choose policy based on representation
     if representation == "image":
+        # Use CNN policy for image-based observations
+        # Note: MinigridFeaturesExtractor is a custom feature extractor for image observations
         policy = "CnnPolicy"
         policy_kwargs = dict(
             features_extractor_class=MinigridFeaturesExtractor,
@@ -219,7 +221,8 @@ def train_agent(env_config, model_config):
     # Step 6: Evaluate the agent on the training environment
     n_eval_episodes = 100
     print("Evaluating the agent on training environment...")
-    mean_reward, std_reward = evaluate_agent(model, train_env, n_eval_episodes=n_eval_episodes)
+    mean_reward, std_reward = evaluate_policy(model, train_env, n_eval_episodes=n_eval_episodes, deterministic=True)
+    print(f"Mean reward: {mean_reward} +/- {std_reward}")
 
     # Step 7: Create a training log
     training_log_header = (

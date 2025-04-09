@@ -129,15 +129,6 @@ def load_experiment(experiment_dir):
     print(f"Loaded model from: {model_path}")
     return model, config_data
 
-def evaluate_agent(model, env, n_eval_episodes=50):
-    """
-    Evaluate the trained agent and return mean and standard deviation of rewards.
-    """
-    mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=n_eval_episodes, deterministic=True)
-    print(f"Mean reward: {mean_reward} +/- {std_reward}")
-    return mean_reward, std_reward
-
-
 def load_config(config_path):
     """
     Load a configuration file and return its contents as a dictionary.
