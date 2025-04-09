@@ -531,120 +531,14 @@ def bfs_rr(
 
     Returns:
       - robustness_region (list): a list of symbolic states (each a dict) in the robustness region,
-                                  in the order discovered.
+                                  in the order discovered, with an extra key "bfs_depth" storing the 
+                                  L1 distance from the initial state.
       - stats (dict): dictionary containing statistics about the BFS, including:
           * "initial_action"
           * "region_size": number of states in the robustness region
           * "total_opened_nodes": total number of nodes expanded
           * "visited_count": total number of visited states
           * "elapsed_time": time taken (seconds)
-    """
-    
-    start_time = time.time()
-    total_opened_nodes = 0
-
-    # Convert None to infinity for the loop check.
-    if max_nodes_expanded is None:
-        max_nodes_expanded = math.inf
-
-    # 1. Get the initial action for the starting state
-    initial_obs = symbolic_to_array(initial_state, max_obs_objects, max_walls)
-    initial_action, _ = model.predict(initial_obs, deterministic=True)
-
-    # 2. Initialize BFS structures
-    region = {}              # Maps a state key -> state
-    robustness_region = []   # States in the region (in order discovered)
-    visited = set()          # Keys of states we've already visited
-    queue = deque()
-
-    # 3. Enqueue the initial state
-    init_key = state_to_key(initial_state)
-    visited.add(init_key)
-    queue.append(initial_state)
-
-    # 4. BFS
-    while queue and total_opened_nodes < max_nodes_expanded:
-        total_opened_nodes += 1
-        if len(visited) % 500 == 0:
-            print(f"Debug: Visited {len(visited)} states; Queue size: {len(queue)}")
-
-        state = queue.popleft()
-        key = state_to_key(state)
-
-        # Predict the action for this state
-        obs = symbolic_to_array(state, max_obs_objects, max_walls)
-        action, _ = model.predict(obs, deterministic=True)
-        print(f"Debug: Predicted action for state {key}: {action}")
-        print(f"Debug: Initial action: {initial_action}")
-        print(f"Debug: Action match: {action == initial_action}")
-
-        # If action matches, this state is in the region
-        if action == initial_action:
-            if key not in region:
-                region[key] = state
-                robustness_region.append(state)
-
-            # Expand neighbors based on env-specific rules
-            neighbors = get_neighbors(state, env_name=env_name, max_gen_objects=max_gen_objects)
-            for neighbor in neighbors:
-                nkey = state_to_key(neighbor)
-                if nkey not in visited:
-                    visited.add(nkey)
-                    queue.append(neighbor)
-
-    elapsed_time = time.time() - start_time
-    stats = {
-        "initial_action": initial_action,
-        "region_size": len(region),
-        "total_opened_nodes": total_opened_nodes,
-        "visited_count": len(visited),
-        "elapsed_time": elapsed_time,
-    }
-    return robustness_region, stats
-
-
-def bfs_rr(
-    initial_state,
-    model,
-    env_name,
-    max_obs_objects=10,  # For symbolic_to_array / PaddedObservation
-    max_walls=25,
-    max_gen_objects=2,   # For neighbor generation only
-    max_nodes_expanded=100,       # Maximum number of nodes to dequeue/expand
-):
-    """
-    Computes the Robustness Region for the given initial_state under the policy
-    represented by model. The region is defined as the set of all symbolic states
-    for which the model produces the same action as for the initial_state.
-
-    Parameters:
-      - initial_state (dict): a dictionary representing the factored state.
-      - model: a Stable Baselines 3 model (or similar) that has a predict(obs, deterministic=True)
-               method. The observation must be produced via symbolic_to_array().
-      - env_name (str): The name of the MiniGrid environment (e.g., 'MiniGrid-Fetch-5x5-N2-v0').
-      - max_obs_objects (int): maximum number of objects used for the observation's fixed-size array.
-      - max_walls (int): maximum number of outer walls (used for observation conversion).
-      - max_gen_objects (int): maximum number of objects allowed in the state when generating neighbors
-                               (i.e., the BFS expansions).
-      - max_nodes_expanded (int): maximum number of nodes to dequeue/expand in the BFS.
-
-    TODO: Fix double returns in the docstring.
-
-    Returns:
-      - robustness_region (list): a list of symbolic states (each a dict) in the robustness region,
-                                  in the order discovered.
-      - stats (dict): dictionary containing statistics about the BFS, including:
-          * "initial_action"
-          * "region_size": number of states in the robustness region
-          * "total_opened_nodes": total number of nodes expanded
-          * "visited_count": total number of visited states
-          * "elapsed_time": time taken (seconds)
-
-    Returns:
-      - robustness_region (list): a list of symbolic states (each a dict) in the RR.
-        Each such dict will include an extra key "bfs_depth" storing the L1 distance
-        from the initial state.
-      - stats (dict): dictionary containing BFS stats.
     """
 
     start_time = time.time()
