@@ -6,7 +6,15 @@ for color, object, and state indexing.
 
 #TODO: Add action constants for different environments
 
-COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
+COLOR_TO_IDX = {
+    "red": 0,
+    "green": 1,
+    "blue": 2,
+    "purple": 3,
+    "yellow": 4,
+    "grey": 5,
+}
+
 IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
 
 OBJECT_TO_IDX = {
@@ -29,3 +37,25 @@ STATE_TO_IDX = {
     "closed": 1,
     "locked": 2,
 }
+
+
+# Hardcoded action values for "empty" and "fetch" environments
+ACTION_MAPPING_EMPTY = [
+    (0, "left", "Turn left"),
+    (1, "right", "Turn right"),
+    (2, "forward", "Move forward"),
+    (3, "pickup", "Unused"),
+    (4, "drop", "Unused"),
+    (5, "toggle", "Unused"),
+    (6, "done", "Unused"),
+]
+
+ACTION_MAPPING_FETCH = [
+    (0, "left", "Turn left"),
+    (1, "right", "Turn right"),
+    (2, "forward", "Move forward"),
+    (3, "pickup", "Pick up an object"),
+    (4, "drop", "Unused"),
+    (5, "toggle", "Unused"),
+    (6, "done", "Unused"),
+]
