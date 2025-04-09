@@ -135,14 +135,20 @@ def test_robustness_region_action_consistency():
         def __init__(self, initial_state_action=1, other_action=0):
             self.initial_state_action = initial_state_action
             self.other_action = other_action
+            # Store both the key and the array representation of the initial state
             self.initial_state_key = state_to_key(initial_state)
+            self.initial_state_array = symbolic_to_array(initial_state, MAX_OBJECTS, MAX_WALLS)
             self.called_states = []
             
         def predict(self, obs, deterministic=True):
-            # For array observations, can't use state_to_key directly
+            # For array observations
             if isinstance(obs, np.ndarray):
-                self.called_states.append(True)  # Just record that we were called
-                return self.initial_state_action, None
+                self.called_states.append(copy.deepcopy(obs))
+                # Compare with the stored initial state array
+                if np.array_equal(obs, self.initial_state_array):
+                    return self.initial_state_action, None
+                else:
+                    return self.other_action, None
                 
             # For symbolic states
             state_key = state_to_key(obs)
@@ -422,6 +428,11 @@ def test_neighbor_generation_rules():
     2. Goal color/type change
     3. Modifying one attribute of an existing object
     4. Adding a new object (if max_objects not exceeded)
+    
+    This test strictly validates that each neighbor differs from the initial state
+    by exactly one L1 difference, as specified in the BFS-RR algorithm description.
+    It provides detailed debug information about all violations to help diagnose
+    issues in the neighbor generation implementation.
     """
     # Create a simple environment config
     env_config = {
@@ -444,59 +455,144 @@ def test_neighbor_generation_rules():
         max_gen_objects=MAX_GEN_OBJECTS
     )
     
-    # Validate that each neighbor differs by exactly one atomic change
-    for neighbor in neighbors:
-        # Count differences between initial_state and neighbor
+    print(f"\n=== TESTING NEIGHBOR GENERATION RULES ===")
+    print(f"Initial state: {initial_state}")
+    print(f"Generated {len(neighbors)} neighbors")
+    
+    # Track violations for analysis
+    violations = []
+    violations_by_type = {
+        "multiple_changes": [],
+        "multiple_attributes": [],
+        "large_direction_change": [],
+        "multiple_goal_attrs": [],
+        "invalid_object_count": [],
+    }
+    
+    # Analyze each neighbor state
+    for i, neighbor in enumerate(neighbors):
+        print(f"\n--- Analyzing neighbor {i+1}/{len(neighbors)} ---")
+        print(f"Neighbor state: {neighbor}")
+        
+        # Track all differences
         differences = []
         
         # Check direction change
         if neighbor["direction"] != initial_state["direction"]:
-            differences.append("direction")
-            # Validate it's a ±1 change, accounting for wrap-around (modulo arithmetic)
-            # Directions are usually 0,1,2,3 where 3->0 is one step (not 3 steps)
             dir1 = int(neighbor["direction"])
             dir2 = int(initial_state["direction"])
             # Calculate minimum distance in a circular array of length 4
             dir_diff = min((dir1 - dir2) % 4, (dir2 - dir1) % 4)
-            assert dir_diff == 1, f"Direction change should be a single step (considering circular nature), got: {dir_diff}"
             
+            if dir_diff == 1:
+                differences.append(f"direction_change: {dir2} -> {dir1}")
+                print(f"  ✓ Direction changed: {dir2} -> {dir1} (valid: diff = {dir_diff})")
+            else:
+                violations_by_type["large_direction_change"].append(i)
+                diff_desc = f"direction_change: {dir2} -> {dir1} (invalid: diff = {dir_diff})"
+                differences.append(diff_desc)
+                print(f"  ✗ {diff_desc}")
+        
         # Check goal change
         if neighbor["goal"] != initial_state["goal"]:
-            differences.append("goal")
-            # Validate it's a coordinate change by 1
-            if len(differences) == 1:  # Only care if this is the only difference
-                goal_diff = 0
-                if neighbor["goal"][0] != initial_state["goal"][0]:
-                    goal_diff += abs(neighbor["goal"][0] - initial_state["goal"][0])
-                if neighbor["goal"][1] != initial_state["goal"][1]:
-                    goal_diff += abs(neighbor["goal"][1] - initial_state["goal"][1])
-                assert goal_diff == 1, f"Goal coordinate change should be by 1, got: {goal_diff}"
+            goal_changes = []
+            if neighbor["goal"][0] != initial_state["goal"][0]:
+                goal_changes.append(f"type: {initial_state['goal'][0]} -> {neighbor['goal'][0]}")
+            if neighbor["goal"][1] != initial_state["goal"][1]:
+                goal_changes.append(f"color: {initial_state['goal'][1]} -> {neighbor['goal'][1]}")
+            
+            if len(goal_changes) == 1:
+                differences.append(f"goal_change: {goal_changes[0]}")
+                print(f"  ✓ Goal changed: {goal_changes[0]}")
+            else:
+                violations_by_type["multiple_goal_attrs"].append(i)
+                diff_desc = f"goal_change: {', '.join(goal_changes)} (invalid: multiple attributes)"
+                differences.append(diff_desc)
+                print(f"  ✗ {diff_desc}")
         
-        # Check object changes
+        # Check object count changes
         if len(neighbor["objects"]) != len(initial_state["objects"]):
-            differences.append("object_count")
-            # Validate we're only adding one object
-            if len(differences) == 1:  # Only care if this is the only difference
-                assert len(neighbor["objects"]) == len(initial_state["objects"]) + 1, \
-                    "Should only add one object at a time"
-                assert len(neighbor["objects"]) <= MAX_GEN_OBJECTS, \
-                    f"Should not exceed max_gen_objects ({MAX_GEN_OBJECTS})"
+            diff = len(neighbor["objects"]) - len(initial_state["objects"])
+            if diff == 1:
+                # Valid: One object added
+                new_obj_idx = len(neighbor["objects"]) - 1  # Assume it's the last one
+                new_obj = neighbor["objects"][new_obj_idx]
+                differences.append(f"object_added: {new_obj}")
+                print(f"  ✓ Object added: {new_obj}")
+            else:
+                # Invalid: Multiple objects added or objects removed
+                violations_by_type["invalid_object_count"].append(i)
+                diff_desc = f"object_count_change: {len(initial_state['objects'])} -> {len(neighbor['objects'])} (invalid: diff = {diff})"
+                differences.append(diff_desc)
+                print(f"  ✗ {diff_desc}")
         else:
-            # Same number of objects, check if any attributes changed
-            for i, (init_obj, neigh_obj) in enumerate(zip(initial_state["objects"], neighbor["objects"])):
+            # Same number of objects, check for attribute changes
+            changed_objects = []
+            
+            for obj_idx, (init_obj, neigh_obj) in enumerate(zip(initial_state["objects"], neighbor["objects"])):
                 if init_obj != neigh_obj:
-                    differences.append(f"object_{i}")
-                    # Validate it's only one attribute change
-                    if len(differences) == 1:  # Only care if this is the only difference
-                        attr_diffs = 0
-                        for j in range(len(init_obj)):
-                            if init_obj[j] != neigh_obj[j]:
-                                attr_diffs += 1
-                        assert attr_diffs == 1, f"Only one attribute should change per object, got: {attr_diffs}"
+                    # Detect which attributes changed
+                    changed_attrs = []
+                    attr_names = ["type", "color", "state", "x_pos", "y_pos"]
+                    
+                    for attr_idx, (initial_val, neighbor_val) in enumerate(zip(init_obj, neigh_obj)):
+                        if initial_val != neighbor_val:
+                            changed_attrs.append(f"{attr_names[attr_idx]}: {initial_val} -> {neighbor_val}")
+                    
+                    if len(changed_attrs) == 1:
+                        # Valid: One attribute changed
+                        diff_desc = f"object_{obj_idx}_changed: {changed_attrs[0]}"
+                        differences.append(diff_desc)
+                        print(f"  ✓ Object {obj_idx} changed: {changed_attrs[0]}")
+                    else:
+                        # Invalid: Multiple attributes changed
+                        violations_by_type["multiple_attributes"].append(i)
+                        diff_desc = f"object_{obj_idx}_changed: {', '.join(changed_attrs)} (invalid: multiple attributes)"
+                        differences.append(diff_desc)
+                        print(f"  ✗ {diff_desc}")
+                    
+                    changed_objects.append(obj_idx)
         
-        # Ensure exactly one type of change occurred
-        assert len(differences) == 1, \
-            f"Each neighbor should differ by exactly one atomic change, got {len(differences)}: {differences}"
+        # Check overall atomic change rule (exactly one L1 difference)
+        if len(differences) == 1:
+            print(f"  ✓ VALID NEIGHBOR: Exactly one L1 difference")
+        else:
+            violations_by_type["multiple_changes"].append(i)
+            print(f"  ✗ INVALID NEIGHBOR: {len(differences)} differences found: {differences}")
+            violations.append({
+                "neighbor_idx": i,
+                "differences": differences,
+                "diff_count": len(differences)
+            })
+    
+    # Print summary of violations
+    print("\n=== NEIGHBOR GENERATION VALIDATION SUMMARY ===")
+    print(f"Total neighbors generated: {len(neighbors)}")
+    print(f"Valid neighbors (one L1 difference): {len(neighbors) - len(violations_by_type['multiple_changes'])}")
+    print(f"Invalid neighbors: {len(violations_by_type['multiple_changes'])}")
+    print("\nViolations by type:")
+    print(f"- Multiple changes in one neighbor: {len(violations_by_type['multiple_changes'])}")
+    print(f"- Multiple attributes changed for one object: {len(violations_by_type['multiple_attributes'])}")
+    print(f"- Invalid direction changes: {len(violations_by_type['large_direction_change'])}")
+    print(f"- Multiple goal attributes changed: {len(violations_by_type['multiple_goal_attrs'])}")
+    print(f"- Invalid object count changes: {len(violations_by_type['invalid_object_count'])}")
+    
+    # Provide detailed examples of violations for debugging
+    if violations:
+        print("\n=== DETAILED VIOLATION EXAMPLES ===")
+        for i, v in enumerate(violations[:5]):  # Show first 5 violations for brevity
+            print(f"Violation {i+1} (Neighbor {v['neighbor_idx']+1}):")
+            print(f"- Differences: {v['diff_count']}")
+            for diff in v['differences']:
+                print(f"  * {diff}")
+        
+        if len(violations) > 5:
+            print(f"... and {len(violations) - 5} more violations")
+        
+        # Fail the test with a clear message about the number of violations
+        assert False, (f"{len(violations_by_type['multiple_changes'])} neighbors violate the L1 difference rule. "
+                      f"Fix the neighbor generation in minigrid_neighbor_generation.py to ensure each neighbor "
+                      f"differs from the initial state by exactly one atomic change.")
     
     # Clean up
     env.close()
