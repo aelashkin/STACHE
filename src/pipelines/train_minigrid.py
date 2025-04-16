@@ -1,22 +1,22 @@
-import sys
 import os
 import traceback
 from datetime import datetime
-import yaml
 import copy
+
+import numpy as np
+import yaml
 
 from stable_baselines3 import PPO, A2C
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.callbacks import BaseCallback
 
-from utils.experiment_io import save_experiment, load_config, get_device
 from minigrid_ext.environment_utils import create_minigrid_env, MinigridFeaturesExtractor
+from utils.experiment_io import save_experiment, save_model, load_config, get_device
 from utils.experiment_io import ModelType
 
+# Hardcoded model type, can be changed to A2C or PPO. 
+# TODO: Should be replaced with terminal input.
 MODEL_TYPE = ModelType.PPO
-
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.evaluation import evaluate_policy
-import numpy as np
 
 class CustomEvalAndSaveCallback(BaseCallback):
     """
@@ -69,7 +69,6 @@ class CustomEvalAndSaveCallback(BaseCallback):
                 self.best_std_reward = std_reward
                 self.best_eval_timestamp = self.num_timesteps
                 # Save the best model using the provided save_model function
-                from utils import save_model
                 save_model(self.model, self.experiment_dir)
                 if self.verbose:
                     print(f"New best model found at timestep {self.num_timesteps} with mean reward {mean_reward:.2f}")
