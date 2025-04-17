@@ -1,220 +1,71 @@
-import gymnasium as gym
-import minigrid
-from stable_baselines3 import PPO
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-import torch.nn as nn
-import torch
-from gymnasium.wrappers import FlattenObservation
-from minigrid.core.mission import MissionSpace
-from minigrid.wrappers import ImgObsWrapper
 import numpy as np
+import gymnasium as gym
+from gymnasium import spaces
+from stable_baselines3 import DQN
+from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.evaluation import evaluate_policy
 
-from stable_baselines3.common.callbacks import EvalCallback
+# ───────────────────────────────────────────────────────────────────────────────
+# SOLVES TAXI-v3
+# ─────────────────────────────────────────────────────────────────────────────
 
-
-# class CountBasedExplorationWrapper(gym.Wrapper):
-#     def __init__(self, env, coefficient=0.005):
-#         super().__init__(env)
-#         self.counts = {}
-#         self.coefficient = coefficient
-
-#     def _get_state_key(self):
-#         agent_x, agent_y = self.env.agent_pos
-#         direction = self.env.agent_dir
-#         return (agent_x, agent_y, direction)
-
-#     def step(self, action):
-#         obs, reward, done, info = self.env.step(action)
-#         state_key = self._get_state_key()
-#         self.counts[state_key] = self.counts.get(state_key, 0) + 1
-#         bonus = self.coefficient / np.sqrt(self.counts[state_key])
-#         modified_reward = reward + bonus
-#         return obs, modified_reward, done, info
-
-# Step 1: Define a custom wrapper to handle the observation space
-class CustomObsWrapper(gym.ObservationWrapper):
+# 1. One‑hot wrapper for Discrete(500) → Box(500)
+class OneHotObs(gym.ObservationWrapper):
     def __init__(self, env):
-        super(CustomObsWrapper, self).__init__(env)
-        self.observation_space = gym.spaces.Dict({
-            'image': env.observation_space['image'],
-            'mission': gym.spaces.Box(low=0, high=1, shape=(8,)),
-            'direction': gym.spaces.Box(low=0, high=1, shape=(4,))
-        })
+        super().__init__(env)
+        assert isinstance(env.observation_space, spaces.Discrete), \
+            "OneHotObs only supports Discrete spaces"
+        n = env.observation_space.n
+        self.observation_space = spaces.Box(
+            low=0.0, high=1.0, shape=(n,), dtype=np.float32
+        )
 
     def observation(self, obs):
-        mission_str = obs['mission']
-        words = mission_str.split()
-        color = words[-2]
-        obj_type = words[-1]
-        colors = ['red', 'green', 'blue', 'purple', 'yellow', 'grey']
-        types = ['key', 'ball']
-        color_idx = colors.index(color)
-        type_idx = types.index(obj_type)
-        mission_encoding = np.zeros(8)
-        mission_encoding[color_idx] = 1
-        mission_encoding[6 + type_idx] = 1
-        direction = obs['direction']
-        direction_onehot = np.zeros(4)
-        direction_onehot[direction] = 1
-        return {
-            'image': obs['image'],
-            'mission': mission_encoding,
-            'direction': direction_onehot
-        }
+        vec = np.zeros(self.observation_space.shape, dtype=np.float32)
+        vec[obs] = 1.0
+        return vec
 
-# Step 2: Define a custom features extractor for the policy
-import torch
-import torch.nn as nn
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+# 2. Env factory for vectorization
+def make_env():
+    env = gym.make("Taxi-v3")
+    return OneHotObs(env)
 
-class CustomCombinedExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_space: gym.spaces.Dict, features_dim: int = 256):
-        super(CustomCombinedExtractor, self).__init__(observation_space, features_dim)
-        
-        # Extract image shape from the observation space.
-        # Assume image observations are in (H, W, C) format.
-        image_shape = observation_space.spaces['image'].shape  # e.g., (7, 7, 3)
-        height, width, n_input_channels = image_shape  # unpack dimensions
-        
-        self.cnn = nn.Sequential(
-            nn.Conv2d(n_input_channels, 32, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Flatten(),
-        )
+# 3. Build 8 parallel environments
+n_envs = 8
+train_env = DummyVecEnv([make_env for _ in range(n_envs)])
 
-        self.mission_mlp = nn.Sequential(
-            nn.Linear(8, 16),
-            nn.ReLU(),
-        )
-        
-        # Compute the CNN's output dimension using a dummy sample.
-        with torch.no_grad():
-            sample_image = torch.zeros(1, n_input_channels, height, width)
-            cnn_output_dim = self.cnn(sample_image).shape[1]
-        
-        # The total features dimension is the sum of image, mission, and direction features.
-        self._features_dim = cnn_output_dim + 16 + 4  # +4 for the direction
+# 4. Instantiate vanilla DQN
+model = DQN(
+    policy="MlpPolicy",
+    env=train_env,
+    learning_rate=1e-4,            # lower LR for stability
+    buffer_size=500_000,           # large enough to cover 2M steps
+    learning_starts=10_000,        # let the buffer fill a bit first
+    batch_size=128,
+    gamma=0.99,
+    train_freq=(1, "step"),        # update once every collected step
+    gradient_steps=1,
+    target_update_interval=10_000,
+    exploration_initial_eps=1.0,
+    exploration_fraction=0.2,      # decay ε from 1.0 to 0.02 over 20% of training
+    exploration_final_eps=0.02,
+    policy_kwargs=dict(net_arch=[256, 256]),
+    verbose=1,
+    seed=42,
+)
 
-    def forward(self, observations):
-        # Normalize the image observation.
-        image = observations['image'].float() / 255.0
-        # Convert from (batch, H, W, C) to (batch, C, H, W)
-        image = image.permute(0, 3, 1, 2)
-        image_features = self.cnn(image)
-        
-        mission = observations['mission']
-        mission_features = self.mission_mlp(mission)
-        
-        direction = observations['direction']
-        
-        return torch.cat([image_features, mission_features, direction], dim=1)
+# 5. Train for 2 million timesteps
+model.learn(total_timesteps=1_200_000)
 
-
-
-# Step 3: Create the environment and wrap it
-import os
-import yaml
-from datetime import datetime
-import gymnasium as gym
-import minigrid
-from stable_baselines3 import PPO
-from stable_baselines3.common.logger import configure
-from stable_baselines3.common.evaluation import evaluate_policy
-
-# Assume CustomObsWrapper and CustomCombinedExtractor are defined as above
-
-from utils import save_model, save_config
-# Add the new import for evaluation
-from stable_baselines3.common.evaluation import evaluate_policy
-
-# ... (other existing imports like gym, PPO, datetime, os, etc., remain unchanged)
-# ... (CustomObsWrapper and CustomCombinedExtractor definitions remain unchanged)
-# ... (save_model and save_config functions remain unchanged if defined elsewhere)
-
-def main():
-    """
-    Main function to set up, train, and evaluate the reinforcement learning agent.
-    """
-    import os
-    from datetime import datetime
-    import gymnasium as gym
-    from stable_baselines3 import PPO
-    from stable_baselines3.common.logger import configure  
-    from stable_baselines3.common.callbacks import EvalCallback
-    from stable_baselines3.common.evaluation import evaluate_policy
-    from utils import save_model, save_config  # Assumes these functions are defined in utils
-
-    # Create experiment directory with a timestamp
-    experiment_dir = f"experiments/{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    os.makedirs(experiment_dir, exist_ok=True)
-
-    # Set up logger
-    logger = configure(experiment_dir, ["stdout", "log"])
-
-    # Create and wrap the environment
-    env = gym.make('MiniGrid-Fetch-5x5-N2-v0')
-    env = CustomObsWrapper(env)
-
-    # Define policy kwargs for the custom feature extractor
-    policy_kwargs = {
-        "features_extractor_class": CustomCombinedExtractor,
-        "features_extractor_kwargs": {"features_dim": 256},
-    }
-
-    # Initialize the PPO model
-    model = PPO("MultiInputPolicy", env, policy_kwargs=policy_kwargs, verbose=1)
-    model.set_logger(logger)
-
-    # Define configuration dictionaries (updated to use the correct env id)
-    env_config = {
-        "env_id": "MiniGrid-Fetch-5x5-N2-v0",
-    }
-    model_config = {
-        "algorithm": "PPO",
-        "policy": "MultiInputPolicy",
-        "policy_kwargs": policy_kwargs,
-        "learning_rate": model.learning_rate,
-        "n_steps": model.n_steps,
-        "batch_size": model.batch_size,
-        "n_epochs": model.n_epochs,
-    }
-
-    # Define the evaluation callback
-    eval_callback = EvalCallback(
-        env,
-        best_model_save_path=experiment_dir,
-        log_path=experiment_dir,
-        eval_freq=10000,  # Evaluate every 10,000 timesteps
-        n_eval_episodes=20,
-        deterministic=True,
-        verbose=1
-    )
-
-    # Train the model
-    model.learn(total_timesteps=100000, callback=eval_callback)
-
-    # Save the trained model and configuration
-    save_model(model, experiment_dir)
-    save_config(env_config, model_config, experiment_dir)
-
-    # Evaluate the agent over 100 episodes
-    mean_reward, std_reward = evaluate_policy(
-        model,
-        env,
-        n_eval_episodes=100,
-        deterministic=True
-    )
-    print(f"Mean reward: {mean_reward:.2f} +/- {std_reward:.2f}")
-
-
-if __name__ == "__main__":
-    main()
-
-
-# Run the main function when the script is executed directly
-if __name__ == "__main__":
-    main()
+# 6. Evaluate on a fresh, monitored env
+eval_env = Monitor(OneHotObs(gym.make("Taxi-v3")))
+n_eval_episodes = 100
+print("Evaluating the agent on training environment...")
+mean_reward, std_reward = evaluate_policy(
+    model,
+    eval_env,
+    n_eval_episodes=n_eval_episodes,
+    deterministic=True,
+)
+print(f"Mean reward: {mean_reward} +/- {std_reward}")

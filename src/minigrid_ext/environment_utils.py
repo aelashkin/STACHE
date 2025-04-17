@@ -1,36 +1,105 @@
 import torch
 import torch.nn as nn
+import numpy as np 
 
 import gymnasium as gym
+from gymnasium.wrappers import OneHotObservation
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from minigrid.wrappers import FullyObsWrapper, FlatObsWrapper, ActionBonus, PositionBonus
 
 from minigrid_ext.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
 
-def apply_reward_wrappers(env, wrapper_config):
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Generic factory entry‑point for *all* envs
+# ────────────────────────────────────────────────────────────────────────────────
+
+def create_env(env_config: dict) -> gym.Env:
     """
-    Apply reward wrappers based on configuration.
+    Generic environment factory. Decides which specialised builder to call based
+    on `env_name`.  New domains can be added here with zero impact on callers.
+    """
+    env_name = env_config.get("env_name", "").lower()
+
+    if "minigrid" in env_name:
+        return create_minigrid_env(env_config)
+    elif "taxi" in env_name:
+        return create_taxi_env(env_config)
+    else:  # Fallback – build raw Gymnasium env
+        print(f"[WARN] No dedicated builder for '{env_name}', using gym.make")
+        raise NotImplementedError(f"Environment '{env_name}' not supported. ")
+        #TODO: return gym.make(env_config["env_name"], render_mode=env_config.get("render_mode"))
     
-    Args:
-        env: The environment to wrap
-        wrapper_config: Dictionary with wrapper configuration
-        
-    Returns:
-        The wrapped environment
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Taxi environment factory
+# ────────────────────────────────────────────────────────────────────────────────
+
+def create_taxi_env(env_config: dict) -> gym.Env:
     """
-    if wrapper_config is None:
-        return env
-        
-    # Apply ActionBonus wrapper if enabled
-    if wrapper_config.get("action_bonus", True):
-        env = ActionBonus(env)
-        print("Applied ActionBonus wrapper.")
-        
-    # Apply PositionBonus wrapper if enabled
-    if wrapper_config.get("position_bonus", True):
-        env = PositionBonus(env)
-        print("Applied PositionBonus wrapper.")
+    Build and return a Taxi‑v3 environment ready for SB3 PPO.
+
+    Supported representations
+    -------------------------
+    - "one_hot"  (default): wraps the Discrete(500) observation into a Box(0,1)
+      vector using gymnasium.wrappers.OneHotObservation.
+    - "discrete": leaves the native Discrete space untouched (**not** suitable for
+      vanilla SB3‑PPO).
+
+    Extra keys in `env_config`
+    --------------------------
+    - render_mode : passed straight to `gym.make`
+    - representation : see above
+    """
+    env_name   = env_config.get("env_name", "Taxi-v3")
+    render     = env_config.get("render_mode")       # None / "human" / "rgb_array"
+    repr_type  = env_config.get("representation", "one_hot")
+
+    env = gym.make(env_name, render_mode=render)
+
+    if repr_type == "one_hot":
+        raise NotImplementedError("One-hot observation is not yet supported.")
+    elif repr_type == "discrete":
+        pass  # nothing to do
+    else:
+        raise ValueError(
+            f"Unsupported representation '{repr_type}' for Taxi. "
+            "Use 'discrete'."
+        )
+
+    # Keep logging identical to MiniGrid
+    env = Monitor(env)
+    return env
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# MiniGrid environment factory
+# ────────────────────────────────────────────────────────────────────────────────
+
+def create_minigrid_env(env_config: dict) -> gym.Env:
+    env_name = env_config["env_name"]
+    print(f"Initializing the environment: {env_name}")
+
+    representation = env_config.get("representation")
+
+    if representation == "symbolic":
+        env = create_symbolic_minigrid_env(env_config)
+        print("Using symbolic representation.")
+    elif representation == "image":
+        env = create_image_minigrid_env(env_config)
+        print("Using image representation.")
+    elif representation == "standard":
+        env = create_standard_minigrid_env(env_config)
+        print("Using standard representation.")
+    else:
+        raise ValueError(f"Unknown representation: {representation}. Valid options are: 'symbolic', 'image', 'standard'.")
+    
+    # Apply reward wrappers based on configuration
+    wrapper_config = env_config.get("reward_wrappers", {})
+    env = apply_reward_wrappers(env, wrapper_config)
+
+    env = Monitor(env)
 
     return env
 
@@ -71,31 +140,37 @@ def create_symbolic_minigrid_env(env_config: dict) -> gym.Env:
 
     return env
 
-def create_minigrid_env(env_config: dict) -> gym.Env:
-    env_name = env_config["env_name"]
-    print(f"Initializing the environment: {env_name}")
 
-    representation = env_config.get("representation")
+# ────────────────────────────────────────────────────────────────────────────────
+# Reward wrappers section
+# ────────────────────────────────────────────────────────────────────────────────
 
-    if representation == "symbolic":
-        env = create_symbolic_minigrid_env(env_config)
-        print("Using symbolic representation.")
-    elif representation == "image":
-        env = create_image_minigrid_env(env_config)
-        print("Using image representation.")
-    elif representation == "standard":
-        env = create_standard_minigrid_env(env_config)
-        print("Using standard representation.")
-    else:
-        raise ValueError(f"Unknown representation: {representation}. Valid options are: 'symbolic', 'image', 'standard'.")
+def apply_reward_wrappers(env, wrapper_config):
+    """
+    Apply reward wrappers based on configuration.
     
-    # Apply reward wrappers based on configuration
-    wrapper_config = env_config.get("reward_wrappers", {})
-    env = apply_reward_wrappers(env, wrapper_config)
-
-    env = Monitor(env)
+    Args:
+        env: The environment to wrap
+        wrapper_config: Dictionary with wrapper configuration
+        
+    Returns:
+        The wrapped environment
+    """
+    if wrapper_config is None:
+        return env
+        
+    # Apply ActionBonus wrapper if enabled
+    if wrapper_config.get("action_bonus", True):
+        env = ActionBonus(env)
+        print("Applied ActionBonus wrapper.")
+        
+    # Apply PositionBonus wrapper if enabled
+    if wrapper_config.get("position_bonus", True):
+        env = PositionBonus(env)
+        print("Applied PositionBonus wrapper.")
 
     return env
+
 
 
 class MinigridFeaturesExtractor(BaseFeaturesExtractor):
