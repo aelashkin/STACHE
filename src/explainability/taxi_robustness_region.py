@@ -265,10 +265,10 @@ def plot_dest_maps(
 # ──────────────────────────────────────────────────────────────────────────────
 
 def run_visualisation(model_path: Path, model_name: str, timestamp: str | None = None, show_walls: bool = True) -> None:
-    """Main entry point called by :pyfunc:`main`."""
+    """Main entry point for policy-map visualisation."""
     timestamp = timestamp or _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Construct rr_dir as an absolute path from the start
-    rr_dir = Path.cwd() / "data" / "experiments" / "rr" / model_name / f"_time_{timestamp}"
+    # Construct output directory for policy maps
+    rr_dir = Path.cwd() / "data" / "experiments" / "rr" / f"{model_name}_policy_map" / f"time_{timestamp}"
     rr_dir.mkdir(parents=True, exist_ok=True)
 
     # Environment compatible with the trained policy (one‑hot)
@@ -307,7 +307,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--model-path",
         type=Path,
-        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250423_173106/model.zip"), # Corrected default path
+        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250423_173106/model.zip"),
         help="Path to the SB3 .zip model file (produced by model.save()). Default: data/experiments/models/Taxi-v3_DQN_model_20250423_173106/model.zip",
     )
     parser.add_argument(

@@ -3,7 +3,28 @@ import torch.nn as nn
 import numpy as np 
 
 import gymnasium as gym
-from gymnasium.wrappers import OneHotObservation
+try:
+    from gymnasium.wrappers.transform_observation import OneHotObservation
+except ImportError:
+    try:
+        from gymnasium.wrappers import OneHotObservation
+    except ImportError:
+        # Define fallback OneHotObservation wrapper
+        class OneHotObservation(gym.ObservationWrapper):
+            """One-hot encode Discrete observations to Box(0,1) vectors."""
+            def __init__(self, env):
+                super().__init__(env)
+                assert isinstance(env.observation_space, gym.spaces.Discrete), \
+                    "OneHotObservation only supports Discrete spaces"
+                n = env.observation_space.n
+                self.observation_space = gym.spaces.Box(
+                    low=0.0, high=1.0, shape=(n,), dtype=np.float32
+                )
+            def observation(self, obs):  # type: ignore[override]
+                vec = np.zeros(self.observation_space.shape, dtype=np.float32)
+                vec[obs] = 1.0
+                return vec
+
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from minigrid.wrappers import FullyObsWrapper, FlatObsWrapper, ActionBonus, PositionBonus
