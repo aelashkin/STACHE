@@ -177,8 +177,8 @@ def build_action_grid(
     return grid
 
 
-def _annotate_grid(ax, grid: np.ndarray, passenger: Tuple[int, int] | None, dest: Tuple[int, int]) -> None:
-    """Overlay P/G labels on an imshow‑based grid."""
+def _annotate_grid(ax, grid: np.ndarray, passenger: Tuple[int, int] | None, dest: Tuple[int, int], show_walls: bool = True) -> None:
+    """Overlay P/G labels and walls on an imshow‑based grid."""
     ax.set_xticks([])
     ax.set_yticks([])
     for row in range(5):
@@ -202,12 +202,22 @@ def _annotate_grid(ax, grid: np.ndarray, passenger: Tuple[int, int] | None, dest
     ax.set_xlim(-0.5, 4.5)
     ax.set_ylim(4.5, -0.5)
 
+    # Draw walls if requested
+    if show_walls:
+        wall_kwargs = {'color': 'black', 'linewidth': 2.5}
+        # Vertical walls
+        ax.plot([0.5, 0.5], [2.5, 4.5], **wall_kwargs) # Between col 0 & 1, rows 3-4
+        ax.plot([1.5, 1.5], [-0.5, 1.5], **wall_kwargs) # Between col 1 & 2, rows 0-1
+        ax.plot([2.5, 2.5], [-0.5, 1.5], **wall_kwargs) # Between col 2 & 3, rows 0-1
+        ax.plot([3.5, 3.5], [2.5, 4.5], **wall_kwargs) # Between col 3 & 4, rows 3-4
+
 
 def plot_dest_maps(
     taxi_env: gym.Env,
     mapping: Dict[int, int],
     dest_idx: int,
     output_path: Path,
+    show_walls: bool = True,
 ) -> None:
     """Render the 4‑panel visualisation for a given destination."""
     waiting_locs = [i for i in range(4) if i != dest_idx]
@@ -222,7 +232,7 @@ def plot_dest_maps(
 
         pickup_cell = PICKUP_LOCS[pass_loc] if pass_loc < 4 else None
         dest_cell = PICKUP_LOCS[dest_idx]
-        _annotate_grid(ax, grid, pickup_cell, dest_cell)
+        _annotate_grid(ax, grid, pickup_cell, dest_cell, show_walls=show_walls)
 
         subtitle = (
             f"Passenger at {LOC_CHARS[pass_loc]}" if pass_loc < 4 else "Passenger in taxi"
@@ -254,7 +264,7 @@ def plot_dest_maps(
 # High‑level orchestration
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_visualisation(model_path: Path, model_name: str, timestamp: str | None = None) -> None:
+def run_visualisation(model_path: Path, model_name: str, timestamp: str | None = None, show_walls: bool = True) -> None:
     """Main entry point called by :pyfunc:`main`."""
     timestamp = timestamp or _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     # Construct rr_dir as an absolute path from the start
@@ -282,7 +292,7 @@ def run_visualisation(model_path: Path, model_name: str, timestamp: str | None =
     unwrapped_env = base_env.unwrapped  # for encode/decode
     for dest in range(4):
         img_path = rr_dir / f"policy_map_dest_{LOC_CHARS[dest]}.png"
-        plot_dest_maps(unwrapped_env, mapping, dest, img_path)
+        plot_dest_maps(unwrapped_env, mapping, dest, img_path, show_walls=show_walls)
         # Now img_path is absolute because rr_dir is absolute
         print(f"✔ Saved visualisation → {img_path.relative_to(Path.cwd())}")
 
@@ -311,12 +321,19 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=str,
         help="Use a fixed timestamp instead of the current datetime.",
     )
+    parser.add_argument(
+        "--hide-walls",
+        action="store_false",
+        dest="show_walls", # Store result in 'show_walls'
+        help="Do not draw the environment walls on the plots.",
+    )
+    parser.set_defaults(show_walls=True) # Default is to show walls
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     args = _parse_args(argv)
-    run_visualisation(args.model_path, args.model_name, args.timestamp)
+    run_visualisation(args.model_path, args.model_name, args.timestamp, show_walls=args.show_walls)
 
 
 if __name__ == "__main__":  # pragma: no cover
