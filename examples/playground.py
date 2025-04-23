@@ -5,6 +5,8 @@ from stable_baselines3 import DQN
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
+# Import the saving utility
+from utils.experiment_io import save_experiment
 
 # ───────────────────────────────────────────────────────────────────────────────
 # SOLVES TAXI-v3
@@ -56,7 +58,8 @@ model = DQN(
 )
 
 # 5. Train for 2 million timesteps
-model.learn(total_timesteps=1_200_000)
+total_timesteps_to_train = 1_200_000
+model.learn(total_timesteps=total_timesteps_to_train)
 
 # 6. Evaluate on a fresh, monitored env
 eval_env = Monitor(OneHotObs(gym.make("Taxi-v3")))
@@ -69,3 +72,47 @@ mean_reward, std_reward = evaluate_policy(
     deterministic=True,
 )
 print(f"Mean reward: {mean_reward} +/- {std_reward}")
+
+# 7. Prepare configurations and log for saving
+env_config = {
+    "env_name": "Taxi-v3",
+    "n_envs": n_envs,
+    "wrapper": "OneHotObs"
+}
+
+model_config = {
+    "model_type": "DQN", # Note: load_experiment might need adjustment for DQN
+    "policy": "MlpPolicy",
+    "learning_rate": 1e-4,
+    "buffer_size": 500_000,
+    "learning_starts": 10_000,
+    "batch_size": 128,
+    "gamma": 0.99,
+    "train_freq": (1, "step"),
+    "gradient_steps": 1,
+    "target_update_interval": 10_000,
+    "exploration_initial_eps": 1.0,
+    "exploration_fraction": 0.2,
+    "exploration_final_eps": 0.02,
+    "policy_kwargs": dict(net_arch=[256, 256]),
+    "seed": 42,
+    "total_timesteps": total_timesteps_to_train
+}
+
+training_log = (
+    f"Training completed for {total_timesteps_to_train} timesteps.\n"
+    f"Evaluation over {n_eval_episodes} episodes:\n"
+    f"Mean Reward: {mean_reward:.2f}, Std Reward: {std_reward:.2f}\n"
+)
+
+# 8. Save the experiment
+print("\nSaving the experiment...")
+experiment_info = save_experiment(
+    model=model,
+    env_config=env_config,
+    model_config=model_config,
+    training_log=training_log,
+    # experiments_base_dir="data/experiments/models" # Default location
+)
+print("Experiment saved successfully:")
+print(experiment_info)
