@@ -79,7 +79,7 @@ PICKUP_LOCS = {
     1: (0, 4),  # G
     2: (4, 0),  # Y
     3: (4, 3),  # B
-}
+}   
 
 # Character representation for labelling
 LOC_CHARS = {0: "R", 1: "G", 2: "Y", 3: "B"}
@@ -187,7 +187,7 @@ def _annotate_grid(ax, grid: np.ndarray, passenger: Tuple[int, int] | None, dest
             if passenger and (row, col) == passenger:
                 label = "P"
             if (row, col) == dest:
-                label = "G" if not label else "PG"
+                label = "D" if not label else "PD"
             if label:
                 ax.text(
                     col,
@@ -256,7 +256,7 @@ def plot_dest_maps(
     # Adjust layout to prevent overlap, leaving space at the bottom
     fig.tight_layout(rect=[0, 0.05, 1, 1])  # Adjust bottom margin if needed
 
-    fig.suptitle(f"Destination = {LOC_CHARS[dest_idx]}", y=0.98)  # Adjust title position if needed
+    fig.suptitle(f"Destination = {LOC_CHARS[dest_idx]}", y=1.05)  # Adjust title position if needed
     plt.savefig(output_path, dpi=150, bbox_inches='tight')  # Use bbox_inches='tight' for better saving
     plt.close(fig)
 
