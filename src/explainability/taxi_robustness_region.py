@@ -296,6 +296,29 @@ def run_visualisation(model_path: Path, model_name: str, timestamp: str | None =
         # Now img_path is absolute because rr_dir is absolute
         print(f"✔ Saved visualisation → {img_path.relative_to(Path.cwd())}")
 
+    # --- Combined 4x4 policy map ---
+    dest_order = [3, 1, 0, 2]  # B, G, R, Y
+    def passenger_list(d):
+        return [p for p in range(5) if p != d][:3] + [4]
+    fig4, axes4 = plt.subplots(4, 4, figsize=(16, 16))
+    for row_idx, d in enumerate(dest_order):
+        for col_idx, p in enumerate(passenger_list(d)):
+            ax = axes4[row_idx, col_idx]
+            grid = build_action_grid(unwrapped_env, mapping, p, d)
+            ax.imshow(grid, cmap=_COLORMAP, vmin=0, vmax=5)
+            pickup = PICKUP_LOCS[p] if p < 4 else None
+            dest_cell = PICKUP_LOCS[d]
+            _annotate_grid(ax, grid, pickup, dest_cell, show_walls=show_walls)
+    # Shared legend
+    legend_elems = [plt.Line2D([0], [0], marker="s", linestyle="", color=CB_PALETTE[a], label=ACTION_NAMES[a]) for a in range(len(ACTION_NAMES))]
+    fig4.legend(handles=legend_elems, loc="lower center", ncol=6, title="Action", fontsize="small")
+    fig4.tight_layout(rect=[0, 0.05, 1, 1])
+    fig4.suptitle("Combined Policy Maps B-G-R-Y", y=1.02)
+    out4_path = rr_dir / "policy_map_4x4.png"
+    fig4.savefig(out4_path, dpi=150, bbox_inches='tight')
+    plt.close(fig4)
+    print(f"✔ Saved combined 4x4 visualisation → {out4_path.relative_to(Path.cwd())}")
+
     print("All done! ✨")
 
 # ──────────────────────────────────────────────────────────────────────────────

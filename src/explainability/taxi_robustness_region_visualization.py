@@ -121,12 +121,13 @@ def main(argv=None) -> None:
     plt.close(fig0)
     print(f"Saved initial-state image → {init_path.relative_to(Path.cwd())}")
 
-    # Plot grid: 4x4 subplots
+    # Plot grid: 4x4 subplots in order B, G, R, Y
+    dest_order = [3, 1, 0, 2]  # B, G, R, Y
     fig, axes = plt.subplots(4, 4, figsize=(14, 14))
-    for d in range(4):
+    for row_idx, d in enumerate(dest_order):
         passenger_list = [p for p in range(5) if p != d][:3] + [4]
         for j, p in enumerate(passenger_list):
-            ax = axes[d, j]
+            ax = axes[row_idx, j]
             A = np.full((5, 5), -1, dtype=int)
             for (x, y, P, D) in tuples:
                 if P == p and D == d:
