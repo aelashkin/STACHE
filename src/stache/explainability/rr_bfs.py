@@ -34,7 +34,7 @@ import gymnasium as gym
 
 
 from stache.utils.experiment_io import load_experiment
-from stache.envs.minigrid.environment_utils import create_minigrid_env
+from stache.envs.minigrid.factory import create_minigrid_env
 from stache.envs.minigrid.set_state_extension import set_standard_state_minigrid, factorized_symbolic_to_fullobs
 from stache.envs.minigrid.constants import (
     ACTION_MAPPING_EMPTY,
@@ -45,7 +45,7 @@ from stache.envs.minigrid.state_utils import (
     state_to_key,
     get_grid_dimensions,
 )
-from stache.explainability.minigrid_neighbor_generation import get_neighbors
+from stache.explainability.minigrid.minigrid_neighbor_generation import get_neighbors
 
 # variables for running main without console input
 
