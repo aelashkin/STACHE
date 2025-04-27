@@ -1,77 +1,11 @@
 import torch
 import torch.nn as nn
-import numpy as np 
 
 import gymnasium as gym
 
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from minigrid.wrappers import FullyObsWrapper, FlatObsWrapper, ActionBonus, PositionBonus
-
-from minigrid_ext.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
-
-
-# ────────────────────────────────────────────────────────────────────────────────
-# Generic factory entry‑point for *all* envs
-# ────────────────────────────────────────────────────────────────────────────────
-
-def create_env(env_config: dict) -> gym.Env:
-    """
-    Generic environment factory. Decides which specialised builder to call based
-    on `env_name`.  New domains can be added here with zero impact on callers.
-    """
-    env_name = env_config.get("env_name", "").lower()
-
-    if "minigrid" in env_name:
-        return create_minigrid_env(env_config)
-    elif "taxi" in env_name:
-        return create_taxi_env(env_config)
-    else:  # Fallback – build raw Gymnasium env
-        print(f"[WARN] No dedicated builder for '{env_name}', using gym.make")
-        raise NotImplementedError(f"Environment '{env_name}' not supported. ")
-        #TODO: return gym.make(env_config["env_name"], render_mode=env_config.get("render_mode"))
-    
-
-# ────────────────────────────────────────────────────────────────────────────────
-# Taxi environment factory
-# ────────────────────────────────────────────────────────────────────────────────
-
-def create_taxi_env(env_config: dict) -> gym.Env:
-    """
-    Build and return a Taxi‑v3 environment ready for SB3 PPO.
-
-    Supported representations
-    -------------------------
-    - "one_hot"  (default): wraps the Discrete(500) observation into a Box(0,1)
-      vector using gymnasium.wrappers.OneHotObservation.
-    - "discrete": leaves the native Discrete space untouched (**not** suitable for
-      vanilla SB3‑PPO).
-
-    Extra keys in `env_config`
-    --------------------------
-    - render_mode : passed straight to `gym.make`
-    - representation : see above
-    """
-    env_name   = env_config.get("env_name", "Taxi-v3")
-    render     = env_config.get("render_mode")       # None / "human" / "rgb_array"
-    repr_type  = env_config.get("representation", "one_hot")
-
-    env = gym.make(env_name, render_mode=render)
-
-    if repr_type == "one_hot":
-        raise NotImplementedError("One-hot observation is not yet supported.")
-    elif repr_type == "discrete":
-        pass  # nothing to do
-    else:
-        raise ValueError(
-            f"Unsupported representation '{repr_type}' for Taxi. "
-            "Use 'discrete'."
-        )
-
-    # Keep logging identical to MiniGrid
-    env = Monitor(env)
-    return env
-
 
 # ────────────────────────────────────────────────────────────────────────────────
 # MiniGrid environment factory
