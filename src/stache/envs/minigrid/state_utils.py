@@ -1,7 +1,7 @@
 import re
 import numpy as np
 
-from stache.envs.minigrid_ext.constants import (
+from stache.envs.minigrid.constants import (
     OBJECT_TO_IDX,
 )
 

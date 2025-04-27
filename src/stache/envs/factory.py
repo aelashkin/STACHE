@@ -1,7 +1,7 @@
 import gymnasium as gym
 
-from stache.envs.minigrid_ext.factory import create_minigrid_env
-from stache.envs.taxi_ext.factory import create_taxi_env
+from stache.envs.minigrid.factory import create_minigrid_env
+from stache.envs.taxi.factory import create_taxi_env
 # ────────────────────────────────────────────────────────────────────────────────
 # Generic factory entry‑point for *all* envs
 # ────────────────────────────────────────────────────────────────────────────────
