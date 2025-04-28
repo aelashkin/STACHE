@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
 CLI for computing and visualizing the robustness region (RR) of a Taxi-v3 policy.
+
+Now expects --model-path to be a folder containing model.zip;
+model_name is derived from that folder's name.
 """
 import argparse
 import datetime as _dt
@@ -13,8 +16,8 @@ import numpy as np
 import yaml
 from stable_baselines3 import DQN
 
-from explainability.robust_taxi import compute_rr_taxi, translate_tuple_to_onehot
-from explainability.taxi_robustness_region import OneHotObs, _annotate_grid, _COLORMAP, CB_PALETTE, ACTION_NAMES, PICKUP_LOCS, LOC_CHARS
+from stache.explainability.taxi.robust_taxi import compute_rr_taxi, translate_tuple_to_onehot
+from stache.explainability.taxi.taxi_policy_map import OneHotObs, _annotate_grid, _COLORMAP, CB_PALETTE, ACTION_NAMES, PICKUP_LOCS, LOC_CHARS
 
 
 def parse_state(s: str) -> tuple[int, int, int, int]:
@@ -40,21 +43,14 @@ def parse_state(s: str) -> tuple[int, int, int, int]:
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description="Taxi-v3 Robustness Region visualisation")
     parser.add_argument(
-        "--model-path", type=Path,
-        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250423_173106/model.zip"),
-        help="Path to SB3 .zip model file"
-    )
-    parser.add_argument(
-        "--model-name", type=str, default="taxi_dqn",
-        help="Identifier used to name output folder"
+        "--model-path",
+        type=Path,
+        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250423_173106"),
+        help="Path to folder containing model.zip"
     )
     parser.add_argument(
         "--state", type=parse_state, default="1,1,1,2",
         help="Seed state as 'x,y,P,D'"
-    )
-    parser.add_argument(
-        "--timestamp", type=str,
-        help="Timestamp override (format YYYYMMDD_HHMMSS)"
     )
     parser.add_argument(
         "--hide-walls", action="store_false", dest="show_walls",
@@ -63,9 +59,15 @@ def main(argv=None) -> None:
     parser.set_defaults(show_walls=True)
     args = parser.parse_args(argv)
 
+    # Validate model.zip and derive model_name
+    zip_path = args.model_path / "model.zip"
+    if not zip_path.is_file():
+        raise FileNotFoundError(f"Could not find model.zip in {args.model_path}")
+    model_name = args.model_path.name
+
     # Prepare output directory
-    ts = args.timestamp or _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_dir = Path.cwd() / "data" / "experiments" / "rr" / f"{args.model_name}_robustness_region" / f"time_{ts}"
+    seed_str = f"{args.state[0]}_{args.state[1]}_{args.state[2]}_{args.state[3]}"
+    out_dir = Path.cwd() / "data" / "experiments" / "rr" / "taxi_robustness_region" / model_name / seed_str
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Create environments
@@ -73,7 +75,7 @@ def main(argv=None) -> None:
     obs_env = OneHotObs(base_env)  # for model.predict
 
     # Load model
-    model = DQN.load(str(args.model_path), env=obs_env)
+    model = DQN.load(str(zip_path), env=obs_env)
 
     # Compute RR
     rr = compute_rr_taxi(args.state, model, base_env)
@@ -83,9 +85,8 @@ def main(argv=None) -> None:
     # Save YAML
     yaml_data = {
         "metadata": {
-            "model_name": args.model_name,
+            "model_name": model_name,
             "seed_tuple": list(args.state),
-            "timestamp": ts,
             "initial_action": rr["initial_action"],
             **rr["stats"]
         },
@@ -112,9 +113,18 @@ def main(argv=None) -> None:
     _annotate_grid(ax0, A0, pickup0, dest0, show_walls=args.show_walls)
     # Mark initial taxi location with 'S'
     ax0.text(col0, row0, 'S', ha='center', va='center', fontsize='x-large', color='red', weight='bold')
-    # Add legend for action colors
+    # Add title
+    fig0.suptitle(f"Initial state {args.state}", fontsize="large", y=1.02)
+    # Move legend below
     legend0 = [plt.Line2D([0], [0], marker="s", linestyle="", color=CB_PALETTE[a], label=ACTION_NAMES[a]) for a in range(len(ACTION_NAMES))]
-    fig0.legend(handles=legend0, loc="lower center", ncol=6, title="Action", fontsize="small")
+    fig0.legend(
+        handles=legend0,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.08),
+        ncol=6,
+        title="Action",
+        fontsize="small"
+    )
     fig0.tight_layout()
     init_path = out_dir / f"initial_state_{args.state[0]}_{args.state[1]}_{args.state[2]}_{args.state[3]}.png"
     fig0.savefig(init_path, dpi=150, bbox_inches="tight")
@@ -143,7 +153,14 @@ def main(argv=None) -> None:
     # Shared legend
     legend_elems = [plt.Line2D([0], [0], marker="s", linestyle="", color=CB_PALETTE[a],
                     label=ACTION_NAMES[a]) for a in range(len(ACTION_NAMES))]
-    fig.legend(handles=legend_elems, loc="lower center", ncol=6, title="Action")
+    fig.legend(
+        handles=legend_elems,
+        loc="lower center",
+        ncol=6,
+        title="Action"
+    )
+    # Add overall title
+    fig.suptitle(f"Robustness Region for state {args.state} for {model_name}", fontsize="large", y=1.0)
     fig.tight_layout(rect=[0, 0.05, 1, 1])
 
     # Save figure
