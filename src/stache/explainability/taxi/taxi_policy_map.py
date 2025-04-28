@@ -317,8 +317,8 @@ def run_visualisation(model_path: Path, timestamp: str | None = None, show_walls
     ]
     fig4.legend(handles=legend_elems, loc="lower center", ncol=6, title="Action", fontsize="small")
     fig4.tight_layout(rect=[0, 0.05, 1, 1])
-    fig4.suptitle("Combined Policy Maps B-G-R-Y", y=1.02)
-    out4_path = rr_dir / "policy_map_4x4.png"
+    fig4.suptitle(f"Policy Map for {model_name}", y=1.02)
+    out4_path = rr_dir / "policy_map.png"
     fig4.savefig(out4_path, dpi=150, bbox_inches='tight')
     plt.close(fig4)
     print(f"✔ Saved combined 4x4 visualisation → {out4_path.relative_to(Path.cwd())}")
