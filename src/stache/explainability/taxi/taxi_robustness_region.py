@@ -4,7 +4,7 @@
 This script
 1. loads a deterministic Stable‑Baselines3 model trained on *Taxi‑v3* with a
    one‑hot observation wrapper;
-2. queries the policy for **every one of the 500 discrete states** in the
+2. queries the policy for **every one of the 404 discrete states** in the
    environment;
 3. stores the resulting state‑→action mapping as a **YAML** file in the
    experiment folder structure requested by the user; and

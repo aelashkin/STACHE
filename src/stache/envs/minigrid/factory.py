@@ -106,6 +106,10 @@ def apply_reward_wrappers(env, wrapper_config):
     return env
 
 
+# ────────────────────────────────────────────────────────────────────────────────
+# MiniGrid features extractor for image-based observations 
+# NOTE: Image-based observations are not yet supported in the current implementation.
+# ────────────────────────────────────────────────────────────────────────────────
 
 class MinigridFeaturesExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space: gym.Space, features_dim: int = 512, normalized_image: bool = False) -> None:

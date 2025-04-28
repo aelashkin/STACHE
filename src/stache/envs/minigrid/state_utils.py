@@ -86,7 +86,6 @@ def get_occupied_positions(state, exclude_idx=None):
     return occupied
 
 
-
 def get_env_dimensions_from_name(env_name):
     """
     Extracts grid dimensions (width, height) from the env_name.

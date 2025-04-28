@@ -60,9 +60,6 @@ def set_standard_state_minigrid(env, full_obs):
         env.mission = full_obs.get("mission", "")
 
 
-
-
-
 class SetStateWrapper(gym.Wrapper):
     """
     A wrapper that exposes a set_state(obs) method to inject
@@ -78,8 +75,6 @@ class SetStateWrapper(gym.Wrapper):
         set_state_minigrid helper.
         """
         set_standard_state_minigrid(self.env, obs)
-
-
 
 
 def factorized_symbolic_to_fullobs(fact_obs, width, height, mission=""):
