@@ -45,11 +45,12 @@ def main(argv=None) -> None:
     parser.add_argument(
         "--model-path",
         type=Path,
-        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250423_173106"),
+        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250428_193811"),
         help="Path to folder containing model.zip"
     )
+    # TODO: default state is (1,1,1,2)
     parser.add_argument(
-        "--state", type=parse_state, default="1,1,1,2",
+        "--state", type=parse_state, default="4,0,4,2",
         help="Seed state as 'x,y,P,D'"
     )
     parser.add_argument(

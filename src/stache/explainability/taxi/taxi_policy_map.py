@@ -333,7 +333,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--model-path",
         type=Path,
-        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250423_173106"),
+        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250428_194438"),
         help="Path to the folder containing model.zip (e.g. data/experiments/models/.../).",
     )
     parser.add_argument(

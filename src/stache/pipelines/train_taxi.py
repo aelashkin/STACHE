@@ -6,7 +6,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
 # Import the saving utility
-from utils.experiment_io import save_experiment
+from stache.utils.experiment_io import save_experiment
 
 # ───────────────────────────────────────────────────────────────────────────────
 # SOLVES TAXI-v3
@@ -58,7 +58,7 @@ model = DQN(
 )
 
 # 5. Train for 2 million timesteps
-total_timesteps_to_train = 1_200_000
+total_timesteps_to_train = 600_000
 model.learn(total_timesteps=total_timesteps_to_train)
 
 # 6. Evaluate on a fresh, monitored env
