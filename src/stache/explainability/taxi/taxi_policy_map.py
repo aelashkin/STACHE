@@ -16,13 +16,12 @@ This script
 Usage (from the command line) ───────────────────────────────────────────────
 
     python taxi_policy_visualization.py \
-        --model-path data/models/taxi_dqn.zip \
-        --model-name taxi_dqn \
+        --model-path data/models/taxi_dqn \
         [--timestamp 20250423_153045]  # optional; generated if omitted
 
 The outputs are written to
 
-    data/experiments/rr/<model_name>/_time_<timestamp>/
+    data/experiments/rr/policy_map/<model_name>/<timestamp>/
 
 Dependencies
 ------------
@@ -208,7 +207,6 @@ def _annotate_grid(ax, grid: np.ndarray, passenger: Tuple[int, int] | None, dest
         # Vertical walls
         ax.plot([0.5, 0.5], [2.5, 4.5], **wall_kwargs) # Between col 0 & 1, rows 3-4
         ax.plot([1.5, 1.5], [-0.5, 1.5], **wall_kwargs) # Between col 1 & 2, rows 0-1
-        ax.plot([2.5, 2.5], [-0.5, 1.5], **wall_kwargs) # Between col 2 & 3, rows 0-1
         ax.plot([3.5, 3.5], [2.5, 4.5], **wall_kwargs) # Between col 3 & 4, rows 3-4
 
 
@@ -264,40 +262,44 @@ def plot_dest_maps(
 # High‑level orchestration
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_visualisation(model_path: Path, model_name: str, timestamp: str | None = None, show_walls: bool = True) -> None:
-    """Main entry point for policy-map visualisation."""
+def run_visualisation(model_path: Path, timestamp: str | None = None, show_walls: bool = True) -> None:
+    """Main entry point for policy‑map visualisation.
+    
+    - model_path: directory containing 'model.zip'
+    - timestamp: fixed timestamp or now
+    - show_walls: whether to draw env walls
+    """
+    model_name = model_path.name
+    zip_path = model_path / "model.zip"
+    if not zip_path.is_file():
+        raise FileNotFoundError(f"Could not find model.zip in {model_path}")
     timestamp = timestamp or _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Construct output directory for policy maps
-    rr_dir = Path.cwd() / "data" / "experiments" / "rr" / f"{model_name}_policy_map" / f"time_{timestamp}"
+
+    rr_dir = Path.cwd() / "data" / "experiments" / "rr" / "policy_map" / model_name / timestamp
     rr_dir.mkdir(parents=True, exist_ok=True)
 
-    # Environment compatible with the trained policy (one‑hot)
+    # environment setup
     base_env = gym.make("Taxi-v3")
     env = OneHotObs(base_env)  # type: ignore[arg-type]
-
-    # Load SB3 model and set the inference environment directly
-    model = DQN.load(model_path, env=env, print_system_info=False)
+    model = DQN.load(zip_path, env=env, print_system_info=False)
 
     # 1. Collect actions for all states
-    # Pass both the wrapped env (for prediction) and base_env (for state iteration)
     mapping = collect_state_actions(model, env, base_env)
 
-    # 2. Save YAML
+    # 2. Save state‑action mapping to YAML
     yaml_path = rr_dir / "state_action_mapping.yaml"
     save_mapping_yaml(mapping, yaml_path)
-    # Now yaml_path is absolute because rr_dir is absolute
     print(f"✔ Saved mapping → {yaml_path.relative_to(Path.cwd())}")
 
-    # 3. Build visualisations
-    unwrapped_env = base_env.unwrapped  # for encode/decode
+    # 3. Build per‑destination visualisations
+    unwrapped_env = base_env.unwrapped
     for dest in range(4):
         img_path = rr_dir / f"policy_map_dest_{LOC_CHARS[dest]}.png"
         plot_dest_maps(unwrapped_env, mapping, dest, img_path, show_walls=show_walls)
-        # Now img_path is absolute because rr_dir is absolute
         print(f"✔ Saved visualisation → {img_path.relative_to(Path.cwd())}")
 
-    # --- Combined 4x4 policy map ---
-    dest_order = [3, 1, 0, 2]  # B, G, R, Y
+    # 4. Combined 4×4 policy map
+    dest_order = [3, 1, 0, 2]
     def passenger_list(d):
         return [p for p in range(5) if p != d][:3] + [4]
     fig4, axes4 = plt.subplots(4, 4, figsize=(16, 16))
@@ -309,8 +311,10 @@ def run_visualisation(model_path: Path, model_name: str, timestamp: str | None =
             pickup = PICKUP_LOCS[p] if p < 4 else None
             dest_cell = PICKUP_LOCS[d]
             _annotate_grid(ax, grid, pickup, dest_cell, show_walls=show_walls)
-    # Shared legend
-    legend_elems = [plt.Line2D([0], [0], marker="s", linestyle="", color=CB_PALETTE[a], label=ACTION_NAMES[a]) for a in range(len(ACTION_NAMES))]
+    legend_elems = [
+        plt.Line2D([0], [0], marker="s", linestyle="", color=CB_PALETTE[a], label=ACTION_NAMES[a])
+        for a in range(len(ACTION_NAMES))
+    ]
     fig4.legend(handles=legend_elems, loc="lower center", ncol=6, title="Action", fontsize="small")
     fig4.tight_layout(rect=[0, 0.05, 1, 1])
     fig4.suptitle("Combined Policy Maps B-G-R-Y", y=1.02)
@@ -318,7 +322,6 @@ def run_visualisation(model_path: Path, model_name: str, timestamp: str | None =
     fig4.savefig(out4_path, dpi=150, bbox_inches='tight')
     plt.close(fig4)
     print(f"✔ Saved combined 4x4 visualisation → {out4_path.relative_to(Path.cwd())}")
-
     print("All done! ✨")
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -330,14 +333,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--model-path",
         type=Path,
-        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250423_173106/model.zip"),
-        help="Path to the SB3 .zip model file (produced by model.save()). Default: data/experiments/models/Taxi-v3_DQN_model_20250423_173106/model.zip",
-    )
-    parser.add_argument(
-        "--model-name",
-        type=str,
-        default="Taxi-v3_DQN",
-        help="Model identifier – used to build the rr experiment directory. Default: Taxi-v3_DQN",
+        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250423_173106"),
+        help="Path to the folder containing model.zip (e.g. data/experiments/models/.../).",
     )
     parser.add_argument(
         "--timestamp",
@@ -347,17 +344,15 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--hide-walls",
         action="store_false",
-        dest="show_walls", # Store result in 'show_walls'
+        dest="show_walls",
         help="Do not draw the environment walls on the plots.",
     )
-    parser.set_defaults(show_walls=True) # Default is to show walls
+    parser.set_defaults(show_walls=True)
     return parser.parse_args(argv)
-
 
 def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     args = _parse_args(argv)
-    run_visualisation(args.model_path, args.model_name, args.timestamp, show_walls=args.show_walls)
-
+    run_visualisation(args.model_path, args.timestamp, show_walls=args.show_walls)
 
 if __name__ == "__main__":  # pragma: no cover
     main()
