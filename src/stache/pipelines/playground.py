@@ -14,6 +14,10 @@ from minigrid.core.constants import COLOR_NAMES
 import torch as th
 import torch.nn as nn
 
+import argparse
+import os
+import multiprocessing as mp
+
 
 # Custom CNN for Minigrid's small image observations (from previous step)
 class CustomMiniGridCNN(BaseFeaturesExtractor):
@@ -114,7 +118,8 @@ def create_env_fn(env_name="MiniGrid-Fetch-5x5-N2-v0", render_mode=None):
     return env
 
 
-if __name__ == '__main__':
+
+def run(device: str, steps: int):
     env_id = "MiniGrid-Fetch-5x5-N2-v0"
     N_ENVS = 8
     vec_env = make_vec_env(lambda: create_env_fn(env_id), n_envs=N_ENVS, vec_env_cls=SubprocVecEnv)
@@ -144,12 +149,13 @@ if __name__ == '__main__':
         "MultiInputPolicy", 
         vec_env,
         policy_kwargs=policy_kwargs_ppo,
+        device=device,
         verbose=1,
         **ppo_hyperparams
     )
 
     print(f"Starting training PPO with MultiInputPolicy on {env_id}...")
-    model.learn(total_timesteps=2_000_000) 
+    model.learn(total_timesteps=steps) 
 
     eval_env = create_env_fn(env_id) 
     n_eval_episodes = 100
@@ -158,5 +164,17 @@ if __name__ == '__main__':
     print(f"Evaluation results: Mean reward: {mean_reward:.2f} +/- {std_reward:.2f}")
     eval_env.close()
 
-    model.save("ppo_minigrid_fetch5x5_multi_input")
-    print("Training complete. Model saved.")
+    # model.save("ppo_minigrid_fetch5x5_multi_input")
+    # print("Training complete. Model saved.")
+
+    vec_env.close()            
+    del model, vec_env
+
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--device", choices=["cpu", "mps"], default="cpu")
+    parser.add_argument("--steps", type=int, default=20_000)
+    args = parser.parse_args()
+    run(args.device, args.steps)
