@@ -9,8 +9,7 @@ from stable_baselines3 import PPO
 from minigrid.wrappers import FlatObsWrapper, FullyObsWrapper
 from stable_baselines3.common.evaluation import evaluate_policy
 
-# TODO: fix the imports to general factory
-from stache.envs.minigrid.factory import create_symbolic_minigrid_env, create_standard_minigrid_env
+from stache.envs.minigrid.factory import create_minigrid_env
 from stache.utils.experiment_io import load_experiment
 
 
@@ -63,7 +62,7 @@ def evaluate_symbolic_env(env_config):
     Returns:
         None
     """
-    env = create_symbolic_minigrid_env(env_config)
+    env = create_minigrid_env(env_config)
     # env = create_standard_minigrid_env(env_config)
     obs, info = env.reset()
     done = False
@@ -102,7 +101,7 @@ def evaluate_policy_performance(model, env_config, n_eval_episodes=50, histogram
     
     # Create environment using the symbolic MiniGrid environment
     env_config["render_mode"] = None  # Disable rendering for evaluation
-    env = create_symbolic_minigrid_env(env_config)
+    env = create_minigrid_env(env_config)
     
     rewards = []
     for ep in range(n_eval_episodes):
@@ -193,7 +192,7 @@ def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None, save_
     
     # Create the environment using the symbolic MiniGrid environment and reset with a fixed seed
     env_config["render_mode"] = "rgb_array"  # Enable rendering for evaluation
-    env = create_symbolic_minigrid_env(env_config)
+    env = create_minigrid_env(env_config)
     
     # Find the FullyObsWrapper in the wrapper chain
     fully_obs_env = get_fully_obs_env(env)
