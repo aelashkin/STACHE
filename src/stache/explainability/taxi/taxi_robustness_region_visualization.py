@@ -45,12 +45,12 @@ def main(argv=None) -> None:
     parser.add_argument(
         "--model-path",
         type=Path,
-        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250428_193811"),
+        default=Path("data/experiments/models/Taxi-v3_DQN_model_50"),
         help="Path to folder containing model.zip"
     )
     # TODO: default state is (1,1,1,2)
     parser.add_argument(
-        "--state", type=parse_state, default="4,0,4,2",
+        "--state", type=parse_state, default="0,1,2,1",
         help="Seed state as 'x,y,P,D'"
     )
     parser.add_argument(
@@ -112,8 +112,12 @@ def main(argv=None) -> None:
     pickup0 = PICKUP_LOCS[args.state[2]] if args.state[2] < 4 else None
     dest0 = PICKUP_LOCS[args.state[3]]
     _annotate_grid(ax0, A0, pickup0, dest0, show_walls=args.show_walls)
-    # Mark initial taxi location with 'S'
-    ax0.text(col0, row0, 'S', ha='center', va='center', fontsize='x-large', color='red', weight='bold')
+    # Mark initial taxi location with 'S', offset if overlapping P or D
+    state_coord = (row0, col0)
+    if (pickup0 and state_coord == pickup0) or state_coord == dest0:
+        ax0.text(col0 + 0.15, row0, 'S', ha='left', va='center', fontsize='x-large', color='red', weight='bold')
+    else:
+        ax0.text(col0, row0, 'S', ha='center', va='center', fontsize='x-large', color='red', weight='bold')
     # Add title
     fig0.suptitle(f"Initial state {args.state}", fontsize="large", y=1.02)
     # Move legend below
@@ -150,7 +154,15 @@ def main(argv=None) -> None:
             _annotate_grid(ax, A, pickup, dest, show_walls=args.show_walls)
             # Mark seed state with 'S' on the corresponding subplot
             if (d, p) == (args.state[3], args.state[2]):
-                ax.text(args.state[1], args.state[0], 'S', ha='center', va='center', fontsize='x-large', color='red', weight='bold')
+                # Determine row and col for seed state
+                row_s, col_s = args.state[0], args.state[1]
+                pickup_cell = PICKUP_LOCS[args.state[2]] if args.state[2] < 4 else None
+                dest_cell = PICKUP_LOCS[args.state[3]]
+                # Offset 'S' if overlapping P or D
+                if (pickup_cell and (row_s, col_s) == pickup_cell) or (row_s, col_s) == dest_cell:
+                    ax.text(col_s + 0.3, row_s, 'S', ha='left', va='center', fontsize='x-large', color='red', weight='bold')
+                else:
+                    ax.text(col_s, row_s, 'S', ha='center', va='center', fontsize='x-large', color='red', weight='bold')
     # Shared legend
     legend_elems = [plt.Line2D([0], [0], marker="s", linestyle="", color=CB_PALETTE[a],
                     label=ACTION_NAMES[a]) for a in range(len(ACTION_NAMES))]
