@@ -55,9 +55,9 @@ runs/
 
 # for now we will omit rr files, but later we will set up LFS support
 #robustness region
-data/experiments/rr/
+# data/experiments/rr/
 #robustness region files
-data/experiments/rr/**/*.yaml
+# data/experiments/rr/**/*.yaml
 
 
 

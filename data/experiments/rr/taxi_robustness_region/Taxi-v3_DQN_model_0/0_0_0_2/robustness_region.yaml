@@ -1,0 +1,396 @@
+metadata:
+  model_name: Taxi-v3_DQN_model_0
+  seed_tuple:
+  - 0
+  - 0
+  - 0
+  - 2
+  initial_action: 1
+  region_size: 9
+  visited: 57
+  opened: 57
+  elapsed: 0.023160274024121463
+rr_tuples:
+- - 0
+  - 0
+  - 0
+  - 2
+- - 0
+  - 0
+  - 4
+  - 2
+- - 1
+  - 0
+  - 0
+  - 2
+- - 1
+  - 0
+  - 0
+  - 3
+- - 1
+  - 0
+  - 4
+  - 0
+- - 1
+  - 0
+  - 4
+  - 1
+- - 1
+  - 0
+  - 4
+  - 3
+- - 1
+  - 1
+  - 0
+  - 3
+- - 2
+  - 0
+  - 0
+  - 3
+rr_depths:
+- 0
+- 1
+- 1
+- 2
+- 4
+- 4
+- 3
+- 3
+- 3
+counterfactuals_found:
+- state:
+  - 0
+  - 1
+  - 0
+  - 2
+  action: 3
+  depth: 1
+- state:
+  - 0
+  - 0
+  - 1
+  - 2
+  action: 2
+  depth: 1
+- state:
+  - 0
+  - 0
+  - 2
+  - 2
+  action: 0
+  depth: 1
+- state:
+  - 0
+  - 0
+  - 3
+  - 2
+  action: 2
+  depth: 1
+- state:
+  - 0
+  - 0
+  - 0
+  - 0
+  action: 2
+  depth: 1
+- state:
+  - 0
+  - 0
+  - 0
+  - 1
+  action: 2
+  depth: 1
+- state:
+  - 0
+  - 0
+  - 0
+  - 3
+  action: 0
+  depth: 1
+- state:
+  - 2
+  - 0
+  - 0
+  - 2
+  action: 2
+  depth: 2
+- state:
+  - 1
+  - 1
+  - 0
+  - 2
+  action: 2
+  depth: 2
+- state:
+  - 1
+  - 0
+  - 1
+  - 2
+  action: 2
+  depth: 2
+- state:
+  - 1
+  - 0
+  - 2
+  - 2
+  action: 2
+  depth: 2
+- state:
+  - 1
+  - 0
+  - 3
+  - 2
+  action: 2
+  depth: 2
+- state:
+  - 1
+  - 0
+  - 4
+  - 2
+  action: 2
+  depth: 2
+- state:
+  - 1
+  - 0
+  - 0
+  - 0
+  action: 2
+  depth: 2
+- state:
+  - 1
+  - 0
+  - 0
+  - 1
+  action: 2
+  depth: 2
+- state:
+  - 0
+  - 1
+  - 4
+  - 2
+  action: 2
+  depth: 2
+- state:
+  - 0
+  - 0
+  - 4
+  - 0
+  action: 0
+  depth: 2
+- state:
+  - 0
+  - 0
+  - 4
+  - 1
+  action: 2
+  depth: 2
+- state:
+  - 0
+  - 0
+  - 4
+  - 3
+  action: 0
+  depth: 2
+- state:
+  - 1
+  - 0
+  - 1
+  - 3
+  action: 2
+  depth: 3
+- state:
+  - 1
+  - 0
+  - 2
+  - 3
+  action: 2
+  depth: 3
+- state:
+  - 1
+  - 0
+  - 3
+  - 3
+  action: 2
+  depth: 3
+- state:
+  - 3
+  - 0
+  - 0
+  - 3
+  action: 2
+  depth: 4
+- state:
+  - 2
+  - 1
+  - 0
+  - 3
+  action: 3
+  depth: 4
+- state:
+  - 2
+  - 0
+  - 1
+  - 3
+  action: 0
+  depth: 4
+- state:
+  - 2
+  - 0
+  - 2
+  - 3
+  action: 2
+  depth: 4
+- state:
+  - 2
+  - 0
+  - 3
+  - 3
+  action: 0
+  depth: 4
+- state:
+  - 2
+  - 0
+  - 4
+  - 3
+  action: 2
+  depth: 4
+- state:
+  - 2
+  - 0
+  - 0
+  - 0
+  action: 2
+  depth: 4
+- state:
+  - 2
+  - 0
+  - 0
+  - 1
+  action: 2
+  depth: 4
+- state:
+  - 0
+  - 1
+  - 0
+  - 3
+  action: 3
+  depth: 4
+- state:
+  - 1
+  - 2
+  - 0
+  - 3
+  action: 0
+  depth: 4
+- state:
+  - 1
+  - 1
+  - 1
+  - 3
+  action: 2
+  depth: 4
+- state:
+  - 1
+  - 1
+  - 2
+  - 3
+  action: 0
+  depth: 4
+- state:
+  - 1
+  - 1
+  - 3
+  - 3
+  action: 2
+  depth: 4
+- state:
+  - 1
+  - 1
+  - 4
+  - 3
+  action: 2
+  depth: 4
+- state:
+  - 1
+  - 1
+  - 0
+  - 0
+  action: 0
+  depth: 4
+- state:
+  - 1
+  - 1
+  - 0
+  - 1
+  action: 2
+  depth: 4
+- state:
+  - 2
+  - 0
+  - 4
+  - 0
+  action: 0
+  depth: 5
+- state:
+  - 1
+  - 1
+  - 4
+  - 0
+  action: 2
+  depth: 5
+- state:
+  - 1
+  - 0
+  - 1
+  - 0
+  action: 2
+  depth: 5
+- state:
+  - 1
+  - 0
+  - 2
+  - 0
+  action: 2
+  depth: 5
+- state:
+  - 1
+  - 0
+  - 3
+  - 0
+  action: 2
+  depth: 5
+- state:
+  - 2
+  - 0
+  - 4
+  - 1
+  action: 2
+  depth: 5
+- state:
+  - 1
+  - 1
+  - 4
+  - 1
+  action: 2
+  depth: 5
+- state:
+  - 1
+  - 0
+  - 1
+  - 1
+  action: 2
+  depth: 5
+- state:
+  - 1
+  - 0
+  - 2
+  - 1
+  action: 2
+  depth: 5
+- state:
+  - 1
+  - 0
+  - 3
+  - 1
+  action: 2
+  depth: 5
