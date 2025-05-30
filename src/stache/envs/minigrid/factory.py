@@ -7,6 +7,8 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from minigrid.wrappers import FullyObsWrapper, FlatObsWrapper, ActionBonus, PositionBonus
 
+from stache.envs.minigrid.wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper
+
 # ────────────────────────────────────────────────────────────────────────────────
 # MiniGrid environment factory
 # ────────────────────────────────────────────────────────────────────────────────

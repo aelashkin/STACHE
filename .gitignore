@@ -59,6 +59,7 @@ runs/
 #robustness region files
 # data/experiments/rr/**/*.yaml
 
-
+#ignore minigrid rr outputs for now
+data/experiments/rr/minigrid/
 
 src/deir/*

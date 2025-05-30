@@ -55,7 +55,7 @@ model_path = "data/experiments/models/MiniGrid-Empty-Random-6x6-v0_PPO_model_202
 # model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
 max_gen_objects = 2
 max_nodes_expanded = None
-seed_value = 77
+seed_value = 36
 
 # === Global mappings (these must be consistent with your environment) ===
 
@@ -320,7 +320,7 @@ if __name__ == '__main__':
     # Prepare metadata for YAML file
     model_name = os.path.basename(model_path)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    rr_dir = os.path.join("data", "experiments", "rr", model_name, f"seed_{seed_value}_time_{timestamp}")
+    rr_dir = os.path.join("data", "experiments", "rr", "minigrid", model_name, f"seed_{seed_value}_time_{timestamp}")
     os.makedirs(rr_dir, exist_ok=True)
     yaml_file_path = os.path.join(rr_dir, "robustness_region.yaml")
 

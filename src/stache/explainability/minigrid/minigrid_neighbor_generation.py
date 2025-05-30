@@ -1,10 +1,10 @@
 import copy
 
-from minigrid_ext.constants import (
+from stache.envs.minigrid.constants import (
     COLOR_TO_IDX,
     OBJECT_TO_IDX,
 )
-from minigrid_ext.state_utils import (
+from stache.envs.minigrid.state_utils import (
     get_grid_dimensions,
     get_agent_position,
     get_occupied_positions,
