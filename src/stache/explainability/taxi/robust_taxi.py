@@ -124,7 +124,7 @@ def compute_rr_taxi(
                     queue.append((n_neighbor, d + 1))
         else:
             # This state f is a counterfactual because its action is different from a_star
-            counterfactuals.append((f, d))
+            counterfactuals.append((f, current_action, d))
             pass
 
     elapsed = time.perf_counter() - start

@@ -98,7 +98,7 @@ def main(argv=None) -> None:
         "rr_tuples": [list(t) for t in tuples],
         "rr_depths": [depths_map[t] for t in tuples],
         "counterfactuals_found": [ # Store raw counterfactuals with depth
-            {"state": list(cf_s), "depth": cf_d} for cf_s, cf_d in rr.get("counterfactuals", [])
+            {"state": list(cf_s), "action": cf_a, "depth": cf_d} for cf_s, cf_a, cf_d in rr.get("counterfactuals", [])
         ]
     }
     yaml_path = out_dir / "robustness_region.yaml"
@@ -181,8 +181,8 @@ def main(argv=None) -> None:
     minimal_counterfactuals_for_plot = []
 
     if all_counterfactuals_with_depth:
-        min_depth = min(d for s, d in all_counterfactuals_with_depth)
-        minimal_cf_states_at_min_depth = [s for s, d in all_counterfactuals_with_depth if d == min_depth]
+        min_depth = min(d for _, _, d in all_counterfactuals_with_depth)
+        minimal_cf_states_at_min_depth = [s for s, _, d in all_counterfactuals_with_depth if d == min_depth]
         
         for mcf_state_tuple in minimal_cf_states_at_min_depth:
             # We need the action for this mcf_state
