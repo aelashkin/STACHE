@@ -399,4 +399,15 @@ if __name__ == '__main__':
     )
     print(f"Rendered images for the entire RR to: {images_output_dir}")
 
+    # --- Render and save images for minimal counterfactual states ---
+    cf_images_output_dir = os.path.join(rr_dir, "cf_images")
+    generate_rr_images(
+        robustness_region=minimal_cfs,
+        env=render_env,
+        output_dir=cf_images_output_dir,
+        subset="all",
+        subset_count=None
+    )
+    print(f"Rendered images for minimal counterfactuals to: {cf_images_output_dir}")
+
     env.close()
