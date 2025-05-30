@@ -49,7 +49,7 @@ def main(argv=None) -> None:
         help="Path to folder containing model.zip"
     )
     parser.add_argument(
-        "--state", type=parse_state, default="1,1,1,2", # Default seed state
+        "--state", type=parse_state, default="0,0,0,2", # Default seed state
         help="Seed state as 'x,y,P,D'"
     )
     parser.add_argument(
