@@ -46,6 +46,7 @@ from stache.envs.minigrid.state_utils import (
     get_grid_dimensions,
 )
 from stache.explainability.minigrid.minigrid_neighbor_generation import get_neighbors
+from stache.explainability.rr_visualizer import visualize_robustness_region_maps
 
 # variables for running main without console input
 
@@ -409,6 +410,11 @@ if __name__ == '__main__':
         subset_count=None
     )
     print(f"Rendered images for minimal counterfactuals to: {cf_images_output_dir}")
+
+    # --- Generate aggregated maps for robustness region ---
+    maps_output_dir = os.path.join(rr_dir, "rr_maps")
+    visualize_robustness_region_maps(robustness_region, render_env, output_dir=maps_output_dir)
+    print(f"Aggregated robustness region maps saved to: {maps_output_dir}")
 
     # --- Write composite explanation ---
     composite_path = os.path.join(rr_dir, "composite_explanation.txt")
