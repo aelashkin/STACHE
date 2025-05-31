@@ -410,4 +410,41 @@ if __name__ == '__main__':
     )
     print(f"Rendered images for minimal counterfactuals to: {cf_images_output_dir}")
 
+    # --- Write composite explanation ---
+    composite_path = os.path.join(rr_dir, "composite_explanation.txt")
+    env_name_lower_cf = env_config['env_name'].lower()
+    with open(composite_path, "w") as comp_f:
+        comp_f.write(f"Loaded model from: {model_path}/model.zip\n")
+        comp_f.write(f"Loaded model for environment: {env_config['env_name']}\n")
+        comp_f.write(f"Configuration: {env_config}\n")
+        comp_f.write(f"Initializing the environment: {env_config['env_name']}\n")
+        comp_f.write("Using symbolic representation.\n")
+        comp_f.write(f"Initial action: {action}\n")
+        if "fetch" in env_name_lower_cf:
+            comp_f.write("Action space mapping for 'fetch': \n (Num, Name, Action)\n")
+            for row in ACTION_MAPPING_FETCH:
+                comp_f.write(f"{row}\n")
+        elif "empty" in env_name_lower_cf:
+            comp_f.write("Action space mapping for 'empty': (Num, Name, Action)\n")
+            for row in ACTION_MAPPING_EMPTY:
+                comp_f.write(f"{row}\n")
+        comp_f.write(f"Initial symbolic state: {initial_symbolic_state}\n")
+        comp_f.write(f"Initial state: {initial_state}\n\n")
+        comp_f.write("Robustness Region Statistics:\n")
+        comp_f.write(f"Initial action: {stats['initial_action']}\n")
+        comp_f.write(f"Region size: {stats['region_size']}\n")
+        comp_f.write(f"Total opened nodes: {stats['total_opened_nodes']}\n")
+        comp_f.write(f"Visited nodes count: {stats['visited_count']}\n")
+        comp_f.write(f"Elapsed time: {stats['elapsed_time']:.2f} seconds\n\n")
+        comp_f.write("Minimal counterfactuals statistics:\n")
+        comp_f.write(f"Min distance: {stats['min_counterfactual_distance']}\n")
+        comp_f.write(f"Number of minimal counterfactuals: {stats['num_minimal_counterfactuals']}\n\n")
+        comp_f.write("First 10 states in the robustness region:\n")
+        for st in robustness_region[:10]:
+            comp_f.write(f"{state_to_key(st)}\n")
+        comp_f.write("\nCounterfactual states:\n")
+        for st in minimal_cfs:
+            comp_f.write(f"{state_to_key(st)}\n")
+    print(f"Composite explanation saved to: {composite_path}")
+
     env.close()
