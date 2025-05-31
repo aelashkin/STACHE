@@ -28,6 +28,15 @@ def visualize_robustness_region_maps(robustness_region, env, output_dir='rr_maps
     """
     os.makedirs(output_dir, exist_ok=True)
 
+    # Identify initial state (bfs_depth==0) direction and position
+    initial_dir = None
+    initial_pos = None
+    for state in robustness_region:
+        if state.get('bfs_depth') == 0:
+            initial_dir = state.get('direction')
+            initial_pos = get_agent_position(state)
+            break
+
     # Determine tile size (default to 32 if not present)
     tile_size = getattr(env.unwrapped, 'tile_size', 32)
     grid = env.unwrapped.grid
@@ -55,14 +64,19 @@ def visualize_robustness_region_maps(robustness_region, env, output_dir='rr_maps
         # triangle half-size
         r = tile_size // 4
         for x, y in positions:
+            # Flip y-axis: grid.render uses y=0 at top
+            draw_x = x
+            draw_y = height - 1 - y
             # pixel center for the cell
-            cx = x * tile_size + tile_size // 2
-            cy = y * tile_size + tile_size // 2
+            cx = draw_x * tile_size + tile_size // 2
+            cy = draw_y * tile_size + tile_size // 2
             # define upward-pointing triangle
             pts = [(cx, cy - r), (cx - r, cy + r), (cx + r, cy + r)]
             # rotate according to direction
             rotated = [rotate_point(pt, (cx, cy), d * 90) for pt in pts]
-            draw.polygon(rotated, fill=(255, 0, 0))
+            # Highlight initial state in blue, others in red
+            color = (0, 0, 255) if initial_dir == d and initial_pos == (x, y) else (255, 0, 0)
+            draw.polygon(rotated, fill=color)
         # save image
         filename = f'dir_{d}.png'
         filepath = os.path.join(output_dir, filename)
