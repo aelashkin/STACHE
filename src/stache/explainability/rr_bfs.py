@@ -56,7 +56,7 @@ model_path = "data/experiments/models/MiniGrid-Empty-Random-6x6-v0_PPO_model_202
 # model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
 max_gen_objects = 2
 max_nodes_expanded = None
-seed_value = 38
+seed_value = 36
 
 # === Global mappings (these must be consistent with your environment) ===
 
@@ -228,10 +228,12 @@ def bfs_rr(
                 minimal_cfs = []
                 cf_copy = copy.deepcopy(state)
                 cf_copy["bfs_depth"] = depth
+                cf_copy["action"] = action
                 minimal_cfs.append(cf_copy)
             elif depth == min_cf_depth:
                 cf_copy = copy.deepcopy(state)
                 cf_copy["bfs_depth"] = depth
+                cf_copy["action"] = action
                 minimal_cfs.append(cf_copy)
 
         if action == initial_action:
@@ -448,9 +450,9 @@ if __name__ == '__main__':
         comp_f.write("First 10 states in the robustness region:\n")
         for st in robustness_region[:10]:
             comp_f.write(f"{state_to_key(st)}\n")
-        comp_f.write("\nCounterfactual states:\n")
-        for st in minimal_cfs:
-            comp_f.write(f"{state_to_key(st)}\n")
+        comp_f.write("\nCounterfactual states with actions:\n")
+        for cf in minimal_cfs:
+            comp_f.write(f"Action: {cf['action']}, State: {state_to_key(cf)}\n")
     print(f"Composite explanation saved to: {composite_path}")
 
     env.close()
