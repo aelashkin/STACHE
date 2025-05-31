@@ -56,7 +56,7 @@ model_path = "data/experiments/models/MiniGrid-Empty-Random-6x6-v0_PPO_model_202
 # model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
 max_gen_objects = 2
 max_nodes_expanded = None
-seed_value = 36
+seed_value = 38
 
 # === Global mappings (these must be consistent with your environment) ===
 

@@ -64,15 +64,15 @@ def visualize_robustness_region_maps(robustness_region, env, output_dir='rr_maps
         # triangle half-size
         r = tile_size // 4
         for x, y in positions:
-            # Flip y-axis: grid.render uses y=0 at top
-            draw_x = x
-            draw_y = height - 1 - y
+            # swap axes: render uses x->column, y->row so swap positions
+            draw_x = y
+            draw_y = x
             # pixel center for the cell
             cx = draw_x * tile_size + tile_size // 2
             cy = draw_y * tile_size + tile_size // 2
-            # define upward-pointing triangle
-            pts = [(cx, cy - r), (cx - r, cy + r), (cx + r, cy + r)]
-            # rotate according to direction
+            # define right-pointing triangle
+            pts = [(cx + r, cy), (cx - r, cy - r), (cx - r, cy + r)]
+            # rotate according to direction: positive d*90° to map dir indices to pixel-down orientation
             rotated = [rotate_point(pt, (cx, cy), d * 90) for pt in pts]
             # Highlight initial state in blue, others in red
             color = (0, 0, 255) if initial_dir == d and initial_pos == (x, y) else (255, 0, 0)
