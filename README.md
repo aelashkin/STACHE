@@ -1,180 +1,159 @@
-# STACHE: Smart Tools for Analyzing Counterfactuals and HEuristics
+# STACHE – State–Action Transparency through Counterfactual & Heuristic Explanations
 
-A comprehensive framework for training and analyzing reinforcement learning agents in MiniGrid environments. STACHE supports multiple environment representations, agent algorithms, and provides explainability tools for understanding agent behavior.
+> **Code & data for the paper**  
+> **“Local Black-Box Explanations for Discrete RL Agents via Minimal Counterfactual States and Robustness Regions.”**
 
-This repository enables reinforcement learning with deep customization in MiniGrid environments, featuring symbolic state representations, hyperparameter tuning, and robust policy analysis tools to better understand agent decision-making.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 
-## Features
+STACHE is a lightweight, **model-agnostic** toolkit for _training_, _evaluating_ and—crucially—_explaining_ reinforcement-learning agents in **Gymnasium / MiniGrid / Taxi-v3** domains.  
+It implements the full experimental pipeline from our paper, including:
 
-- **Multiple Environment Support**: Train agents in various MiniGrid environments including Fetch, Empty, and DoorKey
-- **Multiple Representation Types**: Choose between symbolic, image-based, and standard observation representations
-- **Reinforcement Learning Algorithms**: Support for PPO and A2C algorithms via Stable-Baselines3
-- **Hyperparameter Optimization**: Automated tuning using Optuna to find optimal model configurations
-- **Policy Evaluation Tools**: Comprehensive evaluation metrics and visualization for trained models
-- **Robustness Region Analysis**: Tools to analyze where agents maintain consistent behavior
-- **Custom Environment Wrappers**: Specialized wrappers for different observation representations
-- **Experiment Management**: Automatic saving and loading of models, configurations, and results
-
----
-
-## Project Structure
-
-```
-STACHE/
-├── README.md                      # Project overview and instructions
-├── requirements.txt               # List of dependencies
-├── pyproject.toml                 # Python project configuration
-├── config/
-│   ├── training_config_env.yml    # Environment configuration
-│   ├── training_config_PPO.yml    # PPO algorithm configuration
-│   └── training_config_A2C.yml    # A2C algorithm configuration
-├── data/
-│   └── experiments/
-│       ├── models/                # Saved trained models with configurations
-│       ├── evaluation/            # Evaluation results
-│       ├── rr/                    # Robustness region analysis results
-│       └── optuna_trials/         # Hyperparameter optimization results
-├── examples/
-│   └── playground.py              # Example usage script
-├── src/
-│   ├── explainability/            # Tools for analyzing and explaining agent behavior
-│   │   ├── evaluate.py            # Evaluation metrics and visualization
-│   │   └── rr_bfs.py              # Robustness Region analysis using BFS
-│   ├── minigrid_ext/              # Extensions to the MiniGrid environment
-│   │   ├── constants.py           # Shared constants for environments
-│   │   ├── environment_utils.py   # Environment creation utilities
-│   │   ├── set_state_extension.py # State manipulation utilities
-│   │   └── wrappers.py            # Observation wrappers
-│   ├── pipelines/                 # Training pipelines
-│   │   └── train.py               # Main training script
-│   ├── tuning/                    # Hyperparameter optimization
-│   │   ├── hyperparameter_utils.py # Utility functions for hyperparameter tuning
-│   │   └── model_optimization.py   # Optuna-based optimization
-│   └── utils/                     # Shared utility functions
-│       ├── experiment_io.py       # Experiment saving and loading
-│       └── ...
-└── tests/                         # Testing suite
-    ├── test_set_state.py          # Tests for state manipulation
-    └── test_utils.py              # Utility tests
-```
+* **Minimal counterfactual states** – the smallest factored-state perturbations that switch an agent’s chosen action.  
+* **Robustness regions** – contiguous neighbourhoods where the policy’s action is invariant.  
+* **Black-box explainers** that need _only_ `(state → action)` access.  
+* Re-usable utilities for symbolic, image and one-hot observations, hyper-parameter search (Optuna), and rich visualisations.
 
 ---
 
-## Environment Representations
-
-STACHE supports three types of observation representations for MiniGrid environments:
-
-1. **Symbolic Representation**: Factorizes the environment state into structured elements (agent direction, objects, walls, goals) with object-specific attributes. This representation enables more interpretable policy analysis.
-
-2. **Image Representation**: Uses the RGB image view of the environment, similar to what would be visually rendered. This representation works well with CNN policies.
-
-3. **Standard Representation**: Uses the default flattened representation provided by MiniGrid/Gymnasium.
-
-You can select the representation in the configuration file:
-
-```yaml
-# Possible values: "symbolic", "image", "standard"
-representation: "symbolic"
-```
+## Table of Contents
+1. [Quick install](#quick-install)  
+2. [Key features](#key-features)  
+3. [Getting started](#getting-started)  
+4. [Explaining an agent](#explaining-an-agent)  
+5. [Reproducing paper results](#reproducing-paper-results)  
+6. [Project layout](#project-layout)  
+7. [Citing](#citing)  
+8. [Contributing](#contributing)  
+9. [License](#license)
 
 ---
 
-## Wrappers
+## Quick install
+```bash
+git clone https://github.com/your-org/stache.git
+cd stache
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt      # Gymnasium-1.0, MiniGrid-3.0, SB3-2.4 …
+````
 
-This project includes custom Gymnasium wrappers to preprocess observations:
-
-- **FactorizedSymbolicWrapper**: Converts fully observable grid environments into a structured dictionary of objects, outer walls, and the agent's goal.
-- **PaddedObservationWrapper**: Converts the structured observations into a fixed-size 1D array for compatibility with neural networks.
-
-Both wrappers are implemented in `src/wrappers.py`.
-
----
-
-## Training Agents
-
-To train a reinforcement learning agent:
-
-1. Configure your environment and model parameters in the config files:
-   - `config/training_config_env.yml`: Environment settings
-   - `config/training_config_PPO.yml` or `config/training_config_A2C.yml`: Algorithm settings
-
-2. Run the training script:
-   ```bash
-   python -m src.pipelines.train
-   ```
-
-Models are automatically saved to `data/experiments/models/` with timestamped directories.
+> **Tip:** GPU users just replace the `torch==…` wheel in `requirements.txt` with the appropriate CUDA variant.
 
 ---
 
-## Explainability Features
+## Key features
 
-### Policy Evaluation
+| Module                  | What it does                                                                                 | Location                                |
+| ----------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------- |
+| **Symbolic wrappers**   | Factorise MiniGrid observations into objects / walls / goals, pad to fixed-size vectors.     | `src/stache/envs/minigrid/wrappers.py`  |
+| **Env factories**       | One-line creation of Taxi-v3 / MiniGrid with the right observation mode.                     | `src/stache/envs/factory.py`            |
+| **Training pipelines**  | Opinionated scripts for PPO, A2C and DQN with auto-saving & Optuna tuning.                   | `src/stache/pipelines/`                 |
+| **Explainability core** | Exact BFS over discrete state space to compute minimal counterfactuals & robustness regions. | `src/stache/explainability/`            |
+| **Rich visualisers**    | YAML + colour-blind PNGs for policy maps, RR plots, counter-factual grids.                   | `scripts/run_*`, `…/taxi_policy_map.py` |
+| **Experiment I/O**      | Unified save/load of models, configs, logs.                                                  | `src/stache/utils/experiment_io.py`     |
 
-The project includes comprehensive tools for evaluating trained policies:
+---
+
+## Getting started
+
+### 1 · Train an agent (MiniGrid–Fetch, PPO)
 
 ```bash
-python -m src.explainability.evaluate
+python -m src.stache.pipelines.train_minigrid \
+    --env-name MiniGrid-Fetch-5x5-N2-v0 \
+    --model-type PPO \
+    --total-timesteps 1_000_000
+# outputs → data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_YYYYMMDD_HHMMSS/
 ```
 
-This provides detailed performance statistics and visualizations of agent behavior.
-
-### Robustness Region Analysis
-
-The Robustness Region (RR) analysis identifies regions in the state space where an agent consistently takes the same action, helping to understand the boundaries of policy behavior:
+### 2 · Evaluate
 
 ```bash
-python -m src.explainability.rr_bfs
+python -m src.stache.explainability.evaluate \
+    --model-path data/experiments/models/.../model.zip
 ```
-
-Results are saved to `data/experiments/rr/` and include:
-- YAML files describing the region
-- Visualizations of states within the region
-- Statistical summaries
 
 ---
 
-## Hyperparameter Optimization
+## Explaining an agent
 
-STACHE uses Optuna for automated hyperparameter tuning:
+Compute and visualise robustness regions **without touching model internals**:
 
 ```bash
-python -m src.tuning.model_optimization
+python scripts/run_taxi_rr.sh \
+    --model-path data/experiments/models/Taxi-v3_DQN_model_100 \
+    --state "0,1,2,1"
+# → data/experiments/rr/taxi_robustness_region/…
 ```
 
-This systematically explores the hyperparameter space to find optimal configurations for your specific environment.
+* **YAML** output lists all RR states, BFS depths, and minimal counter-factuals.
+* **PNG** grids illustrate where the chosen action stays constant and where it flips.
+
+See `src/stache/explainability/minigrid/minigrid_neighbor_generation.py` for environment-specific neighbour logic.
 
 ---
 
-## Configuration
+## Reproducing paper results
 
-Modify the `config/config.yml` file to adjust the following settings:
+1. **Install** as above.
+2. Download our released checkpoints (⬇ link once published) into `data/experiments/models/`.
+3. Run the corresponding `scripts/run_*` helper—each script sets the exact seeds and configs used in the paper.
+4. Generated artefacts (YAML, PNGs) reproduce Figures 2–5 and Tables 1–2 of the manuscript.
 
-- Environment name
-- PPO hyperparameters (`n_steps`, `batch_size`, `ent_coef`, etc.)
-- Observation wrapper parameters (`max_objects`, `max_walls`, etc.)
+---
 
-Example:
-```yaml
-env_name: MiniGrid-Fetch-6x6-N2-v0
-total_timesteps: 50000
-n_steps: 256
-batch_size: 64
-ent_coef: 0.01
-max_objects: 10
-max_walls: 16
+## Project layout
+
 ```
+├── config/              # YAML presets for env & algo
+├── scripts/             # Thin CLI wrappers for common tasks
+├── src/stache/          # All library code (import as `stache`)
+│   ├── envs/            # Factory + wrappers for MiniGrid / Taxi
+│   ├── explainability/  # RR & CF algorithms, visualisation
+│   ├── pipelines/       # Train / tune / evaluate workflows
+│   └── utils/           # Experiment I/O, helpers
+└── data/experiments/    # Created on-the-fly (models, RR, Optuna, …)
+```
+
+---
+
+## Citing
+
+If you use this repo, please cite the paper:
+
+```bibtex
+@inproceedings{stache2025,
+  title   = {Counterfactual and Robustness-Based Explanations for Reinforcement Learning Policies},
+  author  = {Andrew Elashkin},
+  year    = {2025},
+  url     = {https://github.com/aelashkin/STACHE}
+}
+```
+
+---
+
+## Contributing
+
+Pull requests are welcome! Please:
+
+1. Open an issue describing the bug / feature.
+2. Create a branch (`feat/my-feature`), add unit tests where relevant.
+3. Run `ruff`, `black`, and `pytest`.
+4. Submit the PR; CI must pass before review.
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+Distributed under the **MIT License**.
+See [`LICENSE`](LICENSE) for full text.
 
 ---
 
-## Acknowledgments
+### Acknowledgements
 
-- [Gymnasium](https://gymnasium.farama.org/)
-- [MiniGrid](https://github.com/Farama-Foundation/MiniGrid)
-- [Stable-Baselines3](https://stable-baselines3.readthedocs.io/)
+Built on top of
+[Gymnasium](https://gymnasium.farama.org/) ·
+[MiniGrid](https://github.com/Farama-Foundation/MiniGrid) ·
+[Stable-Baselines3](https://stable-baselines3.readthedocs.io/) ·
+[Optuna](https://optuna.org/).

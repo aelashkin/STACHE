@@ -46,6 +46,7 @@ from stache.envs.minigrid.state_utils import (
     get_grid_dimensions,
 )
 from stache.explainability.minigrid.minigrid_neighbor_generation import get_neighbors
+from stache.explainability.rr_visualizer import visualize_robustness_region_maps
 
 # variables for running main without console input
 
@@ -198,6 +199,9 @@ def bfs_rr(
     region = {}            # Maps state_key -> the actual state (with "bfs_depth")
     visited = set()        # set of state_keys
     queue = deque()
+    # Initialize minimal counterfactual tracking
+    minimal_cfs = []      # list of minimal counterfactual states
+    min_cf_depth = None   # minimal BFS depth at which counterfactual found
 
     # 3. Enqueue the initial state with depth=0
     init_key = state_to_key(initial_state)
@@ -217,6 +221,21 @@ def bfs_rr(
         obs = symbolic_to_array(state, max_obs_objects, max_walls)
         action, _ = model.predict(obs, deterministic=True)
 
+        # Detect and record minimal counterfactual states (action change)
+        if action != initial_action:
+            if min_cf_depth is None or depth < min_cf_depth:
+                min_cf_depth = depth
+                minimal_cfs = []
+                cf_copy = copy.deepcopy(state)
+                cf_copy["bfs_depth"] = depth
+                cf_copy["action"] = action
+                minimal_cfs.append(cf_copy)
+            elif depth == min_cf_depth:
+                cf_copy = copy.deepcopy(state)
+                cf_copy["bfs_depth"] = depth
+                cf_copy["action"] = action
+                minimal_cfs.append(cf_copy)
+
         if action == initial_action:
             # If not yet in region, store it with BFS depth
             if key not in region:
@@ -234,15 +253,19 @@ def bfs_rr(
                     queue.append((neighbor, depth + 1))
 
     elapsed_time = time.time() - start_time
+    # Build statistics including minimal counterfactual info
     stats = {
         "initial_action": initial_action,
         "region_size": len(region),
         "total_opened_nodes": total_opened_nodes,
         "visited_count": len(visited),
         "elapsed_time": elapsed_time,
+        # minimal counterfactual metrics
+        "min_counterfactual_distance": min_cf_depth,
+        "num_minimal_counterfactuals": len(minimal_cfs),
     }
 
-    return robustness_region, stats
+    return robustness_region, stats, minimal_cfs
 
 
 
@@ -296,7 +319,7 @@ if __name__ == '__main__':
     print(f"Initial state: {initial_state}")
 
     # --- Calculate the Robustness Region ---
-    robustness_region, stats = bfs_rr(
+    robustness_region, stats, minimal_cfs = bfs_rr(
         initial_symbolic_state,
         model,
         env_name=env_config["env_name"],
@@ -343,6 +366,28 @@ if __name__ == '__main__':
 
     print(f"\nRobustness region and metadata saved to: {yaml_file_path}")
 
+    # --- Save minimal counterfactuals ---
+    yaml_cf_path = os.path.join(rr_dir, "minimal_counterfactuals.yaml")
+    cf_metadata = {
+        "metadata": {
+            "model_name": model_name,
+            "seed": seed_value,
+            "timestamp": timestamp,
+            # minimal counterfactual stats
+            "min_counterfactual_distance": stats["min_counterfactual_distance"],
+            "num_minimal_counterfactuals": stats["num_minimal_counterfactuals"],
+            # reuse other stats
+            "total_opened_nodes": stats["total_opened_nodes"],
+            "visited_count": stats["visited_count"],
+            "elapsed_time": stats["elapsed_time"],
+            "env_config": env_config,
+        },
+        "minimal_counterfactuals": minimal_cfs,
+    }
+    with open(yaml_cf_path, "w") as f:
+        yaml.dump(cf_metadata, f)
+    print(f"Minimal counterfactuals and metadata saved to: {yaml_cf_path}")
+
     env_config["render_mode"] = "rgb_array"
     render_env = create_minigrid_env(env_config)
 
@@ -356,5 +401,58 @@ if __name__ == '__main__':
         subset_count=None        # No limit to how many we save
     )
     print(f"Rendered images for the entire RR to: {images_output_dir}")
+
+    # --- Render and save images for minimal counterfactual states ---
+    cf_images_output_dir = os.path.join(rr_dir, "cf_images")
+    generate_rr_images(
+        robustness_region=minimal_cfs,
+        env=render_env,
+        output_dir=cf_images_output_dir,
+        subset="all",
+        subset_count=None
+    )
+    print(f"Rendered images for minimal counterfactuals to: {cf_images_output_dir}")
+
+    # --- Generate aggregated maps for robustness region ---
+    maps_output_dir = os.path.join(rr_dir, "rr_maps")
+    visualize_robustness_region_maps(robustness_region, render_env, output_dir=maps_output_dir)
+    print(f"Aggregated robustness region maps saved to: {maps_output_dir}")
+
+    # --- Write composite explanation ---
+    composite_path = os.path.join(rr_dir, "composite_explanation.txt")
+    env_name_lower_cf = env_config['env_name'].lower()
+    with open(composite_path, "w") as comp_f:
+        comp_f.write(f"Loaded model from: {model_path}/model.zip\n")
+        comp_f.write(f"Loaded model for environment: {env_config['env_name']}\n")
+        comp_f.write(f"Configuration: {env_config}\n")
+        comp_f.write(f"Initializing the environment: {env_config['env_name']}\n")
+        comp_f.write("Using symbolic representation.\n")
+        comp_f.write(f"Initial action: {action}\n")
+        if "fetch" in env_name_lower_cf:
+            comp_f.write("Action space mapping for 'fetch': \n (Num, Name, Action)\n")
+            for row in ACTION_MAPPING_FETCH:
+                comp_f.write(f"{row}\n")
+        elif "empty" in env_name_lower_cf:
+            comp_f.write("Action space mapping for 'empty': (Num, Name, Action)\n")
+            for row in ACTION_MAPPING_EMPTY:
+                comp_f.write(f"{row}\n")
+        comp_f.write(f"Initial symbolic state: {initial_symbolic_state}\n")
+        comp_f.write(f"Initial state: {initial_state}\n\n")
+        comp_f.write("Robustness Region Statistics:\n")
+        comp_f.write(f"Initial action: {stats['initial_action']}\n")
+        comp_f.write(f"Region size: {stats['region_size']}\n")
+        comp_f.write(f"Total opened nodes: {stats['total_opened_nodes']}\n")
+        comp_f.write(f"Visited nodes count: {stats['visited_count']}\n")
+        comp_f.write(f"Elapsed time: {stats['elapsed_time']:.2f} seconds\n\n")
+        comp_f.write("Minimal counterfactuals statistics:\n")
+        comp_f.write(f"Min distance: {stats['min_counterfactual_distance']}\n")
+        comp_f.write(f"Number of minimal counterfactuals: {stats['num_minimal_counterfactuals']}\n\n")
+        comp_f.write("First 10 states in the robustness region:\n")
+        for st in robustness_region[:10]:
+            comp_f.write(f"{state_to_key(st)}\n")
+        comp_f.write("\nCounterfactual states with actions:\n")
+        for cf in minimal_cfs:
+            comp_f.write(f"Action: {cf['action']}, State: {state_to_key(cf)}\n")
+    print(f"Composite explanation saved to: {composite_path}")
 
     env.close()
