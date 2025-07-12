@@ -30,14 +30,32 @@ It implements the full experimental pipeline from our paper, including:
 ---
 
 ## Quick install
+
+First, clone the repository and create a Python virtual environment (version 3.11 or newer is required).
+
 ```bash
 git clone https://github.com/your-org/stache.git
 cd stache
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt      # Gymnasium-1.0, MiniGrid-3.0, SB3-2.4 …
-````
+python3 -m venv .venv && source .venv/bin/activate
+```
 
-> **Tip:** GPU users just replace the `torch==…` wheel in `requirements.txt` with the appropriate CUDA variant.
+Next, install the project and its dependencies.
+
+**For users** who want to run the core library without the extra tuning or testing tools, a standard installation is sufficient:
+
+```bash
+# Standard user installation
+pip install .
+```
+
+**For developers** who will be modifying the code, install the package in "editable" mode with all optional dependencies (for tuning and testing):
+
+```bash
+# Developer setup (installs everything)
+pip install -e .[dev]
+```
+
+> **Tip:** This package requires PyTorch to run Stable Baselines3 models. The default version will be for CPU. If you have a CUDA-enabled GPU, you can get better performance by pre-installing the correct PyTorch wheel for your system *before* running the commands above. Please see the official [PyTorch installation guide](https://pytorch.org/get-started/locally/) for instructions.
 
 ---
 
@@ -96,9 +114,9 @@ See `src/stache/explainability/minigrid/minigrid_neighbor_generation.py` for env
 ## Reproducing paper results
 
 1. **Install** as above.
-2. Download our released checkpoints (⬇ link once published) into `data/experiments/models/`.
+2. Models shown in the paper are already downloaded in `data/experiments/models/`.
 3. Run the corresponding `scripts/run_*` helper—each script sets the exact seeds and configs used in the paper.
-4. Generated artefacts (YAML, PNGs) reproduce Figures 2–5 and Tables 1–2 of the manuscript.
+4. Generated artefacts (YAML, PNGs) reproduce Figures and Tables for Minigrid and TaxiV3 of the manuscript.
 
 ---
 

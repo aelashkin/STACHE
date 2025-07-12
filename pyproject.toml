@@ -1,14 +1,59 @@
-[project]
-name = "stache"
-version = "0.6.0"
-description = "Agent training & explainability in Gymnasium/Minigrid environments"
-readme = "README.md"
-requires-python = ">=3.10"
-dependencies = []
-
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "stache"
+version = "1.0.0"
+description = "State–Action Transparency through Counterfactual & Heuristic Explanations"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Andrew Elashkin", email = "your-email@example.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Core dependencies required for the project to run
+dependencies = [
+    "gymnasium>=1.0.0",
+    "minigrid==3.0.0",
+    "numpy==1.26.4",
+    "stable-baselines3==2.4.1",
+    "torch==2.2.2",
+    "pyyaml==6.0.2",
+    "matplotlib==3.10",
+    "Pillow==11.1.0",
+]
+
+# Optional dependencies, installed with `pip install .[extra_name]`
+[project.optional-dependencies]
+tuning = [
+    "optuna==4.1.0",
+    "optunahub==0.1.0",
+]
+test = [
+    "pytest",
+]
+# A convenience group to install everything for development
+dev = [
+    "stache[tuning,test]",
+]
+
+# Defines command-line scripts that are created upon installation
+[project.scripts]
+stache-train-minigrid = "stache.pipelines.train_minigrid:main"
+stache-train-taxi = "stache.pipelines.train_taxi:main"
+stache-tune = "stache.tuning.model_optimization_multi:main"
+stache-viz-policy-map = "stache.explainability.taxi.taxi_policy_map:main"
+stache-viz-rr-taxi = "stache.explainability.taxi.taxi_robustness_region_visualization:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
