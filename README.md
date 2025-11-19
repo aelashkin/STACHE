@@ -5,9 +5,13 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Thesis](https://img.shields.io/badge/PDF-MSc_Thesis-red)](docs/MSc_Thesis_Andrew_Elashkin_2025.pdf)
 
 STACHE is a lightweight, **model-agnostic** toolkit for _training_, _evaluating_ and—crucially—_explaining_ reinforcement-learning agents in **Gymnasium / MiniGrid / Taxi-v3** domains.  
-It implements the full experimental pipeline from our paper, including:
+
+This repository serves as the practical implementation for the MSc thesis **"Counterfactual and Robustness-Based Explanations for Reinforcement Learning Policies"** (Technion, 2025). [📖 Read the full PDF](docs/MSc_Thesis_Andrew_Elashkin_2025.pdf).
+
+It implements the full experimental pipeline presented in the thesis, including:
 
 * **Minimal counterfactual states** – the smallest factored-state perturbations that switch an agent’s chosen action.  
 * **Robustness regions** – contiguous neighbourhoods where the policy’s action is invariant.  
@@ -140,11 +144,14 @@ See `src/stache/explainability/minigrid/minigrid_neighbor_generation.py` for env
 If you use this repo, please cite the paper:
 
 ```bibtex
-@inproceedings{stache2025,
-  title   = {Counterfactual and Robustness-Based Explanations for Reinforcement Learning Policies},
-  author  = {Andrew Elashkin},
-  year    = {2025},
-  url     = {https://github.com/aelashkin/STACHE}
+@misc{Elashkin2025,
+  author    = {Elashkin, Andrey and Grumberg, Orna},
+  title     = {Counterfactual and Robustness-Based Explanations for Reinforcement Learning Policies},
+  year      = {2025},
+  publisher = {Technion - Israel Institute of Technology},
+  keywords  = {Reinforcement learning; Intelligent agents; Markov processes; Multiagent systems},
+  note      = {MSc Thesis. Supervision: Orna Grumberg},
+  url       = {https://github.com/aelashkin/STACHE/docs/MSc_Thesis_Andrew_Elashkin_2025.pdf}
 }
 ```
 
