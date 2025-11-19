@@ -62,4 +62,5 @@ runs/
 #ignore minigrid rr outputs for now
 data/experiments/rr/minigrid/
 
-src/deir/*
+
+repomix-output.xml
