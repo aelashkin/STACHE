@@ -1,24 +1,53 @@
-# STACHE – State–Action Transparency through Counterfactual & Heuristic Explanations
+# STACHE – State–Action Transparency through Counterfactual & Robustness Explanations
 
-> **Code & data for the paper**  
-> **“Local Black-Box Explanations for Discrete RL Agents via Minimal Counterfactual States and Robustness Regions.”**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Thesis](https://img.shields.io/badge/PDF-MSc_Thesis-red)](docs/MSc_Thesis_Andrew_Elashkin_2025.pdf)
 
-STACHE is a lightweight, **model-agnostic** toolkit for _training_, _evaluating_ and—crucially—_explaining_ reinforcement-learning agents in **Gymnasium / MiniGrid / Taxi-v3** domains.  
 
-This repository serves as the practical implementation for the MSc thesis **"Counterfactual and Robustness-Based Explanations for Reinforcement Learning Policies"** (Technion, 2025). [📖 Read the full PDF](docs/MSc_Thesis_Andrew_Elashkin_2025.pdf).
+STACHE is a **model-agnostic** toolkit for explaining discrete Reinforcement Learning agents. It maps the geometry of an agent's decision-making process by computing **Robustness Regions** (stability zones) and **Minimal Counterfactuals** (critical tipping points).
 
-It implements the full experimental pipeline presented in the thesis, including:
-
-* **Minimal counterfactual states** – the smallest factored-state perturbations that switch an agent’s chosen action.  
-* **Robustness regions** – contiguous neighbourhoods where the policy’s action is invariant.  
-* **Black-box explainers** that need _only_ `(state → action)` access.  
-* Re-usable utilities for symbolic, image and one-hot observations, hyper-parameter search (Optuna), and rich visualisations.
+Unlike standard saliency maps that highlight pixels, STACHE operates on **symbolic, factored state spaces** (e.g., Taxi-v3, MiniGrid). This allows it to generate explanations that are semantically meaningful: *"The agent picked 'South' because the passenger was at (0,4); if the passenger were at (0,3), it would have picked 'North'."*
 
 ---
+
+## Visual Evidence: The Evolution of Logic
+
+STACHE allows researchers to visualize how an agent's logic stabilizes during training. Below is a comparison of **Robustness Regions (RR)** for a Taxi-v3 agent at **0%** training vs. **100%** training, starting from the same seed state $s = (0,0,0,2)$ (*Taxi at top-left, Passenger at R, Dest at Y*).
+
+| **Untrained Policy ($`\pi_{0\%}`$)** | **Fully Trained Policy ($`\pi_{100\%}`$)** |
+| :---: | :---: |
+| <img src="assets/taxi/Taxi-v3_DQN_model_0/0_0_0_2/robustness_region_0_0_0_2.png" width="400" /> | <img src="assets/taxi/Taxi-v3_DQN_model_100/0_0_0_2/robustness_region_0_0_0_2.png" width="400" /> |
+| **Erratic Behavior.** The colored regions (representing invariant actions) are scattered and small (Size=9). The agent's decision is unstable and sensitive to random noise. | **Stable Logic.** The region is compact and specific (Size=3). The agent correctly identifies "Pick-up" and holds that decision only while the taxi/passenger are co-located, demonstrating precise logic. |
+
+---
+
+## Core Concepts
+
+This toolkit implements the "Composite Explanation" framework presented in the [accompanying thesis](docs/MSc_Thesis_Andrew_Elashkin_2025.pdf).
+
+### 1. Robustness Regions (RR)
+**Definition:** The **Robustness Region** $\mathcal{R}(s_0, \pi)$ is the connected set of states around a seed state $s_0$ where the agent's action $\pi(s)$ remains unchanged.
+
+Instead of testing random perturbations, STACHE defines a graph stucture over the factored state space and performs a **Breadth-First Search (BFS)**-based exploration. A state belongs to the region if:
+1.  The agent selects the same action as the seed state.
+2.  It is reachable via a "continuous path" of atomic changes (e.g., moving one tile, changing one color) without the action ever flipping along the path.
+
+**Why it matters:** Large regions imply **navigational stability** (the agent sticks to the plan). Small, specific regions imply **functional precision** (e.g., "Pick-up" is only valid in one specific spot).
+
+### 2. Minimal Counterfactual States (CF)
+**Definition:** A **Minimal Counterfactual** is the state $s'$ closest to the seed state $s_0$ (in terms of L1 distance) that forces the policy to change its action.
+
+STACHE identifies these states by examining the **boundary** of the computed Robustness Region.
+
+**Why it matters:** These are the "tipping points" of the policy. They reveal exactly which feature (e.g., *Passenger Location* vs. *Taxi X-Coordinate*) controls the decision.
+
+---
+
+
+
+
 
 ## Table of Contents
 1. [Quick install](#quick-install)  

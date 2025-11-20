@@ -21,6 +21,8 @@ IGNORE_PATTERNS=(
     'poetry.lock'
     'data/**'
     'tests/**'
+    'docs/**'
+    'assets/**'
 )
 
 # Join patterns with commas
