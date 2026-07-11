@@ -421,6 +421,14 @@ def test_image_generation(tmp_path):
     env.close()
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "MiniGrid object ordering/state-universe semantics are deliberately "
+        "deferred (audit C1/C2/C4/C5/C7; ADR 0001); preserve this assertion "
+        "until the codec and scientific universe are decided together"
+    ),
+)
 def test_neighbor_generation_rules():
     """
     Test that neighbors generated for BFS-RR follow the atomic change rules:
