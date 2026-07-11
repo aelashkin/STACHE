@@ -1,0 +1,602 @@
+"""Validated, cached scalar-discrete policy action sources.
+
+The implementation uses structural model/space checks and therefore does not
+import Gymnasium or Stable-Baselines3.  Table and model queries share one
+canonical-state cache, including in the explicit table-then-model source.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import hashlib
+import json
+import math
+from numbers import Integral
+from typing import Hashable, Mapping, Protocol, Sequence
+
+import numpy as np
+
+
+class PolicyError(Exception):
+    """Base class for action-source contract failures."""
+
+
+class ActionValidationError(PolicyError, ValueError):
+    """An action is not an in-range integer scalar."""
+
+
+class ActionShapeError(ActionValidationError):
+    """An action container does not represent exactly one scalar action."""
+
+
+class UnknownTableKeyError(PolicyError, KeyError):
+    """A strict table source has no action for the connector lookup key."""
+
+
+class ModelCompatibilityError(PolicyError, ValueError):
+    """A model or encoded observation violates the connector declaration."""
+
+
+class CacheRestoreError(PolicyError, ValueError):
+    """A serialized/in-memory action-cache checkpoint is malformed."""
+
+
+class PolicyConfigurationError(PolicyError, ValueError):
+    """An action source cannot be constructed safely."""
+
+
+@dataclass(frozen=True, slots=True)
+class OracleStats:
+    """Unified source/cache counters for one action oracle."""
+
+    policy_queries: int = 0
+    cache_hits: int = 0
+    table_hits: int = 0
+    model_queries: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class ActionCacheRecord:
+    """One immutable canonical-key/action cache checkpoint record."""
+
+    key: Hashable
+    action: int
+
+
+class ActionOracle(Protocol):
+    """Search-facing action-source contract."""
+
+    fingerprint: str
+
+    @property
+    def source_description(self) -> Mapping[str, object]: ...
+
+    @property
+    def stats(self) -> OracleStats: ...
+
+    def action(self, state: object) -> int: ...
+
+    def has_cached(self, state: object) -> bool: ...
+
+    def export_cache(self) -> tuple[ActionCacheRecord, ...]: ...
+
+    def restore_cache(
+        self,
+        records: Mapping[Hashable, object] | Sequence[ActionCacheRecord],
+    ) -> None: ...
+
+
+def normalize_discrete_action(value: object, action_count: int) -> int:
+    """Normalize accepted integer scalar forms and enforce the action space.
+
+    Accepted values are Python/NumPy integer scalars, zero-dimensional integer
+    arrays, and integer arrays of shape ``(1,)``.  Booleans, floating-point
+    values, strings, nested arrays, and batched arrays are rejected rather than
+    coerced.
+    """
+
+    if isinstance(action_count, bool) or not isinstance(action_count, Integral):
+        raise ActionValidationError(
+            "action_count must be a positive Python integer"
+        )
+    normalized_count = int(action_count)
+    if normalized_count <= 0:
+        raise ActionValidationError("action_count must be greater than zero")
+
+    scalar: object
+    if isinstance(value, np.ndarray):
+        if value.shape == ():
+            scalar = value.item()
+        elif value.shape == (1,):
+            scalar = value[0]
+        else:
+            raise ActionShapeError(
+                "discrete action array must have shape () or (1,), "
+                f"got {value.shape}"
+            )
+        if not np.issubdtype(value.dtype, np.integer):
+            raise ActionValidationError(
+                "discrete action must have an integer dtype, "
+                f"got {value.dtype}"
+            )
+    else:
+        scalar = value
+
+    if isinstance(scalar, (bool, np.bool_)) or not isinstance(
+        scalar,
+        (Integral, np.integer),
+    ):
+        raise ActionValidationError(
+            "discrete action must be an integer scalar, "
+            f"got {type(scalar).__name__}"
+        )
+
+    action = int(scalar)
+    if action < 0 or action >= normalized_count:
+        raise ActionValidationError(
+            "discrete action is outside the declared range "
+            f"[0, {normalized_count}): {action}"
+        )
+    return action
+
+
+class _CachedActionOracle:
+    """Shared canonical-state cache and counter implementation."""
+
+    def __init__(self, connector: object, *, fingerprint: str) -> None:
+        self._connector = connector
+        self._action_count = _connector_action_count(connector)
+        self.fingerprint = _validated_fingerprint(fingerprint)
+        self._cache: dict[Hashable, int] = {}
+        self._policy_queries = 0
+        self._cache_hits = 0
+        self._table_hits = 0
+        self._model_queries = 0
+
+    @property
+    def cache_size(self) -> int:
+        return len(self._cache)
+
+    @property
+    def stats(self) -> OracleStats:
+        return OracleStats(
+            policy_queries=self._policy_queries,
+            cache_hits=self._cache_hits,
+            table_hits=self._table_hits,
+            model_queries=self._model_queries,
+        )
+
+    def action(self, state: object) -> int:
+        canonical, key = self._canonical_state_and_key(state)
+        if key in self._cache:
+            self._cache_hits += 1
+            return self._cache[key]
+
+        self._policy_queries += 1
+        raw_action = self._query_uncached(canonical)
+        action = normalize_discrete_action(raw_action, self._action_count)
+        self._cache[key] = action
+        return action
+
+    def has_cached(self, state: object) -> bool:
+        _, key = self._canonical_state_and_key(state)
+        return key in self._cache
+
+    def export_cache(self) -> tuple[ActionCacheRecord, ...]:
+        try:
+            records = [
+                ActionCacheRecord(key=key, action=action)
+                for key, action in self._cache.items()
+            ]
+            records.sort(key=lambda record: _stable_token(record.key))
+        except (TypeError, ValueError) as error:
+            raise CacheRestoreError(
+                f"action cache contains a non-serializable connector key: {error}"
+            ) from error
+        return tuple(records)
+
+    def restore_cache(
+        self,
+        records: Mapping[Hashable, object] | Sequence[ActionCacheRecord],
+    ) -> None:
+        """Atomically replace the cache after validating every record."""
+
+        try:
+            if isinstance(records, Mapping):
+                entries: object = tuple(records.items())
+            elif isinstance(records, Sequence) and not isinstance(
+                records,
+                (str, bytes, bytearray),
+            ):
+                entries = records
+            else:
+                raise TypeError("cache must be a mapping or sequence of records")
+
+            restored: dict[Hashable, int] = {}
+            for record in entries:  # type: ignore[union-attr]
+                if isinstance(record, ActionCacheRecord):
+                    key, raw_action = record.key, record.action
+                elif isinstance(records, Mapping) and isinstance(record, tuple) and len(record) == 2:
+                    key, raw_action = record
+                else:
+                    raise TypeError(
+                        "cache entries must be ActionCacheRecord instances"
+                    )
+                _require_hashable(key, label="cache key")
+                action = normalize_discrete_action(raw_action, self._action_count)
+                if key in restored and restored[key] != action:
+                    raise ValueError(f"conflicting cache actions for key {key!r}")
+                restored[key] = action
+        except (ActionValidationError, TypeError, ValueError) as error:
+            raise CacheRestoreError(f"invalid action cache: {error}") from error
+
+        self._cache = restored
+
+    def _canonical_state_and_key(self, state: object) -> tuple[object, Hashable]:
+        canonicalize = _required_callable(
+            self._connector,
+            "canonicalize",
+            "connector",
+        )
+        validate_state = _required_callable(
+            self._connector,
+            "validate_state",
+            "connector",
+        )
+        state_key = _required_callable(self._connector, "state_key", "connector")
+        canonical = canonicalize(state)
+        validate_state(canonical)
+        key = state_key(canonical)
+        _require_hashable(key, label="connector state key")
+        return canonical, key
+
+    def _query_uncached(self, canonical_state: object) -> object:
+        raise NotImplementedError
+
+
+class TableActionOracle(_CachedActionOracle):
+    """Strict precomputed table source with error-on-missing semantics."""
+
+    def __init__(
+        self,
+        connector: object,
+        table: Mapping[Hashable, object],
+        *,
+        source_fingerprint: str | None = None,
+    ) -> None:
+        action_count = _connector_action_count(connector)
+        normalized_table = _validated_table(table, action_count)
+        fingerprint = (
+            _table_fingerprint(normalized_table)
+            if source_fingerprint is None
+            else _validated_fingerprint(source_fingerprint)
+        )
+        super().__init__(connector, fingerprint=fingerprint)
+        self._table = normalized_table
+
+    @property
+    def source_description(self) -> Mapping[str, object]:
+        return {"source": "table", "fingerprint": self.fingerprint}
+
+    def _query_uncached(self, canonical_state: object) -> object:
+        lookup_key = _policy_lookup_key(self._connector, canonical_state)
+        try:
+            action = self._table[lookup_key]
+        except KeyError as error:
+            raise UnknownTableKeyError(
+                f"precomputed policy table has no key {lookup_key!r}"
+            ) from error
+        self._table_hits += 1
+        return action
+
+
+class ModelActionOracle(_CachedActionOracle):
+    """Deterministic model source validated against connector-owned specs."""
+
+    def __init__(
+        self,
+        connector: object,
+        model: object,
+        *,
+        source_fingerprint: str,
+    ) -> None:
+        self._model = model
+        self._observation_shape, self._observation_dtype = (
+            _validate_model_compatibility(connector, model)
+        )
+        super().__init__(connector, fingerprint=source_fingerprint)
+
+    @property
+    def source_description(self) -> Mapping[str, object]:
+        return {"source": "model", "fingerprint": self.fingerprint}
+
+    def _query_uncached(self, canonical_state: object) -> object:
+        observation = _encoded_observation(
+            self._connector,
+            canonical_state,
+            expected_shape=self._observation_shape,
+            expected_dtype=self._observation_dtype,
+        )
+        predict = _required_callable(self._model, "predict", "policy model")
+        self._model_queries += 1
+        try:
+            prediction = predict(observation, deterministic=True)
+        except TypeError as error:
+            raise ModelCompatibilityError(
+                "policy model predict() must accept deterministic=True"
+            ) from error
+        if not isinstance(prediction, tuple) or len(prediction) != 2:
+            raise ModelCompatibilityError(
+                "policy model predict() must return an (action, state) pair"
+            )
+        return prediction[0]
+
+
+class TableThenModelActionOracle(_CachedActionOracle):
+    """Explicit table-first source with deterministic model fallback."""
+
+    def __init__(
+        self,
+        connector: object,
+        table: Mapping[Hashable, object],
+        model: object,
+        *,
+        table_fingerprint: str | None = None,
+        model_fingerprint: str,
+    ) -> None:
+        action_count = _connector_action_count(connector)
+        self._table = _validated_table(table, action_count)
+        self._table_fingerprint = (
+            _table_fingerprint(self._table)
+            if table_fingerprint is None
+            else _validated_fingerprint(table_fingerprint)
+        )
+        self._model_fingerprint = _validated_fingerprint(model_fingerprint)
+        self._model = model
+        self._observation_shape, self._observation_dtype = (
+            _validate_model_compatibility(connector, model)
+        )
+        combined = _hash_json(
+            {
+                "source": "table_then_model",
+                "table_fingerprint": self._table_fingerprint,
+                "model_fingerprint": self._model_fingerprint,
+            }
+        )
+        super().__init__(connector, fingerprint=combined)
+
+    @property
+    def source_description(self) -> Mapping[str, object]:
+        return {
+            "source": "table_then_model",
+            "fingerprint": self.fingerprint,
+            "table_fingerprint": self._table_fingerprint,
+            "model_fingerprint": self._model_fingerprint,
+        }
+
+    def _query_uncached(self, canonical_state: object) -> object:
+        lookup_key = _policy_lookup_key(self._connector, canonical_state)
+        if lookup_key in self._table:
+            self._table_hits += 1
+            return self._table[lookup_key]
+
+        observation = _encoded_observation(
+            self._connector,
+            canonical_state,
+            expected_shape=self._observation_shape,
+            expected_dtype=self._observation_dtype,
+        )
+        predict = _required_callable(self._model, "predict", "policy model")
+        self._model_queries += 1
+        try:
+            prediction = predict(observation, deterministic=True)
+        except TypeError as error:
+            raise ModelCompatibilityError(
+                "policy model predict() must accept deterministic=True"
+            ) from error
+        if not isinstance(prediction, tuple) or len(prediction) != 2:
+            raise ModelCompatibilityError(
+                "policy model predict() must return an (action, state) pair"
+            )
+        return prediction[0]
+
+
+def _connector_action_count(connector: object) -> int:
+    try:
+        action_spec = getattr(connector, "action_spec")
+        count = getattr(action_spec, "count")
+    except AttributeError as error:
+        raise PolicyConfigurationError(
+            "connector must declare action_spec.count"
+        ) from error
+    # Reuse the normalization validator without accepting booleans/floats.
+    if isinstance(count, bool) or not isinstance(count, Integral) or int(count) <= 0:
+        raise PolicyConfigurationError(
+            "connector action_spec.count must be a positive integer"
+        )
+    return int(count)
+
+
+def _validated_table(
+    table: Mapping[Hashable, object],
+    action_count: int,
+) -> dict[Hashable, int]:
+    if not isinstance(table, Mapping):
+        raise PolicyConfigurationError("policy table must be a mapping")
+    normalized: dict[Hashable, int] = {}
+    for key, raw_action in table.items():
+        _require_hashable(key, label="policy table key")
+        try:
+            normalized[key] = normalize_discrete_action(raw_action, action_count)
+        except (ActionShapeError, ActionValidationError) as error:
+            raise type(error)(
+                f"invalid action for policy table key {key!r}: {error}"
+            ) from error
+    return normalized
+
+
+def _policy_lookup_key(connector: object, canonical_state: object) -> Hashable:
+    lookup = _required_callable(connector, "policy_lookup_key", "connector")
+    key = lookup(canonical_state)
+    _require_hashable(key, label="policy lookup key")
+    return key
+
+
+def _validate_model_compatibility(
+    connector: object,
+    model: object,
+) -> tuple[tuple[int, ...], np.dtype[object]]:
+    try:
+        observation_spec = getattr(connector, "observation_spec")
+        expected_shape = tuple(getattr(observation_spec, "shape"))
+        expected_dtype = np.dtype(getattr(observation_spec, "dtype"))
+    except (AttributeError, TypeError, ValueError) as error:
+        raise PolicyConfigurationError(
+            "connector must declare a valid observation_spec.shape and dtype"
+        ) from error
+
+    try:
+        observation_space = getattr(model, "observation_space")
+        model_shape = tuple(getattr(observation_space, "shape"))
+        model_dtype = np.dtype(getattr(observation_space, "dtype"))
+    except (AttributeError, TypeError, ValueError) as error:
+        raise ModelCompatibilityError(
+            "policy model must declare observation space shape and dtype"
+        ) from error
+
+    if model_shape != expected_shape:
+        raise ModelCompatibilityError(
+            "policy model observation space shape is incompatible with the "
+            f"connector: expected {expected_shape}, got {model_shape}"
+        )
+    if model_dtype != expected_dtype:
+        raise ModelCompatibilityError(
+            "policy model observation space dtype is incompatible with the "
+            f"connector: expected {expected_dtype}, got {model_dtype}"
+        )
+
+    expected_actions = _connector_action_count(connector)
+    try:
+        action_space = getattr(model, "action_space")
+        model_actions = getattr(action_space, "n")
+    except AttributeError as error:
+        raise ModelCompatibilityError(
+            "policy model must declare a scalar discrete action space"
+        ) from error
+    if (
+        isinstance(model_actions, bool)
+        or not isinstance(model_actions, Integral)
+        or int(model_actions) != expected_actions
+    ):
+        raise ModelCompatibilityError(
+            "policy model action space is incompatible with the connector: "
+            f"expected Discrete({expected_actions}), got n={model_actions!r}"
+        )
+    _required_callable(model, "predict", "policy model")
+    return expected_shape, expected_dtype
+
+
+def _encoded_observation(
+    connector: object,
+    canonical_state: object,
+    *,
+    expected_shape: tuple[int, ...],
+    expected_dtype: np.dtype[object],
+) -> np.ndarray:
+    encode = _required_callable(connector, "encode_observation", "connector")
+    observation = np.asarray(encode(canonical_state))
+    if observation.shape != expected_shape:
+        raise ModelCompatibilityError(
+            "connector encoded observation shape violates observation_spec: "
+            f"expected {expected_shape}, got {observation.shape}"
+        )
+    if observation.dtype != expected_dtype:
+        raise ModelCompatibilityError(
+            "connector encoded observation dtype violates observation_spec: "
+            f"expected {expected_dtype}, got {observation.dtype}"
+        )
+    return np.array(observation, copy=True)
+
+
+def _required_callable(owner: object, name: str, label: str):
+    try:
+        value = getattr(owner, name)
+    except AttributeError as error:
+        raise PolicyConfigurationError(
+            f"{label} must provide callable {name}()"
+        ) from error
+    if not callable(value):
+        raise PolicyConfigurationError(f"{label}.{name} must be callable")
+    return value
+
+
+def _validated_fingerprint(value: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise PolicyConfigurationError("source fingerprint must be a non-empty string")
+    return value
+
+
+def _table_fingerprint(table: Mapping[Hashable, int]) -> str:
+    entries = sorted(
+        (
+            {"key": _stable_node(key), "action": action}
+            for key, action in table.items()
+        ),
+        key=lambda entry: json.dumps(
+            entry["key"],
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+    )
+    return _hash_json({"schema": "stache.policy-table-fingerprint/v1", "entries": entries})
+
+
+def _stable_token(value: object) -> str:
+    return json.dumps(
+        _stable_node(value),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+
+
+def _stable_node(value: object) -> object:
+    if value is None:
+        return {"type": "null", "value": None}
+    if isinstance(value, (bool, np.bool_)):
+        return {"type": "bool", "value": bool(value)}
+    if isinstance(value, (Integral, np.integer)):
+        return {"type": "int", "value": int(value)}
+    if isinstance(value, (float, np.floating)):
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError("non-finite floating-point keys are not supported")
+        return {"type": "float", "value": number}
+    if isinstance(value, str):
+        return {"type": "str", "value": value}
+    if isinstance(value, tuple):
+        return {"type": "tuple", "value": [_stable_node(item) for item in value]}
+    raise TypeError(
+        "connector policy/cache keys must use primitive scalars or tuples, "
+        f"got {type(value).__name__}"
+    )
+
+
+def _hash_json(value: object) -> str:
+    payload = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _require_hashable(value: object, *, label: str) -> None:
+    try:
+        hash(value)
+    except TypeError as error:
+        raise PolicyConfigurationError(
+            f"{label} must be hashable, got {type(value).__name__}"
+        ) from error
