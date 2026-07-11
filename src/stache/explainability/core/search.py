@@ -6,7 +6,7 @@ import copy
 import hashlib
 import json
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields, is_dataclass
 from typing import Any, Hashable, Iterable, Mapping
 
 from .connector import ExactActionInvariance, FormalDistanceLayer
@@ -91,14 +91,45 @@ def _stable(value: Any) -> Any:
 
     if value is None or type(value) in {bool, int, float, str}:
         return value
-    if isinstance(value, Mapping):
+    if is_dataclass(value) and not isinstance(value, type):
         return {
-            str(key): _stable(item)
-            for key, item in sorted(value.items(), key=lambda pair: repr(pair[0]))
+            "dataclass": type(value).__qualname__,
+            "fields": [
+                [item.name, _stable(getattr(value, item.name))]
+                for item in fields(value)
+            ],
         }
+    if isinstance(value, Mapping):
+        entries = [
+            [_stable(key), _stable(item)] for key, item in value.items()
+        ]
+        entries.sort(
+            key=lambda entry: json.dumps(
+                entry[0], sort_keys=True, separators=(",", ":")
+            )
+        )
+        return {"mapping": entries}
+    if isinstance(value, (set, frozenset)):
+        entries = [_stable(item) for item in value]
+        entries.sort(
+            key=lambda item: json.dumps(
+                item, sort_keys=True, separators=(",", ":")
+            )
+        )
+        return {"set": entries}
     if isinstance(value, (tuple, list)):
         return [_stable(item) for item in value]
     return {"type": type(value).__qualname__, "repr": repr(value)}
+
+
+def _checkpoint_digest(checkpoint: _Checkpoint) -> str:
+    encoded = json.dumps(
+        _stable(checkpoint),
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
 def _fingerprint(
@@ -432,6 +463,12 @@ def _resume(
     if continuation.fingerprint != fingerprint:
         raise ContinuationMismatchError(
             "fingerprint does not match the requested search"
+        )
+    if continuation.payload_digest != _checkpoint_digest(
+        continuation.checkpoint
+    ):
+        raise ContinuationMismatchError(
+            "continuation payload integrity check failed"
         )
     checkpoint = copy.deepcopy(continuation.checkpoint)
     if not isinstance(checkpoint, _Checkpoint):
@@ -868,6 +905,7 @@ def _build_result(
         continuation = SearchContinuation(
             checkpoint_version=CHECKPOINT_VERSION,
             fingerprint=fingerprint,
+            payload_digest=_checkpoint_digest(checkpoint),
             checkpoint=copy.deepcopy(checkpoint),
         )
 

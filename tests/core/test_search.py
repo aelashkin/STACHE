@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
 
 import pytest
@@ -376,6 +377,29 @@ def test_continuation_rejects_tampered_version_or_fingerprint(field: str) -> Non
     tampered = replace(partial.continuation, **{field: "tampered"})
 
     with pytest.raises(ContinuationMismatchError, match=field):
+        compute_rr(
+            "s",
+            ToyConnector(space),
+            ToyOracle(space.actions),
+            exact_options(),
+            continuation=tampered,
+        )
+
+
+def test_continuation_rejects_tampered_checkpoint_payload() -> None:
+    space = exact_space()
+    partial = compute_rr(
+        "s",
+        ToyConnector(space),
+        ToyOracle(space.actions),
+        exact_options(max_expanded=1),
+    )
+    assert partial.continuation is not None
+    checkpoint = deepcopy(partial.continuation.checkpoint)
+    checkpoint.current_depth = 999
+    tampered = replace(partial.continuation, checkpoint=checkpoint)
+
+    with pytest.raises(ContinuationMismatchError, match="payload|integrity"):
         compute_rr(
             "s",
             ToyConnector(space),

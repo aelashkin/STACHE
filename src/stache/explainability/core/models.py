@@ -201,6 +201,7 @@ class SearchContinuation:
 
     checkpoint_version: str
     fingerprint: str
+    payload_digest: str
     checkpoint: Any
 
 
@@ -219,4 +220,3 @@ class SearchResult(Generic[StateT, KeyT]):
     stats: SearchStats
     metadata: SearchMetadata
     continuation: SearchContinuation | None
-
