@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 import yaml
 from stable_baselines3 import PPO, A2C
 
-from utils.experiment_io import load_experiment
+from stache.utils.experiment_io import load_experiment
 
 
 def test_load_experiment_missing_config(tmp_path):

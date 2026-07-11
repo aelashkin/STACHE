@@ -3,7 +3,7 @@ import numpy as np
 import gymnasium as gym
 from stable_baselines3 import DQN
 
-from explainability.robust_taxi import (
+from stache.explainability.taxi.robust_taxi import (
     translate_tuple_to_onehot,
     get_neighbors_taxi,
     compute_rr_taxi,

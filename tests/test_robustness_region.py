@@ -16,16 +16,16 @@ import gymnasium as gym
 import pytest
 from collections import deque
 
-from utils.experiment_io import load_experiment
-from minigrid_ext.environment_utils import create_minigrid_env
-from minigrid_ext.state_utils import (
+from stache.utils.experiment_io import load_experiment
+from stache.envs.minigrid.factory import create_minigrid_env
+from stache.envs.minigrid.state_utils import (
     symbolic_to_array,
     state_to_key,
     get_grid_dimensions
 )
-from minigrid_ext.set_state_extension import set_standard_state_minigrid, factorized_symbolic_to_fullobs
-from explainability.rr_bfs import bfs_rr, get_symbolic_env, generate_rr_images
-from explainability.minigrid_neighbor_generation import get_neighbors
+from stache.envs.minigrid.set_state_extension import set_standard_state_minigrid, factorized_symbolic_to_fullobs
+from stache.explainability.rr_bfs import bfs_rr, get_symbolic_env, generate_rr_images
+from stache.explainability.minigrid.minigrid_neighbor_generation import get_neighbors
 
 # Test constants
 TEST_ENV_NAME = "MiniGrid-Fetch-5x5-N2-v0"  
@@ -76,7 +76,7 @@ def test_robustness_region_basic():
     mock_model = MockModel(action=0)
     
     # Run BFS-RR with small max_nodes_expanded
-    robustness_region, stats = bfs_rr(
+    robustness_region, stats, _ = bfs_rr(
         initial_state,
         mock_model,
         env_name=env_config["env_name"],
@@ -163,7 +163,7 @@ def test_robustness_region_action_consistency():
     variable_model = VariableActionModel()
     
     # Run BFS-RR
-    robustness_region, stats = bfs_rr(
+    robustness_region, stats, _ = bfs_rr(
         initial_state,
         variable_model,
         env_name=env_config["env_name"],
@@ -210,7 +210,7 @@ def test_max_nodes_expanded_limit():
     
     # Run BFS-RR with very small max_nodes_expanded limit
     tiny_limit = 3
-    robustness_region, stats = bfs_rr(
+    robustness_region, stats, _ = bfs_rr(
         initial_state,
         mock_model,
         env_name=env_config["env_name"],
@@ -225,7 +225,7 @@ def test_max_nodes_expanded_limit():
     
     # Run again with larger limit to verify it can find more states
     larger_limit = 10
-    larger_region, larger_stats = bfs_rr(
+    larger_region, larger_stats, _ = bfs_rr(
         initial_state,
         mock_model,
         env_name=env_config["env_name"],
@@ -266,7 +266,7 @@ def test_bfs_depth_correctness():
     mock_model = MockModel(action=0)
     
     # Run BFS-RR
-    robustness_region, stats = bfs_rr(
+    robustness_region, stats, _ = bfs_rr(
         initial_state,
         mock_model,
         env_name=env_config["env_name"],
@@ -350,7 +350,7 @@ def test_with_real_model():
     initial_state, _ = symbolic_env.reset(seed=TEST_SEED)
     
     # Run BFS-RR with real model
-    robustness_region, stats = bfs_rr(
+    robustness_region, stats, _ = bfs_rr(
         initial_state,
         model,
         env_name=env_config["env_name"],
@@ -374,7 +374,7 @@ def test_with_real_model():
     env.close()
 
 
-def test_image_generation():
+def test_image_generation(tmp_path):
     """
     Test the generate_rr_images function to ensure it correctly renders
     and saves images of states in the robustness region.
@@ -398,7 +398,7 @@ def test_image_generation():
     robustness_region = [initial_state]
     
     # Set up test output directory
-    test_output_dir = os.path.join("tests", "test_data", "rr_images_test")
+    test_output_dir = str(tmp_path / "rr_images_test")
     os.makedirs(test_output_dir, exist_ok=True)
     
     # Call generate_rr_images

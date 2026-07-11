@@ -4,8 +4,8 @@ import gymnasium as gym
 from PIL import Image
 
 from minigrid.wrappers import FullyObsWrapper
-from minigrid_ext.environment_utils import create_symbolic_minigrid_env
-from minigrid_ext.set_state_extension import SetStateWrapper, factorized_symbolic_to_fullobs
+from stache.envs.minigrid.factory import create_symbolic_minigrid_env
+from stache.envs.minigrid.set_state_extension import SetStateWrapper, factorized_symbolic_to_fullobs
 
 # Global seed variables that can be modified from the command line in the future
 SEED_1 = 1  # Seed for the first environment (source state)
@@ -124,7 +124,7 @@ def compare_minigrid_envs(env1, env2):
         "match_percentage": len(matching) / (len(matching) + len(differences)) * 100
     }
 
-def test_set_state_minigrid():
+def test_set_state_minigrid(tmp_path):
     """
     Test the set_standard_state_minigrid function by:
     1. Creating a symbolic MiniGrid environment with seed SEED_1
@@ -135,7 +135,7 @@ def test_set_state_minigrid():
     6. Finally comparing rendered frames
     """
     # Set up test directories
-    test_dir = os.path.join("tests", "test_data", "set_state_test")
+    test_dir = str(tmp_path / "set_state_test")
     os.makedirs(test_dir, exist_ok=True)
     
     print(f"\n=== Step 1: Creating symbolic MiniGrid environment with seed {SEED_1} ===")
@@ -290,14 +290,14 @@ def test_set_state_minigrid():
     
     print("\nAll tests passed successfully!")
 
-def test_deep_comparison_set_state_minigrid():
+def test_deep_comparison_set_state_minigrid(tmp_path):
     """
     Perform a deep comparison of environment attributes after using SetStateWrapper.
     This test performs a comprehensive check of all MiniGrid environment attributes
     to ensure the set_state function properly replicates the environment state.
     """
     # Set up test directories
-    test_dir = os.path.join("tests", "test_data", "deep_comparison_test")
+    test_dir = str(tmp_path / "deep_comparison_test")
     os.makedirs(test_dir, exist_ok=True)
     
     print(f"\n=== Step 1: Creating symbolic MiniGrid environment with seed {SEED_1} ===")
