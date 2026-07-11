@@ -11,14 +11,29 @@ from stache.explainability.taxi.robust_taxi import (
 
 class DummyModelAlwaysZero:
     """Mock model that always predicts action 0"""
+    observation_space = gym.spaces.Box(
+        low=0.0,
+        high=1.0,
+        shape=(500,),
+        dtype=np.float32,
+    )
+    action_space = gym.spaces.Discrete(6)
+
     def predict(self, obs, deterministic=True):
-        # obs shape (1,500)
         return 0, None
 
 class DummyModelIncremental:
     """Mock model that predicts action equal to sum of one-hot index mod 6"""
+    observation_space = gym.spaces.Box(
+        low=0.0,
+        high=1.0,
+        shape=(500,),
+        dtype=np.float32,
+    )
+    action_space = gym.spaces.Discrete(6)
+
     def predict(self, obs, deterministic=True):
-        vec = obs[0]
+        vec = np.asarray(obs).reshape(-1)
         idx = int(np.argmax(vec))
         return idx % 6, None
 

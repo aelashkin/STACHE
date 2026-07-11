@@ -6,18 +6,60 @@ Now expects --model-path to be a folder containing model.zip;
 model_name is derived from that folder's name.
 """
 import argparse
-import datetime as _dt
-import os
+from collections.abc import Iterable
+from hashlib import sha256
 from pathlib import Path
 
-import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from stable_baselines3 import DQN
 
-from stache.explainability.taxi.robust_taxi import compute_rr_taxi, translate_tuple_to_onehot
-from stache.explainability.taxi.taxi_policy_map import OneHotObs, _annotate_grid, _COLORMAP, CB_PALETTE, ACTION_NAMES, PICKUP_LOCS, LOC_CHARS
+from stache.explainability.core.models import SearchResult
+from stache.explainability.taxi.robust_taxi import compute_taxi_rr
+from stache.explainability.taxi.taxi_policy_map import (
+    ACTION_NAMES,
+    CB_PALETTE,
+    LOC_CHARS,
+    PICKUP_LOCS,
+    _annotate_grid,
+    _COLORMAP,
+    _policy_map_panel_pairs,
+)
+
+
+_DESTINATION_DISPLAY_ORDER = (3, 1, 0, 2)  # B, G, R, Y
+
+
+def _taxi_panel_pairs(
+    destination_order: Iterable[int] = _DESTINATION_DISPLAY_ORDER,
+) -> tuple[tuple[int, int], ...]:
+    """Return all thesis-universe passenger/destination panel pairs.
+
+    Passenger factors include every waiting location (also ``P == D``) and the
+    in-taxi value 4.  Both Taxi visualizers share this full 20-panel view.
+    """
+
+    return _policy_map_panel_pairs(destination_order)
+
+
+def _minimal_counterfactuals_for_plot(
+    result: SearchResult[object, object],
+) -> tuple[tuple[object, int], ...]:
+    """Project cached result actions; visualization never queries the policy."""
+
+    return tuple(
+        (record.state, record.action)
+        for record in result.minimal_counterfactuals
+    )
+
+
+def _file_fingerprint(path: Path) -> str:
+    digest = sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return f"sha256:{digest.hexdigest()}"
 
 
 def parse_state(s: str) -> tuple[int, int, int, int]:
@@ -72,20 +114,20 @@ def main(argv=None) -> None:
     out_dir = Path.cwd() / "data" / "experiments" / "rr" / "taxi_robustness_region" / model_name / seed_str
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create environments
-    base_env = gym.make("Taxi-v3")
-    # obs_env is used for model loading if the model expects a wrapped env.
-    # However, DQN.load can often handle this if the wrapper is simple or if not strictly needed at load time.
-    # For predict, we pass the observation from translate_tuple_to_onehot(base_env, ...)
-    # For compute_rr_taxi, we pass base_env.
-    model = DQN.load(str(zip_path), env=None) # Pass base_env or wrapped_env if model.load requires it
+    model = DQN.load(str(zip_path), env=None)
 
     # Compute RR and Counterfactuals
-    # compute_rr_taxi expects the base_env for its 'env' parameter
-    rr = compute_rr_taxi(s_tuple, model, base_env)
-    tuples = sorted(rr["rr_tuple_set"])
-    depths_map = rr["rr_depths"]
-    s0_initial_action = rr["initial_action"]
+    rr = compute_taxi_rr(
+        s_tuple,
+        model=model,
+        model_fingerprint=_file_fingerprint(zip_path),
+    )
+    tuples = [record.state for record in rr.region]
+    depths_map = {
+        record.state: record.graph_depth
+        for record in rr.region
+    }
+    s0_initial_action = rr.seed_action
 
     # Save YAML (existing logic)
     yaml_data = {
@@ -93,12 +135,20 @@ def main(argv=None) -> None:
             "model_name": model_name,
             "seed_tuple": list(s_tuple),
             "initial_action": s0_initial_action,
-            **rr["stats"]
+            "region_size": len(rr.region),
+            "visited": rr.stats.states_discovered,
+            "opened": rr.stats.states_evaluated,
+            "search_fingerprint": rr.metadata.search_fingerprint,
         },
         "rr_tuples": [list(t) for t in tuples],
         "rr_depths": [depths_map[t] for t in tuples],
-        "counterfactuals_found": [ # Store raw counterfactuals with depth
-            {"state": list(cf_s), "action": cf_a, "depth": cf_d} for cf_s, cf_a, cf_d in rr.get("counterfactuals", [])
+        "counterfactuals_found": [
+            {
+                "state": list(record.state),
+                "action": record.action,
+                "depth": record.graph_depth,
+            }
+            for record in rr.boundary_counterfactuals
         ]
     }
     yaml_path = out_dir / "robustness_region.yaml"
@@ -137,33 +187,58 @@ def main(argv=None) -> None:
     print(f"Saved initial-state image → {init_path.relative_to(Path.cwd())}")
 
     # --- Robustness Region visualization ---
-    dest_order = [3, 1, 0, 2]  # B, G, R, Y
-    fig, axes = plt.subplots(4, 4, figsize=(14, 14)) # Consider adjusting figsize if needed
-    for row_idx, d_plot_rr in enumerate(dest_order):
-        passenger_list_rr = [p_rr for p_rr in range(5) if p_rr != d_plot_rr][:3] + [4]
-        for col_idx, p_plot_rr in enumerate(passenger_list_rr):
-            ax_rr = axes[row_idx, col_idx]
-            A_rr = np.full((5, 5), -1, dtype=int)
-            for (x_rr, y_rr, P_rr, D_rr) in tuples: # These are states in RR
-                if P_rr == p_plot_rr and D_rr == d_plot_rr:
-                    A_rr[x_rr, y_rr] = s0_initial_action # All states in RR take this action
-            mask_rr = (A_rr == -1)
-            ax_rr.imshow(np.ma.array(A_rr, mask=mask_rr), cmap=_COLORMAP, vmin=0, vmax=5)
-            pickup_rr = PICKUP_LOCS[p_plot_rr] if p_plot_rr < 4 else None
-            dest_rr_loc = PICKUP_LOCS[d_plot_rr]
-            _annotate_grid(ax_rr, A_rr, pickup_rr, dest_rr_loc, show_walls=args.show_walls)
-            # Mark seed state 'S' on the corresponding subplot
-            if (d_plot_rr, p_plot_rr) == (s_tuple[3], s_tuple[2]): # If current subplot matches seed's D, P
-                s0_x, s0_y = s_tuple[0], s_tuple[1]
-                text_x_s_rr, text_y_s_rr = s0_y, s0_x
-                ha_s_rr, va_s_rr = 'center', 'center'
-                if (pickup_rr and (s0_x, s0_y) == pickup_rr) or (s0_x, s0_y) == dest_rr_loc:
-                    text_x_s_rr += 0.15
-                    ha_s_rr = 'left'
-                ax_rr.text(text_x_s_rr, text_y_s_rr, 'S', ha=ha_s_rr, va=va_s_rr, fontsize='x-large', color='red', weight='bold')
-            # Titles for subplots
-            pass_char_rr = LOC_CHARS.get(p_plot_rr, 'InTaxi') if p_plot_rr == 4 else LOC_CHARS[p_plot_rr]
-            ax_rr.set_title(f"P={pass_char_rr}, D={LOC_CHARS[d_plot_rr]}", fontsize='medium')
+    dest_order = _DESTINATION_DISPLAY_ORDER
+    fig, axes = plt.subplots(4, 5, figsize=(17.5, 14))
+    panel_pairs = _taxi_panel_pairs(dest_order)
+    for panel_index, (p_plot_rr, d_plot_rr) in enumerate(panel_pairs):
+        row_idx, col_idx = divmod(panel_index, 5)
+        ax_rr = axes[row_idx, col_idx]
+        action_grid = np.full((5, 5), -1, dtype=int)
+        for taxi_row, taxi_column, passenger, destination in tuples:
+            if passenger == p_plot_rr and destination == d_plot_rr:
+                action_grid[taxi_row, taxi_column] = s0_initial_action
+        mask_rr = action_grid == -1
+        ax_rr.imshow(
+            np.ma.array(action_grid, mask=mask_rr),
+            cmap=_COLORMAP,
+            vmin=0,
+            vmax=5,
+        )
+        pickup_rr = PICKUP_LOCS[p_plot_rr] if p_plot_rr < 4 else None
+        dest_rr_loc = PICKUP_LOCS[d_plot_rr]
+        _annotate_grid(
+            ax_rr,
+            action_grid,
+            pickup_rr,
+            dest_rr_loc,
+            show_walls=args.show_walls,
+        )
+        if (d_plot_rr, p_plot_rr) == (s_tuple[3], s_tuple[2]):
+            s0_x, s0_y = s_tuple[0], s_tuple[1]
+            text_x_s_rr, text_y_s_rr = s0_y, s0_x
+            horizontal_alignment = "center"
+            if (
+                pickup_rr and (s0_x, s0_y) == pickup_rr
+            ) or (s0_x, s0_y) == dest_rr_loc:
+                text_x_s_rr += 0.15
+                horizontal_alignment = "left"
+            ax_rr.text(
+                text_x_s_rr,
+                text_y_s_rr,
+                "S",
+                ha=horizontal_alignment,
+                va="center",
+                fontsize="x-large",
+                color="red",
+                weight="bold",
+            )
+        passenger_label = (
+            LOC_CHARS[p_plot_rr] if p_plot_rr < 4 else "InTaxi"
+        )
+        ax_rr.set_title(
+            f"P={passenger_label}, D={LOC_CHARS[d_plot_rr]}",
+            fontsize="medium",
+        )
 
     fig.suptitle(f"Robustness Region for s0={s_tuple} (Action: {ACTION_NAMES[s0_initial_action]})", y=0.98, fontsize="large") # Adjusted y
     # Shared legend for RR plot
@@ -174,65 +249,73 @@ def main(argv=None) -> None:
     fig.savefig(rr_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved robustness region image → {rr_path.relative_to(Path.cwd())}")
+    # --- Minimal Counterfactuals Visualization ---
+    minimal_counterfactuals_for_plot = _minimal_counterfactuals_for_plot(rr)
 
-
-    # --- NEW: Minimal Counterfactuals Visualization ---
-    all_counterfactuals_with_depth = rr.get("counterfactuals", [])
-    minimal_counterfactuals_for_plot = []
-
-    if all_counterfactuals_with_depth:
-        min_depth = min(d for _, _, d in all_counterfactuals_with_depth)
-        minimal_cf_states_at_min_depth = [s for s, _, d in all_counterfactuals_with_depth if d == min_depth]
-        
-        for mcf_state_tuple in minimal_cf_states_at_min_depth:
-            # We need the action for this mcf_state
-            mcf_vec = translate_tuple_to_onehot(base_env, mcf_state_tuple)
-            mcf_action_arr, _ = model.predict(mcf_vec, deterministic=True)
-            mcf_action = int(mcf_action_arr[0]) if isinstance(mcf_action_arr, (np.ndarray, list, tuple)) else int(mcf_action_arr)
-            # Only include if the action is actually different (it should be by definition from robust_taxi.py)
-            if mcf_action != s0_initial_action:
-                 minimal_counterfactuals_for_plot.append((mcf_state_tuple, mcf_action))
-    
     if minimal_counterfactuals_for_plot:
-        fig_cf, axes_cf = plt.subplots(4, 4, figsize=(14, 14)) # Same layout as RR
-        
+        fig_cf, axes_cf = plt.subplots(4, 5, figsize=(17.5, 14))
         s0_x, s0_y, s0_P, s0_D = s_tuple
 
-        for row_idx, d_plot_cf in enumerate(dest_order): # Same dest_order
-            passenger_list_cf = [p_cf for p_cf in range(5) if p_cf != d_plot_cf][:3] + [4]
-            for col_idx, p_plot_cf in enumerate(passenger_list_cf):
-                ax_cf = axes_cf[row_idx, col_idx]
-                A_cf = np.full((5, 5), -1, dtype=int) # Grid for actions
+        for panel_index, (p_plot_cf, d_plot_cf) in enumerate(panel_pairs):
+            row_idx, col_idx = divmod(panel_index, 5)
+            ax_cf = axes_cf[row_idx, col_idx]
+            action_grid = np.full((5, 5), -1, dtype=int)
 
-                # Plot minimal counterfactual states first
-                for mcf_s, mcf_a in minimal_counterfactuals_for_plot:
-                    mcf_x, mcf_y, mcf_P, mcf_D = mcf_s
-                    if mcf_D == d_plot_cf and mcf_P == p_plot_cf:
-                        A_cf[mcf_x, mcf_y] = mcf_a
-                
-                # Plot initial state s0 on top, if it belongs to this subplot
-                if s0_D == d_plot_cf and s0_P == p_plot_cf:
-                    A_cf[s0_x, s0_y] = s0_initial_action
+            for mcf_state, mcf_action in minimal_counterfactuals_for_plot:
+                mcf_x, mcf_y, mcf_passenger, mcf_destination = mcf_state
+                if (
+                    mcf_destination == d_plot_cf
+                    and mcf_passenger == p_plot_cf
+                ):
+                    action_grid[mcf_x, mcf_y] = mcf_action
 
-                mask_cf = (A_cf == -1)
-                ax_cf.imshow(np.ma.array(A_cf, mask=mask_cf), cmap=_COLORMAP, vmin=0, vmax=5)
-                
-                pickup_cf = PICKUP_LOCS[p_plot_cf] if p_plot_cf < 4 else None
-                dest_cf_loc = PICKUP_LOCS[d_plot_cf]
-                _annotate_grid(ax_cf, A_cf, pickup_cf, dest_cf_loc, show_walls=args.show_walls)
+            if s0_D == d_plot_cf and s0_P == p_plot_cf:
+                action_grid[s0_x, s0_y] = s0_initial_action
 
-                # Mark initial state s0 with 'S' if it's in this subplot
-                if (s0_D, s0_P) == (d_plot_cf, p_plot_cf):
-                    text_x_s_cf, text_y_s_cf = s0_y, s0_x
-                    ha_s_cf, va_s_cf = 'center', 'center'
-                    if (pickup_cf and (s0_x, s0_y) == pickup_cf) or \
-                       ((s0_x, s0_y) == dest_cf_loc):
-                        text_x_s_cf += 0.15
-                        ha_s_cf = 'left'
-                    ax_cf.text(text_x_s_cf, text_y_s_cf, 'S', ha=ha_s_cf, va=va_s_cf, fontsize='x-large', color='red', weight='bold')
-                
-                pass_char_cf = LOC_CHARS.get(p_plot_cf, 'InTaxi') if p_plot_cf == 4 else LOC_CHARS[p_plot_cf]
-                ax_cf.set_title(f"P={pass_char_cf}, D={LOC_CHARS[d_plot_cf]}", fontsize='medium')
+            mask_cf = action_grid == -1
+            ax_cf.imshow(
+                np.ma.array(action_grid, mask=mask_cf),
+                cmap=_COLORMAP,
+                vmin=0,
+                vmax=5,
+            )
+
+            pickup_cf = PICKUP_LOCS[p_plot_cf] if p_plot_cf < 4 else None
+            dest_cf_loc = PICKUP_LOCS[d_plot_cf]
+            _annotate_grid(
+                ax_cf,
+                action_grid,
+                pickup_cf,
+                dest_cf_loc,
+                show_walls=args.show_walls,
+            )
+
+            if (s0_D, s0_P) == (d_plot_cf, p_plot_cf):
+                text_x_s_cf, text_y_s_cf = s0_y, s0_x
+                horizontal_alignment = "center"
+                if (
+                    pickup_cf and (s0_x, s0_y) == pickup_cf
+                ) or (s0_x, s0_y) == dest_cf_loc:
+                    text_x_s_cf += 0.15
+                    horizontal_alignment = "left"
+                ax_cf.text(
+                    text_x_s_cf,
+                    text_y_s_cf,
+                    "S",
+                    ha=horizontal_alignment,
+                    va="center",
+                    fontsize="x-large",
+                    color="red",
+                    weight="bold",
+                )
+
+            passenger_label = (
+                LOC_CHARS[p_plot_cf] if p_plot_cf < 4 else "InTaxi"
+            )
+            ax_cf.set_title(
+                f"P={passenger_label}, D={LOC_CHARS[d_plot_cf]}",
+                fontsize="medium",
+            )
 
         fig_cf.suptitle(f"Minimal Counterfactuals for s0={s_tuple} (s0 Action: {ACTION_NAMES[s0_initial_action]})", y=0.98, fontsize="large")
         
