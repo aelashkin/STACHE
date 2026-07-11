@@ -28,6 +28,6 @@
   - Acceptance: full tests/build/imports pass or every unavailable/external failure is
     reported exactly; no unrelated/generated files; every material fresh-review finding
     is resolved or documented.
-- [ ] Publish without merging
+- [x] Publish without merging
   - Acceptance: intentional commits pushed; PR targets `main`; checks inspected; PR
     remains unmerged.
