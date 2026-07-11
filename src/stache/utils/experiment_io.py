@@ -4,13 +4,34 @@ from enum import Enum
 
 import yaml
 import torch
-from stable_baselines3 import PPO, A2C
+from stable_baselines3 import PPO, A2C, DQN
 from stable_baselines3.common.evaluation import evaluate_policy
+
+
+_LEGACY_TUPLE_TAG = "tag:yaml.org,2002:python/tuple"
+
+
+class _LegacyExperimentConfigLoader(yaml.SafeLoader):
+    """SafeLoader extended only for STACHE's historical tuple encoding."""
+
+
+def _construct_legacy_tuple(
+    loader: _LegacyExperimentConfigLoader,
+    node: yaml.nodes.SequenceNode,
+) -> tuple:
+    return tuple(loader.construct_sequence(node, deep=True))
+
+
+_LegacyExperimentConfigLoader.add_constructor(
+    _LEGACY_TUPLE_TAG,
+    _construct_legacy_tuple,
+)
 
 
 class ModelType(Enum):
     A2C = "A2C"
     PPO = "PPO"
+    DQN = "DQN"
 
 def save_model(model, experiment_dir):
     """
@@ -31,8 +52,8 @@ def save_config(env_config, model_config, experiment_dir):
         "env_config": env_config,
         "model_config": model_config,
     }
-    with open(config_path, "w") as file:
-        yaml.dump(config_data, file)
+    with open(config_path, "w", encoding="utf-8") as file:
+        yaml.safe_dump(config_data, file)
     print(f"Configuration saved at: {config_path}")
     return config_path
 
@@ -109,8 +130,10 @@ def load_experiment(experiment_dir):
     config_path = os.path.join(experiment_dir, "config.yaml")
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Config file not found: {config_path}")
-    with open(config_path, "r") as file:
-        config_data = yaml.safe_load(file)
+    with open(config_path, "r", encoding="utf-8") as file:
+        config_data = yaml.load(file, Loader=_LegacyExperimentConfigLoader)
+    if not isinstance(config_data, dict):
+        raise ValueError("Experiment config must contain a mapping.")
 
     # Load model
     model_path = os.path.join(experiment_dir, "model.zip")
@@ -121,6 +144,7 @@ def load_experiment(experiment_dir):
     model_map = {
         "PPO": PPO,
         "A2C": A2C,
+        "DQN": DQN,
     }
     if model_type not in model_map:
         raise ValueError(f"Unsupported model type: {model_type}")
