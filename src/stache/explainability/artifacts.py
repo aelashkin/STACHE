@@ -7,6 +7,7 @@ and delegates state/key meaning to a connector-owned artifact codec.
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import fields
 import math
 import os
@@ -16,8 +17,11 @@ from typing import Any, Mapping
 
 import yaml
 
+from stache.utils.safe_yaml import safe_load_unique
+
 from .core.connector import ConnectorIdentity, MetricCertificate
 from .core.models import (
+    CORE_SCHEMA_VERSION,
     CounterfactualExistence,
     CounterfactualProjection,
     CounterfactualSelection,
@@ -898,6 +902,79 @@ def _validate_record_integrity(
                 )
 
 
+def _validate_complete_graph_evidence(
+    *,
+    connector: object,
+    seed: StateRecord[Any, Any],
+    region: tuple[StateRecord[Any, Any], ...],
+    boundary: tuple[StateRecord[Any, Any], ...],
+) -> None:
+    region_by_key = {record.key: record for record in region}
+    boundary_by_key = {record.key: record for record in boundary}
+    known = {**region_by_key, **boundary_by_key}
+    adjacency: dict[Any, set[Any]] = {}
+
+    for record in region:
+        neighbor_keys: set[Any] = set()
+        try:
+            raw_neighbors = connector.atomic_neighbors(record.state)  # type: ignore[attr-defined]
+            for raw_neighbor in raw_neighbors:
+                canonical = connector.canonicalize(raw_neighbor)  # type: ignore[attr-defined]
+                connector.validate_state(canonical)  # type: ignore[attr-defined]
+                key = connector.state_key(canonical)  # type: ignore[attr-defined]
+                if key == record.key:
+                    raise ArtifactSchemaError(
+                        f"connector returned a self-neighbor for {record.key!r}"
+                    )
+                if key in neighbor_keys:
+                    raise ArtifactSchemaError(
+                        f"connector returned duplicate neighbor key {key!r}"
+                    )
+                neighbor_keys.add(key)
+                known_record = known.get(key)
+                if known_record is None:
+                    raise ArtifactSchemaError(
+                        "complete graph result omits a connector neighbor of "
+                        f"region state {record.key!r}: {key!r}"
+                    )
+                if known_record.state != canonical:
+                    raise ArtifactSchemaError(
+                        f"connector neighbor state conflicts for key {key!r}"
+                    )
+        except ArtifactSchemaError:
+            raise
+        except Exception as exc:
+            raise ArtifactSchemaError(
+                f"could not validate graph neighbors for {record.key!r}: {exc}"
+            ) from exc
+        adjacency[record.key] = neighbor_keys
+
+    expected_depths: dict[Any, int] = {seed.key: 0}
+    frontier: deque[Any] = deque([seed.key])
+    while frontier:
+        parent = frontier.popleft()
+        for key in adjacency[parent]:
+            if key in expected_depths:
+                continue
+            expected_depths[key] = expected_depths[parent] + 1
+            if key in region_by_key:
+                frontier.append(key)
+
+    missing = set(known) - set(expected_depths)
+    if missing:
+        raise ArtifactSchemaError(
+            "complete graph records are not reachable by RR BFS: "
+            f"{len(missing)} state(s)"
+        )
+    for key, record in known.items():
+        if record.graph_depth != expected_depths[key]:
+            raise ArtifactSchemaError(
+                "record graph depth disagrees with connector RR BFS for "
+                f"{key!r}: artifact={record.graph_depth!r}, "
+                f"expected={expected_depths[key]}"
+            )
+
+
 def _validate_result_invariants(
     *,
     connector: object,
@@ -1036,6 +1113,14 @@ def _validate_result_invariants(
                 "unknown counterfactual existence requires a null robustness radius"
             )
 
+    if completeness.region_complete and completeness.boundary_complete:
+        _validate_complete_graph_evidence(
+            connector=connector,
+            seed=seed,
+            region=region,
+            boundary=boundary,
+        )
+
     if not completeness.radius_complete and robustness_radius is not None:
         raise ArtifactSchemaError(
             "an incomplete radius requires a null robustness_radius"
@@ -1044,6 +1129,41 @@ def _validate_result_invariants(
         raise ArtifactSchemaError(
             "a certified robustness radius must equal the best-known radius"
         )
+
+    known_counterfactuals = {
+        record.key: record for record in (*boundary, *minima)
+    }
+    if existence is CounterfactualExistence.FOUND:
+        if options.minimum_basis is MinimumBasis.GRAPH_BOUNDARY:
+            observed_radii = [
+                float(record.graph_depth)
+                for record in boundary
+                if record.graph_depth is not None
+            ]
+        else:
+            observed_radii = [
+                float(record.formal_distance)
+                for record in known_counterfactuals.values()
+            ]
+        if not observed_radii:
+            raise ArtifactSchemaError(
+                "found counterfactuals have no observed radius evidence"
+            )
+        observed_radius = min(observed_radii)
+        if best_known_radius is None or float(best_known_radius) != observed_radius:
+            raise ArtifactSchemaError(
+                "best-known radius disagrees with observed counterfactual records"
+            )
+        if (
+            completeness.radius_complete
+            and (
+                robustness_radius is None
+                or float(robustness_radius) != observed_radius
+            )
+        ):
+            raise ArtifactSchemaError(
+                "certified radius is not the minimum observed counterfactual radius"
+            )
     if robustness_radius is not None and minima:
         if options.minimum_basis is MinimumBasis.GRAPH_BOUNDARY:
             if any(
@@ -1188,6 +1308,11 @@ def document_to_result(
         path="metadata.core_schema_version",
         minimum=1,
     )
+    if core_schema_version != CORE_SCHEMA_VERSION:
+        raise ArtifactSchemaError(
+            "core_schema_version mismatch: "
+            f"expected {CORE_SCHEMA_VERSION}, got {core_schema_version}"
+        )
 
     result_document = _mapping(
         _required(root, "result", path="document"),
@@ -1428,7 +1553,7 @@ def load_result(
     except OSError as exc:
         raise ArtifactError(f"could not read artifact {target}: {exc}") from exc
     try:
-        document = yaml.safe_load(serialized)
+        document = safe_load_unique(serialized)
     except yaml.YAMLError as exc:
         raise ArtifactSchemaError(
             f"unsafe or malformed YAML tag/construct in {target}: {exc}"

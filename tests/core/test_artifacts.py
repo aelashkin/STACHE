@@ -222,6 +222,14 @@ def test_document_loader_rejects_unknown_schema_or_version(
         document_to_result(document, connector)
 
 
+def test_document_loader_rejects_unknown_core_schema_version() -> None:
+    document, _, connector = make_document()
+    document["metadata"]["core_schema_version"] = 999
+
+    with pytest.raises(ArtifactSchemaError, match="core.schema.version"):
+        document_to_result(document, connector)
+
+
 def test_document_loader_rejects_connector_identity_mismatch() -> None:
     document, _, connector = make_document()
     connector.identity = replace(connector.identity, connector_version="2")
@@ -456,6 +464,61 @@ def test_complete_graph_ties_cannot_omit_a_boundary_minimum() -> None:
         document_to_result(document, connector)
 
 
+def test_complete_graph_result_rejects_false_depth_and_radius_claims() -> None:
+    connector = ArtifactToyConnector(tied_minimum_space())
+    result = compute_rr(
+        "s",
+        connector,
+        ToyOracle(connector.space.actions, fingerprint="toy-policy-sha256"),
+        SearchOptions(),
+    )
+    document = result_to_document(result, connector)
+    for field in (
+        "boundary_counterfactuals",
+        "minimal_counterfactuals",
+    ):
+        for record in document["result"][field]:
+            if record["key"]["canonical"] in {"x", "y"}:
+                record["graph_depth"] = 5
+    for field in ("boundary", "minimal"):
+        for record in document["result"]["counterfactuals"][field]:
+            if record["key"]["canonical"] in {"x", "y"}:
+                record["graph_depth"] = 5
+    document["result"]["robustness_radius"] = 5
+    document["result"]["best_known_radius"] = 5
+
+    with pytest.raises(ArtifactSchemaError, match="depth|radius|BFS"):
+        document_to_result(document, connector)
+
+
+def test_complete_graph_result_rejects_an_omitted_boundary_tie() -> None:
+    connector = ArtifactToyConnector(tied_minimum_space())
+    result = compute_rr(
+        "s",
+        connector,
+        ToyOracle(connector.space.actions, fingerprint="toy-policy-sha256"),
+        SearchOptions(),
+    )
+    document = result_to_document(result, connector)
+
+    def without_y(records: list[dict[str, object]]) -> list[dict[str, object]]:
+        return [
+            record
+            for record in records
+            if record["key"]["canonical"] != "y"
+        ]
+
+    for field in ("boundary_counterfactuals", "minimal_counterfactuals"):
+        document["result"][field] = without_y(document["result"][field])
+    for field in ("boundary", "minimal"):
+        document["result"]["counterfactuals"][field] = without_y(
+            document["result"]["counterfactuals"][field]
+        )
+
+    with pytest.raises(ArtifactSchemaError, match="complete|neighbor|boundary"):
+        document_to_result(document, connector)
+
+
 @pytest.mark.parametrize(
     ("field", "value", "diagnostic"),
     [
@@ -546,6 +609,28 @@ def test_safe_loader_rejects_python_specific_yaml_tags(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ArtifactSchemaError, match="YAML|tag|construct"):
+        load_result(target, ArtifactToyConnector())
+
+
+@pytest.mark.parametrize("location", ["root", "nested"])
+def test_artifact_yaml_loader_rejects_duplicate_mapping_keys(
+    tmp_path: Path,
+    location: str,
+) -> None:
+    document, _, _ = make_document()
+    serialized = yaml.safe_dump(document, sort_keys=False)
+    if location == "root":
+        serialized = "schema: attacker.schema\n" + serialized
+    else:
+        serialized = serialized.replace(
+            "  fingerprint:",
+            "  fingerprint: attacker-policy\n  fingerprint:",
+            1,
+        )
+    target = tmp_path / f"duplicate-{location}.yaml"
+    target.write_text(serialized, encoding="utf-8")
+
+    with pytest.raises(ArtifactSchemaError, match="duplicate"):
         load_result(target, ArtifactToyConnector())
 
 
