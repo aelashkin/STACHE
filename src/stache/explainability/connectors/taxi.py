@@ -117,6 +117,12 @@ class TaxiConnector:
     action_spec: Final = DiscreteActionSpec(count=_ACTION_COUNT)
 
     @property
+    def artifact_codec(self) -> "TaxiConnector":
+        """Expose the independently versioned primitive state/key codec."""
+
+        return self
+
+    @property
     def action_metadata(self) -> Sequence[Mapping[str, object]]:
         """Return primitive rendering-neutral metadata for Taxi's six actions."""
 

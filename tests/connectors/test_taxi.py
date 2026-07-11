@@ -156,6 +156,7 @@ def test_connector_identity_and_policy_space_are_stable(
     assert connector.observation_spec.shape == (500,)
     assert connector.observation_spec.dtype == "float32"
     assert connector.action_spec.count == 6
+    assert connector.artifact_codec is connector
 
 
 def test_metric_certificate_truthfully_covers_the_declared_universe(
