@@ -143,6 +143,13 @@ stache compute-rr \
     --output result.yaml
 ```
 
+Treat `--model` archives as trusted-code inputs. Stable-Baselines3 model loading
+can deserialize cloudpickled Python objects; STACHE's SHA-256 fingerprint records
+the exact snapshotted bytes used for the computation, but it does not authenticate
+the archive or sandbox deserialization. Use model files only from sources you
+trust. Config and policy-table YAML also reject duplicate mapping keys instead
+of applying last-value-wins behavior.
+
 The YAML artifact contains connector/universe/metric/codec versions, the policy
 fingerprint, options, independent completeness fields, stop reason, statistics,
 and primitive-only state records. `graph_boundary` and `formal_global` are

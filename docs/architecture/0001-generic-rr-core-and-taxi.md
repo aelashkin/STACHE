@@ -37,9 +37,12 @@ the declared universe, atomic neighbors, formal distance, and the truth of a
 versioned metric certificate.
 
 The action-oracle boundary normalizes a policy output to one Python `int` in a
-declared discrete action space. Seed and candidate queries use the same cache.
-The supported sources are a strict table, a model, and explicit table-then-model
-fallback. Table fallback therefore applies at the seed too.
+declared discrete action space and Phase 1 uses exact action equality as its only
+invariance predicate. Seed and candidate queries use the same cache. The
+supported sources are a strict table, a model, and explicit table-then-model
+fallback. Table fallback therefore applies at the seed too. Automatically
+derived table fingerprints bind the entries, action count, action-normalization
+version, and error-versus-model-fallback policy.
 
 ### Graph and formal minima are distinct
 
@@ -109,7 +112,17 @@ and string-keyed mappings. They include connector/universe/metric/codec
 versions, the metric certificate, policy fingerprint/source, options,
 completeness, stop reason, statistics, and supplied Git/dependency provenance.
 Loading verifies schema, connector identity, expected policy fingerprint, and
-lossless state/key round trips.
+lossless state/key round trips. It also recomputes connector-owned formal
+distances, reconciles repeated state records, and validates boundary/minimum and
+tied-completeness claims. CLI configuration and policy-table YAML reject
+duplicate mapping keys recursively.
+
+Stable-Baselines3 archives are a trust boundary: loading can deserialize
+cloudpickled Python objects. The CLI reads an archive once and passes the same
+immutable byte snapshot to SHA-256 and `DQN.load`, preventing a path replacement
+from making provenance disagree with loaded bytes. The fingerprint is an
+identity/integrity record, not a signature, authenticity proof, or sandbox;
+users must load only trusted model archives.
 
 `compute_rr_taxi` remains as a warning-emitting compatibility shim. Its legacy
 dictionary shape remains available, while scientific computation is delegated
@@ -155,8 +168,9 @@ matplotlib 3.10.0, and pytest 9.1.1.
   used to corroborate the exact index formula; Gymnasium's 404 reachable MDP
   states are not the thesis explanation universe.
 - Stable-Baselines3 2.4.1 official source was consulted for deterministic
-  `predict`, non-vectorized observation handling, space declarations, and
-  environment-free `DQN.load`.
+  `predict`, non-vectorized observation handling, space declarations,
+  environment-free `DQN.load`, file-like `BytesIO` loading, and its cloudpickle
+  deserialization boundary.
 - NumPy's official scalar/array documentation was consulted for integer scalar,
   zero-dimensional, and exact `(1,)` action normalization. Context7 did not
   expose a 1.26.4-specific corpus, so the installed 1.26.4 behavior is covered
