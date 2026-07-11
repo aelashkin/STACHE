@@ -86,43 +86,96 @@ class _Checkpoint:
     cache_export: Any = None
 
 
-def _stable(value: Any) -> Any:
-    """Produce deterministic JSON data for an internal semantic fingerprint."""
+def _stable(value: Any, *, _active: set[int] | None = None) -> Any:
+    """Produce injective JSON data for fingerprints and in-memory integrity."""
 
     if value is None or type(value) in {bool, int, float, str}:
         return value
-    if is_dataclass(value) and not isinstance(value, type):
-        return {
-            "dataclass": type(value).__qualname__,
-            "fields": [
-                [item.name, _stable(getattr(value, item.name))]
-                for item in fields(value)
-            ],
-        }
-    if isinstance(value, Mapping):
-        entries = [
-            [_stable(key), _stable(item)] for key, item in value.items()
-        ]
-        entries.sort(
-            key=lambda entry: json.dumps(
-                entry[0], sort_keys=True, separators=(",", ":")
-            )
+    if _active is None:
+        _active = set()
+    marker = id(value)
+    if marker in _active:
+        raise SearchInvariantError(
+            "continuation values must be acyclic for integrity encoding"
         )
-        return {"mapping": entries}
-    if isinstance(value, (set, frozenset)):
-        entries = [_stable(item) for item in value]
-        entries.sort(
-            key=lambda item: json.dumps(
-                item, sort_keys=True, separators=(",", ":")
+    _active.add(marker)
+    try:
+        if is_dataclass(value) and not isinstance(value, type):
+            return {
+                "dataclass": (
+                    f"{type(value).__module__}.{type(value).__qualname__}"
+                ),
+                "fields": [
+                    [
+                        item.name,
+                        _stable(getattr(value, item.name), _active=_active),
+                    ]
+                    for item in fields(value)
+                ],
+            }
+        if isinstance(value, Mapping):
+            entries = [
+                [
+                    _stable(key, _active=_active),
+                    _stable(item, _active=_active),
+                ]
+                for key, item in value.items()
+            ]
+            entries.sort(
+                key=lambda entry: json.dumps(
+                    entry[0], sort_keys=True, separators=(",", ":")
+                )
             )
+            return {"mapping": entries}
+        if isinstance(value, (set, frozenset)):
+            entries = [_stable(item, _active=_active) for item in value]
+            entries.sort(
+                key=lambda item: json.dumps(
+                    item, sort_keys=True, separators=(",", ":")
+                )
+            )
+            return {"set": entries}
+        if isinstance(value, (tuple, list)):
+            return [_stable(item, _active=_active) for item in value]
+
+        type_name = f"{type(value).__module__}.{type(value).__qualname__}"
+        attributes = getattr(value, "__dict__", None)
+        if isinstance(attributes, Mapping):
+            return {
+                "object": type_name,
+                "object_identity": marker,
+                "attributes": _stable(attributes, _active=_active),
+            }
+
+        slot_names: list[str] = []
+        for owner in type(value).__mro__:
+            declared = owner.__dict__.get("__slots__", ())
+            if isinstance(declared, str):
+                declared = (declared,)
+            slot_names.extend(
+                name
+                for name in declared
+                if name not in {"__dict__", "__weakref__"}
+                and hasattr(value, name)
+            )
+        if slot_names:
+            return {
+                "object": type_name,
+                "object_identity": marker,
+                "slots": [
+                    [
+                        name,
+                        _stable(getattr(value, name), _active=_active),
+                    ]
+                    for name in sorted(set(slot_names))
+                ],
+            }
+        raise SearchInvariantError(
+            "continuation contains an opaque value without a stable content "
+            f"encoding: {type_name}"
         )
-        return {"set": entries}
-    if isinstance(value, (tuple, list)):
-        return [_stable(item) for item in value]
-    return {
-        "type": f"{type(value).__module__}.{type(value).__qualname__}",
-        "object_identity": id(value),
-    }
+    finally:
+        _active.remove(marker)
 
 
 def _checkpoint_digest(checkpoint: _Checkpoint) -> str:

@@ -483,6 +483,23 @@ def test_continuation_supports_valid_custom_hashable_connector_keys() -> None:
     assert resumed.counterfactual_existence is CounterfactualExistence.FOUND
     assert resumed.completeness.stop_reason is StopReason.COMPLETE
 
+    corrupted = compute_rr(
+        "s",
+        connector,
+        ToyOracle(space.actions),
+        exact_options(max_expanded=0),
+    )
+    assert corrupted.continuation is not None
+    corrupted.continuation.checkpoint.seed_key.name = "tampered"
+    with pytest.raises(ContinuationMismatchError, match="payload|integrity"):
+        compute_rr(
+            "s",
+            connector,
+            ToyOracle(space.actions),
+            exact_options(),
+            continuation=corrupted.continuation,
+        )
+
 
 @pytest.mark.parametrize("field", ["checkpoint_version", "fingerprint"])
 def test_continuation_rejects_tampered_version_or_fingerprint(field: str) -> None:
