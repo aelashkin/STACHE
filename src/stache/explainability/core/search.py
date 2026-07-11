@@ -142,6 +142,7 @@ def _fingerprint(
     payload = {
         "connector": asdict(connector.identity),
         "metric_certificate": asdict(connector.metric_certificate),
+        "action_count": _connector_action_count(connector),
         "seed_key": _stable(seed_key),
         "policy_fingerprint": str(oracle.fingerprint),
         "options": dict(options.semantic_values()),
@@ -236,6 +237,40 @@ def _is_invariant(predicate: Any, seed_action: int, action: int) -> bool:
     return result
 
 
+def _connector_action_count(connector: Any) -> int:
+    try:
+        count = connector.action_spec.count
+    except AttributeError as exc:
+        raise SearchInvariantError(
+            "connector must declare action_spec.count"
+        ) from exc
+    if type(count) is not int or count <= 0:
+        raise SearchInvariantError(
+            "connector action_spec.count must be a positive Python int"
+        )
+    return count
+
+
+def _validated_action(
+    connector: Any,
+    action: Any,
+    *,
+    key: Hashable,
+) -> int:
+    if type(action) is not int:
+        raise SearchInvariantError(
+            "action oracle must return a normalized Python int "
+            f"for state key {key!r}"
+        )
+    count = _connector_action_count(connector)
+    if action < 0 or action >= count:
+        raise SearchInvariantError(
+            "action oracle returned an action outside the connector's "
+            f"declared range [0, {count}) for state key {key!r}: {action}"
+        )
+    return action
+
+
 def _stats_snapshot(oracle: Any) -> tuple[int, int, int, int]:
     stats = oracle.stats
     return (
@@ -255,13 +290,18 @@ def _oracle_has_cached(oracle: Any, state: Any, key: Hashable) -> bool:
 
 def _query_action(
     checkpoint: _Checkpoint,
+    connector: Any,
     oracle: Any,
     state: Any,
     key: Hashable,
     options: SearchOptions,
 ) -> int | None:
     if key in checkpoint.actions:
-        return checkpoint.actions[key]
+        return _validated_action(
+            connector,
+            checkpoint.actions[key],
+            key=key,
+        )
 
     cached = _oracle_has_cached(oracle, state, key)
     if (
@@ -272,11 +312,11 @@ def _query_action(
         return None
 
     before = _stats_snapshot(oracle)
-    action = oracle.action(state)
-    if type(action) is not int:
-        raise SearchInvariantError(
-            "action oracle must return a normalized Python int"
-        )
+    action = _validated_action(
+        connector,
+        oracle.action(state),
+        key=key,
+    )
     after = _stats_snapshot(oracle)
     deltas = tuple(max(0, later - earlier) for earlier, later in zip(before, after))
     policy_delta = deltas[0]
@@ -403,11 +443,11 @@ def _initialize(
     )
     ordering = _order_key(connector, seed_key)
     before = _stats_snapshot(oracle)
-    seed_action = oracle.action(canonical_seed)
-    if type(seed_action) is not int:
-        raise SearchInvariantError(
-            "action oracle must return a normalized Python int"
-        )
+    seed_action = _validated_action(
+        connector,
+        oracle.action(canonical_seed),
+        key=seed_key,
+    )
     after = _stats_snapshot(oracle)
     deltas = tuple(max(0, later - earlier) for earlier, later in zip(before, after))
     policy_queries = deltas[0] or 1
@@ -561,7 +601,10 @@ def _finish_graph(
         if checkpoint.graph_minimum_depth is not None:
             checkpoint.radius_complete = True
             checkpoint.minima_complete = True
-        elif connector.metric_certificate.connected:
+        elif (
+            connector.metric_certificate.connected
+            and connector.metric_certificate.symmetric
+        ):
             checkpoint.proven_absent = True
             checkpoint.radius_complete = True
             checkpoint.minima_complete = True
@@ -569,16 +612,7 @@ def _finish_graph(
 
     if graph_certifies_formal:
         if checkpoint.graph_minimum_depth is not None:
-            checkpoint.formal_minimum_keys = set(checkpoint.graph_minimum_keys)
-            distances = {
-                _distance(connector, checkpoint.seed, checkpoint.states[key])
-                for key in checkpoint.formal_minimum_keys
-            }
-            if len(distances) != 1:
-                raise MetricCertificationError(
-                    "geodesic certificate contradicted by boundary distances"
-                )
-            checkpoint.formal_minimum_distance = distances.pop()
+            _project_certified_graph_minimum(checkpoint, connector)
             checkpoint.radius_complete = True
             checkpoint.minima_complete = True
         else:
@@ -589,6 +623,39 @@ def _finish_graph(
 
     checkpoint.phase = "formal"
     return None
+
+
+def _project_certified_graph_minimum(
+    checkpoint: _Checkpoint,
+    connector: Any,
+) -> None:
+    """Project an observed geodesic graph minimum into formal result fields."""
+
+    if checkpoint.graph_minimum_depth is None:
+        return
+    if not checkpoint.graph_minimum_keys:
+        raise SearchInvariantError(
+            "graph minimum depth exists without any minimum state"
+        )
+    distances = {
+        _distance(connector, checkpoint.seed, checkpoint.states[key])
+        for key in checkpoint.graph_minimum_keys
+    }
+    if len(distances) != 1:
+        raise MetricCertificationError(
+            "geodesic certificate contradicted by boundary distances"
+        )
+    formal_distance = distances.pop()
+    expected = (
+        checkpoint.graph_minimum_depth
+        * connector.metric_certificate.formal_unit
+    )
+    if not math.isclose(float(formal_distance), float(expected)):
+        raise MetricCertificationError(
+            "geodesic certificate contradicted by graph depth and formal unit"
+        )
+    checkpoint.formal_minimum_keys = set(checkpoint.graph_minimum_keys)
+    checkpoint.formal_minimum_distance = formal_distance
 
 
 def _run_graph(
@@ -638,7 +705,14 @@ def _run_graph(
         if checkpoint.query_index < len(checkpoint.query_order):
             key = checkpoint.query_order[checkpoint.query_index]
             state = checkpoint.states[key]
-            action = _query_action(checkpoint, oracle, state, key, options)
+            action = _query_action(
+                checkpoint,
+                connector,
+                oracle,
+                state,
+                key,
+                options,
+            )
             if action is None:
                 return StopReason.MAX_POLICY_QUERIES
             checkpoint.states_evaluated += 1
@@ -729,7 +803,14 @@ def _run_formal(
             if newly_discovered:
                 checkpoint.states_discovered += 1
             newly_evaluated = key not in checkpoint.actions
-            action = _query_action(checkpoint, oracle, state, key, options)
+            action = _query_action(
+                checkpoint,
+                connector,
+                oracle,
+                state,
+                key,
+                options,
+            )
             if action is None:
                 return StopReason.MAX_POLICY_QUERIES
             if newly_evaluated:
@@ -846,7 +927,11 @@ def _build_result(
 ) -> SearchResult[Any, Hashable]:
     if options.minimum_basis is MinimumBasis.FORMAL_GLOBAL:
         minimum_keys = checkpoint.formal_minimum_keys
-        if checkpoint.radius_complete and not checkpoint.minima_complete:
+        if (
+            checkpoint.radius_complete
+            and not checkpoint.minima_complete
+            and checkpoint.formal_current_minima
+        ):
             minimum_keys = checkpoint.formal_current_minima
         formal_order = True
         radius = (
@@ -986,7 +1071,12 @@ def compute_rr(
         options = SearchOptions()
     if not isinstance(options, SearchOptions):
         raise TypeError("options must be a SearchOptions instance")
-    predicate = invariance or ExactActionInvariance()
+    predicate = ExactActionInvariance() if invariance is None else invariance
+    if type(predicate) is not ExactActionInvariance:
+        raise InvalidSearchOptions(
+            "Phase 1 supports exact action invariance only"
+        )
+    _connector_action_count(connector)
 
     if continuation is None:
         checkpoint, fingerprint, graph_certifies_formal = _initialize(
@@ -1024,6 +1114,11 @@ def compute_rr(
         )
     if reason is None:
         raise SearchInvariantError("search stopped without a stop reason")
+    if (
+        graph_certifies_formal
+        and options.minimum_basis is MinimumBasis.FORMAL_GLOBAL
+    ):
+        _project_certified_graph_minimum(checkpoint, connector)
     return _build_result(
         checkpoint,
         connector,

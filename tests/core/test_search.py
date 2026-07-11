@@ -7,6 +7,7 @@ from dataclasses import replace
 
 import pytest
 
+from stache.explainability.core.connector import ExactActionInvariance
 from stache.explainability.core.models import (
     ContinuationMismatchError,
     CounterfactualExistence,
@@ -15,6 +16,7 @@ from stache.explainability.core.models import (
     MetricCertificationError,
     MinimumBasis,
     SearchExtent,
+    SearchInvariantError,
     SearchOptions,
     StopReason,
 )
@@ -305,6 +307,50 @@ def test_query_budget_can_certify_radius_before_all_tied_minima() -> None:
     assert result.continuation is not None
 
 
+def test_certified_formal_query_budget_preserves_observed_minimum() -> None:
+    space = query_budget_space()
+
+    result = compute_rr(
+        "s",
+        ToyConnector(space),
+        ToyOracle(space.actions),
+        exact_options(
+            basis=MinimumBasis.FORMAL_GLOBAL,
+            max_policy_queries=2,
+        ),
+    )
+
+    assert record_keys(result.minimal_counterfactuals) == ("a",)
+    assert result.robustness_radius == 1.0
+    assert result.best_known_radius == 1.0
+    assert result.counterfactual_existence is CounterfactualExistence.FOUND
+    assert result.completeness.radius_complete
+    assert not result.completeness.minimal_counterfactuals_complete
+    assert result.completeness.stop_reason is StopReason.MAX_POLICY_QUERIES
+
+
+def test_certified_formal_through_minimal_returns_every_tied_minimum() -> None:
+    space = query_budget_space()
+    options = SearchOptions(
+        counterfactuals=CounterfactualSelection.MINIMAL,
+        minimum_basis=MinimumBasis.FORMAL_GLOBAL,
+        extent=SearchExtent.THROUGH_MINIMAL_CF,
+    )
+
+    result = compute_rr(
+        "s",
+        ToyConnector(space),
+        ToyOracle(space.actions),
+        options,
+    )
+
+    assert record_keys(result.minimal_counterfactuals) == ("a", "b", "c")
+    assert result.robustness_radius == 1.0
+    assert result.completeness.radius_complete
+    assert result.completeness.minimal_counterfactuals_complete
+    assert result.completeness.stop_reason is StopReason.THROUGH_MINIMAL
+
+
 def test_graph_depth_budget_is_not_treated_as_a_formal_distance_result() -> None:
     space = exact_space()
 
@@ -475,6 +521,76 @@ def test_non_geodesic_formal_global_through_minimal_is_rejected() -> None:
 
     with pytest.raises(InvalidSearchOptions, match="through_minimal"):
         compute_rr("s", ToyConnector(space), ToyOracle(space.actions), options)
+
+
+def test_phase_one_rejects_custom_invariance_semantics() -> None:
+    space = exact_space()
+
+    with pytest.raises(InvalidSearchOptions, match="exact action"):
+        compute_rr(
+            "s",
+            ToyConnector(space),
+            ToyOracle(space.actions),
+            exact_options(),
+            invariance=lambda _seed, _candidate: True,
+        )
+
+    explicit_exact = compute_rr(
+        "s",
+        ToyConnector(space),
+        ToyOracle(space.actions),
+        exact_options(),
+        invariance=ExactActionInvariance(),
+    )
+    assert explicit_exact.counterfactual_existence is CounterfactualExistence.FOUND
+
+
+def test_search_rejects_out_of_range_actions_from_custom_oracle() -> None:
+    space = exact_space()
+    actions = dict(space.actions)
+    actions["a"] = max(space.actions.values()) + 1
+
+    with pytest.raises(SearchInvariantError, match="declared range.*a"):
+        compute_rr(
+            "s",
+            ToyConnector(space),
+            ToyOracle(actions),
+            exact_options(),
+        )
+
+
+def test_asymmetric_graph_exhaustion_does_not_prove_global_absence() -> None:
+    space = no_counterfactual_space()
+
+    class SeedCannotReachConnector(ToyConnector):
+        def __init__(self) -> None:
+            super().__init__(space)
+            self.metric_certificate = replace(
+                self.metric_certificate,
+                symmetric=False,
+                geodesic_for_formal_metric=False,
+            )
+
+        def atomic_neighbors(self, state: str) -> tuple[str, ...]:
+            if state == "s":
+                return ()
+            if state == "a":
+                return ("s",)
+            return ("a",)
+
+    actions = dict(space.actions)
+    actions["a"] = 1
+
+    result = compute_rr(
+        "s",
+        SeedCannotReachConnector(),
+        ToyOracle(actions),
+        exact_options(),
+    )
+
+    assert result.counterfactual_existence is CounterfactualExistence.UNKNOWN
+    assert not result.completeness.radius_complete
+    assert not result.completeness.minimal_counterfactuals_complete
 
 
 @pytest.mark.parametrize(

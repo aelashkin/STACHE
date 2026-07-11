@@ -8,6 +8,7 @@ from typing import Iterable, Mapping
 
 from stache.explainability.core.connector import (
     ConnectorIdentity,
+    DiscreteActionSpec,
     FormalDistanceLayer,
     MetricCertificate,
 )
@@ -72,6 +73,7 @@ class ToyConnector:
     def __init__(self, space: ToySpace, *, reverse_neighbors: bool = False) -> None:
         self.space = space
         self.reverse_neighbors = reverse_neighbors
+        self.action_spec = DiscreteActionSpec(count=max(space.actions.values()) + 1)
         self.identity = ConnectorIdentity(
             domain="toy",
             connector_version="1",

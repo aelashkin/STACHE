@@ -8,7 +8,7 @@ the generic search only consumes the declarations exposed here.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generic, Hashable, Iterable, Protocol, TypeVar, runtime_checkable
+from typing import ClassVar, Generic, Hashable, Iterable, Protocol, TypeVar, runtime_checkable
 
 
 StateT = TypeVar("StateT")
@@ -89,6 +89,7 @@ class SearchConnector(Protocol[StateT, StateKeyT]):
 
     identity: ConnectorIdentity
     metric_certificate: MetricCertificate
+    action_spec: DiscreteActionSpec
 
     def canonicalize(self, state: StateT) -> StateT:
         """Return the connector's canonical representation for ``state``."""
@@ -144,6 +145,8 @@ class PolicyConnector(Protocol[StateT, StateKeyT]):
 @dataclass(frozen=True, slots=True)
 class ExactActionInvariance:
     """Exact equality over already-normalized scalar discrete actions."""
+
+    fingerprint: ClassVar[str] = "exact-action-equality-v1"
 
     def __call__(self, seed_action: int, candidate_action: int) -> bool:
         return seed_action == candidate_action
