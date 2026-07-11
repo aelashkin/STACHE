@@ -33,7 +33,6 @@ from stache.explainability.core.models import (
     SearchExtent,
     SearchOptions,
 )
-from stache.explainability.core.connector import DiscreteActionSpec
 from stache.explainability.core.search import compute_rr
 
 from ._toy import (
@@ -41,6 +40,8 @@ from ._toy import (
     ToyOracle,
     disconnected_formal_minimum_space,
     exact_space,
+    query_budget_space,
+    tied_minimum_space,
 )
 
 
@@ -53,7 +54,6 @@ class ArtifactToyConnector(ToyConnector):
 
     def __init__(self, space=None) -> None:
         super().__init__(space or exact_space())
-        self.action_spec = DiscreteActionSpec(count=3)
         self.identity = replace(
             self.identity,
             codec="toy-state-record",
@@ -358,6 +358,26 @@ def test_formal_global_disconnected_minimum_round_trips() -> None:
     assert restored.minimal_counterfactuals[0].graph_depth is None
 
 
+def test_certified_formal_partial_minimum_round_trips_truthfully() -> None:
+    connector = ArtifactToyConnector(query_budget_space())
+    result = compute_rr(
+        "s",
+        connector,
+        ToyOracle(connector.space.actions, fingerprint="toy-policy-sha256"),
+        SearchOptions(
+            minimum_basis=MinimumBasis.FORMAL_GLOBAL,
+            max_policy_queries=2,
+        ),
+    )
+
+    restored = document_to_result(result_to_document(result, connector), connector)
+
+    assert restored == replace(result, continuation=None)
+    assert restored.robustness_radius == 1.0
+    assert restored.completeness.radius_complete
+    assert not restored.completeness.minimal_counterfactuals_complete
+
+
 def test_loader_rejects_duplicate_record_keys_and_missing_seed_membership() -> None:
     duplicate, _, connector = make_document()
     duplicate["result"]["region"].append(deepcopy(duplicate["result"]["region"][0]))
@@ -373,6 +393,99 @@ def test_loader_rejects_duplicate_record_keys_and_missing_seed_membership() -> N
     ]
     with pytest.raises(ArtifactSchemaError, match="seed.*region|region.*seed"):
         document_to_result(missing_seed, connector)
+
+
+def test_loader_recomputes_every_record_formal_distance() -> None:
+    document, _, connector = make_document()
+    document["result"]["region"][1]["formal_distance"] = 999
+
+    with pytest.raises(
+        ArtifactSchemaError,
+        match="formal.distance.*connector|connector.*formal.distance",
+    ):
+        document_to_result(document, connector)
+
+
+def test_loader_rejects_conflicting_representations_of_one_state_key() -> None:
+    document, _, connector = make_document()
+    minimum = document["result"]["minimal_counterfactuals"][0]
+    minimum["action"] = 2
+    document["result"]["counterfactuals"]["minimal"][0]["action"] = 2
+
+    with pytest.raises(ArtifactSchemaError, match="conflicting.*record|record.*conflict"):
+        document_to_result(document, connector)
+
+
+def test_graph_basis_minima_must_be_members_of_the_boundary() -> None:
+    document, _, connector = make_document()
+    minimum_key = document["result"]["minimal_counterfactuals"][0]["key"]
+    boundary = [
+        record
+        for record in document["result"]["boundary_counterfactuals"]
+        if record["key"] != minimum_key
+    ]
+    document["result"]["boundary_counterfactuals"] = boundary
+    document["result"]["counterfactuals"]["boundary"] = deepcopy(boundary)
+
+    with pytest.raises(ArtifactSchemaError, match="minima.*boundary|boundary.*minima"):
+        document_to_result(document, connector)
+
+
+def test_complete_graph_ties_cannot_omit_a_boundary_minimum() -> None:
+    connector = ArtifactToyConnector(tied_minimum_space())
+    result = compute_rr(
+        "s",
+        connector,
+        ToyOracle(connector.space.actions, fingerprint="toy-policy-sha256"),
+        SearchOptions(
+            counterfactuals=CounterfactualSelection.BOTH,
+            minimum_basis=MinimumBasis.GRAPH_BOUNDARY,
+            extent=SearchExtent.EXACT,
+        ),
+    )
+    document = result_to_document(result, connector)
+    assert {
+        record["key"]["canonical"]
+        for record in document["result"]["minimal_counterfactuals"]
+    } == {"x", "y"}
+    retained = document["result"]["minimal_counterfactuals"][:1]
+    document["result"]["minimal_counterfactuals"] = retained
+    document["result"]["counterfactuals"]["minimal"] = deepcopy(retained)
+
+    with pytest.raises(ArtifactSchemaError, match="tied|minima.*complete|complete.*minima"):
+        document_to_result(document, connector)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "diagnostic"),
+    [
+        pytest.param("discovery_source", "guessed", "discovery.source", id="source"),
+        pytest.param("graph_depth", None, "graph.*depth", id="graph-depth"),
+    ],
+)
+def test_loader_rejects_impossible_graph_discovery_metadata(
+    field: str,
+    value: object,
+    diagnostic: str,
+) -> None:
+    document, _, connector = make_document()
+    document["result"]["region"][1][field] = value
+
+    with pytest.raises(ArtifactSchemaError, match=diagnostic):
+        document_to_result(document, connector)
+
+
+def test_loader_requires_seed_origin_metadata_to_be_zero_depth() -> None:
+    document, _, connector = make_document()
+    seed_key = document["result"]["seed"]["key"]
+    document["result"]["seed"]["graph_depth"] = 1
+    for record in document["result"]["region"]:
+        if record["key"] == seed_key:
+            record["graph_depth"] = 1
+            break
+
+    with pytest.raises(ArtifactSchemaError, match="seed.*graph.*depth"):
+        document_to_result(document, connector)
 
 
 def test_loader_rejects_action_range_completeness_and_result_invariants() -> None:

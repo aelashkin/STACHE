@@ -801,8 +801,106 @@ def _unique_record_keys(
     return keys
 
 
+def _connector_formal_distance(
+    connector: object,
+    seed: object,
+    state: object,
+    *,
+    path: str,
+) -> int | float:
+    try:
+        value = connector.formal_distance(seed, state)  # type: ignore[attr-defined]
+    except Exception as exc:
+        raise ArtifactSchemaError(
+            f"{path} formal distance could not be recomputed by the connector: {exc}"
+        ) from exc
+    if (
+        isinstance(value, bool)
+        or type(value) not in {int, float}
+        or not math.isfinite(float(value))
+        or value < 0
+    ):
+        raise ArtifactSchemaError(
+            f"{path} connector formal distance must be finite and non-negative"
+        )
+    return value
+
+
+def _validate_record_integrity(
+    *,
+    connector: object,
+    seed: StateRecord[Any, Any],
+    region: tuple[StateRecord[Any, Any], ...],
+    boundary: tuple[StateRecord[Any, Any], ...],
+    minima: tuple[StateRecord[Any, Any], ...],
+) -> None:
+    if seed.graph_depth != 0:
+        raise ArtifactSchemaError("result seed graph depth must be zero")
+    if seed.formal_distance != 0:
+        raise ArtifactSchemaError("result seed formal distance must be zero")
+    if seed.discovery_source != "graph":
+        raise ArtifactSchemaError("result seed discovery source must be graph")
+
+    groups = (
+        ("result.seed", (seed,), False),
+        ("result.region", region, True),
+        ("result.boundary_counterfactuals", boundary, True),
+        ("result.minimal_counterfactuals", minima, False),
+    )
+    known: dict[Any, tuple[StateRecord[Any, Any], str]] = {}
+    for path, records, graph_only in groups:
+        for index, record in enumerate(records):
+            record_path = path if path == "result.seed" else f"{path}[{index}]"
+            if record.discovery_source not in {"graph", "formal"}:
+                raise ArtifactSchemaError(
+                    f"{record_path}.discovery_source must be graph or formal"
+                )
+            if graph_only and record.discovery_source != "graph":
+                raise ArtifactSchemaError(
+                    f"{record_path}.discovery_source must be graph"
+                )
+            if record.discovery_source == "graph" and record.graph_depth is None:
+                raise ArtifactSchemaError(
+                    f"{record_path} graph discovery requires a graph depth"
+                )
+            if record.discovery_source == "formal" and record.graph_depth is not None:
+                raise ArtifactSchemaError(
+                    f"{record_path} formal-only discovery may not have a graph depth"
+                )
+
+            expected_distance = _connector_formal_distance(
+                connector,
+                seed.state,
+                record.state,
+                path=record_path,
+            )
+            if record.formal_distance != expected_distance:
+                raise ArtifactSchemaError(
+                    f"{record_path}.formal_distance disagrees with the connector: "
+                    f"artifact={record.formal_distance!r}, "
+                    f"connector={expected_distance!r}"
+                )
+
+            previous = known.get(record.key)
+            if previous is None:
+                known[record.key] = (record, record_path)
+                continue
+            existing, existing_path = previous
+            if (
+                record.state != existing.state
+                or record.action != existing.action
+                or record.graph_depth != existing.graph_depth
+                or record.formal_distance != existing.formal_distance
+            ):
+                raise ArtifactSchemaError(
+                    "conflicting record representations for state key "
+                    f"{record.key!r}: {existing_path} and {record_path}"
+                )
+
+
 def _validate_result_invariants(
     *,
+    connector: object,
     seed: StateRecord[Any, Any],
     seed_action: int,
     region: tuple[StateRecord[Any, Any], ...],
@@ -820,7 +918,18 @@ def _validate_result_invariants(
         boundary,
         path="result.boundary_counterfactuals",
     )
-    _unique_record_keys(minima, path="result.minimal_counterfactuals")
+    minima_keys = _unique_record_keys(
+        minima,
+        path="result.minimal_counterfactuals",
+    )
+
+    _validate_record_integrity(
+        connector=connector,
+        seed=seed,
+        region=region,
+        boundary=boundary,
+        minima=minima,
+    )
 
     if seed.key not in region_keys or not any(record == seed for record in region):
         raise ArtifactSchemaError("result seed must be a member of the region")
@@ -839,6 +948,13 @@ def _validate_result_invariants(
     if any(record.action == seed_action for record in minima):
         raise ArtifactSchemaError(
             "result minimal counterfactual actions must differ from the seed action"
+        )
+    if (
+        options.minimum_basis is MinimumBasis.GRAPH_BOUNDARY
+        and not minima_keys.issubset(boundary_keys)
+    ):
+        raise ArtifactSchemaError(
+            "graph-boundary minima must be members of the boundary"
         )
 
     if (
@@ -944,6 +1060,29 @@ def _validate_result_invariants(
         ):
             raise ArtifactSchemaError(
                 "formal-global minima must match the robustness radius"
+            )
+
+    if (
+        completeness.minimal_counterfactuals_complete
+        and robustness_radius is not None
+    ):
+        if options.minimum_basis is MinimumBasis.GRAPH_BOUNDARY:
+            expected_minima = {
+                record.key
+                for record in boundary
+                if record.graph_depth is not None
+                and float(record.graph_depth) == float(robustness_radius)
+            }
+        else:
+            expected_minima = {
+                record.key
+                for record in (*boundary, *minima)
+                if float(record.formal_distance) == float(robustness_radius)
+            }
+        if minima_keys != expected_minima:
+            raise ArtifactSchemaError(
+                "complete tied minima disagree with counterfactual records at "
+                "the certified robustness radius"
             )
 
     if stats.states_discovered < 1 or stats.states_evaluated < 1:
@@ -1139,6 +1278,7 @@ def document_to_result(
     )
 
     _validate_result_invariants(
+        connector=connector,
         seed=seed,
         seed_action=seed_action,
         region=region,
