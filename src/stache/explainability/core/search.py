@@ -718,6 +718,7 @@ def _run_formal(
         distance, entries = checkpoint.formal_layers[checkpoint.formal_layer_index]
         if checkpoint.formal_state_index < len(entries):
             key, state = entries[checkpoint.formal_state_index]
+            newly_discovered = key not in checkpoint.states
             _register_state(
                 checkpoint,
                 connector,
@@ -725,9 +726,14 @@ def _run_formal(
                 key,
                 graph_depth=checkpoint.graph_depths.get(key),
             )
+            if newly_discovered:
+                checkpoint.states_discovered += 1
+            newly_evaluated = key not in checkpoint.actions
             action = _query_action(checkpoint, oracle, state, key, options)
             if action is None:
                 return StopReason.MAX_POLICY_QUERIES
+            if newly_evaluated:
+                checkpoint.states_evaluated += 1
             checkpoint.formal_states_scanned += 1
             checkpoint.formal_state_index += 1
             checkpoint.max_scanned_formal_distance = distance

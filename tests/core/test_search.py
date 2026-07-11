@@ -448,6 +448,9 @@ def test_formal_layers_can_find_a_global_minimum_without_a_graph_depth() -> None
     assert result.robustness_radius == 1.0
     assert result.completeness.radius_complete
     assert result.completeness.minimal_counterfactuals_complete
+    assert result.stats.states_discovered == 4
+    assert result.stats.states_evaluated == 4
+    assert result.stats.policy_queries == 4
 
 
 def test_formal_global_rejects_uncertified_connector_without_layers() -> None:
