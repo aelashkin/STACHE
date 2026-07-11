@@ -44,7 +44,7 @@ from .core.search import derive_search_fingerprint
 
 
 ARTIFACT_SCHEMA = "stache.rr-result"
-ARTIFACT_VERSION = 1
+ARTIFACT_VERSION = 2
 
 
 class ArtifactError(Exception):
@@ -303,7 +303,7 @@ def result_to_document(
     *,
     provenance: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
-    """Convert a result to the version-1 primitive interchange document."""
+    """Convert a result to the version-2 primitive interchange document."""
 
     if not isinstance(result, SearchResult):
         raise TypeError("result must be a SearchResult")
@@ -689,7 +689,7 @@ def _validate_continuation_summary(
     resumable = _required(summary, "resumable", path="result.continuation")
     if resumable is not False:
         raise ArtifactSchemaError(
-            "result.continuation.resumable must be false for artifact version 1"
+            "result.continuation.resumable must be false for artifact version 2"
         )
     _string(
         _required(summary, "checkpoint_version", path="result.continuation"),

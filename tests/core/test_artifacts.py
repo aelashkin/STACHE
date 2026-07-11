@@ -161,7 +161,7 @@ def test_result_document_is_versioned_complete_and_recursively_primitive() -> No
     document, result, connector = make_document()
 
     assert document["schema"] == ARTIFACT_SCHEMA == "stache.rr-result"
-    assert document["schema_version"] == ARTIFACT_VERSION == 1
+    assert document["schema_version"] == ARTIFACT_VERSION == 2
     assert document["connector"] == {
         "domain": connector.identity.domain,
         "connector_version": connector.identity.connector_version,

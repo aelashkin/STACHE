@@ -15,7 +15,7 @@ from .connector import ConnectorIdentity, MetricCertificate
 
 StateT = TypeVar("StateT")
 KeyT = TypeVar("KeyT")
-CORE_SCHEMA_VERSION = 1
+CORE_SCHEMA_VERSION = 2
 
 
 class InvalidSearchOptions(ValueError):
