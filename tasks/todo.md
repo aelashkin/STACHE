@@ -24,7 +24,7 @@
 - [x] P5 — document architecture, migration, rollback, and MiniGrid deferral
   - Acceptance: ADR and focused README are consistent with implemented contracts.
   - Verify: documentation review against audit Section 3 and final diff.
-- [ ] Final quality gate
+- [x] Final quality gate
   - Acceptance: full tests/build/imports pass or every unavailable/external failure is
     reported exactly; no unrelated/generated files; every material fresh-review finding
     is resolved or documented.
