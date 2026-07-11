@@ -16,6 +16,10 @@ import yaml
 from stable_baselines3 import DQN
 
 from stache.explainability.core.models import SearchResult
+from stache.explainability.model_manifest import (
+    load_model_manifest,
+    manifest_path_for_model,
+)
 from stache.explainability.taxi.robust_taxi import compute_taxi_rr
 from stache.explainability.taxi.taxi_policy_map import (
     ACTION_NAMES,
@@ -115,12 +119,14 @@ def main(argv=None) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     model = DQN.load(str(zip_path), env=None)
+    manifest = load_model_manifest(manifest_path_for_model(zip_path))
 
     # Compute RR and Counterfactuals
     rr = compute_taxi_rr(
         s_tuple,
         model=model,
         model_fingerprint=_file_fingerprint(zip_path),
+        model_manifest=manifest,
     )
     tuples = [record.state for record in rr.region]
     depths_map = {

@@ -17,7 +17,12 @@ StateKeyT = TypeVar("StateKeyT", bound=Hashable)
 
 @dataclass(frozen=True, slots=True)
 class ConnectorIdentity:
-    """Versioned identity for a connector and its scientific state space."""
+    """Versioned identity for a connector and its scientific state space.
+
+    The object projection, factorization, and topology are result-affecting
+    scientific inputs.  They are distinct from both the model-observation
+    encoder and the artifact codec and therefore receive independent IDs.
+    """
 
     domain: str
     connector_version: str
@@ -25,6 +30,13 @@ class ConnectorIdentity:
     state_universe_version: str
     metric: str
     metric_version: str
+    object_projection: str
+    object_projection_version: str
+    factorization: str
+    factorization_version: str
+    topology: str
+    topology_version: str
+    adjacency_threshold: float
     codec: str = "none"
     codec_version: str = "none"
 
@@ -69,11 +81,21 @@ class FormalDistanceLayer(Generic[StateT]):
 
 
 @dataclass(frozen=True, slots=True)
+class ObservationIdentity:
+    """Semantic identity of the object-state to model-observation encoder."""
+
+    encoding: str
+    encoding_version: str
+    scope_fingerprint: str
+
+
+@dataclass(frozen=True, slots=True)
 class ObservationSpec:
-    """Minimal model-observation contract, independent of Gymnasium."""
+    """Versioned model-observation contract, independent of Gymnasium."""
 
     shape: tuple[int, ...]
     dtype: str
+    identity: ObservationIdentity
 
 
 @dataclass(frozen=True, slots=True)

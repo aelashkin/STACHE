@@ -169,6 +169,13 @@ def test_result_document_is_versioned_complete_and_recursively_primitive() -> No
         "state_universe_version": connector.identity.state_universe_version,
         "metric": connector.identity.metric,
         "metric_version": connector.identity.metric_version,
+        "object_projection": connector.identity.object_projection,
+        "object_projection_version": connector.identity.object_projection_version,
+        "factorization": connector.identity.factorization,
+        "factorization_version": connector.identity.factorization_version,
+        "topology": connector.identity.topology,
+        "topology_version": connector.identity.topology_version,
+        "adjacency_threshold": connector.identity.adjacency_threshold,
         "codec": connector.identity.codec,
         "codec_version": connector.identity.codec_version,
     }
@@ -195,7 +202,7 @@ def test_document_round_trip_restores_the_typed_immutable_result() -> None:
     restored = document_to_result(
         yaml.safe_load(yaml.safe_dump(document)),
         connector,
-        expected_policy_fingerprint="toy-policy-sha256",
+        expected_policy_fingerprint=expected.metadata.policy_fingerprint,
     )
 
     assert restored == expected
@@ -249,6 +256,30 @@ def test_document_loader_rejects_expected_policy_fingerprint_mismatch() -> None:
         )
 
 
+def test_document_loader_rejects_internal_policy_fingerprint_contradiction() -> None:
+    document, _, connector = make_document()
+    document["policy"]["fingerprint"] = "sha256:" + "0" * 64
+
+    with pytest.raises(ArtifactCompatibilityError, match="policy.*fingerprint"):
+        document_to_result(document, connector)
+
+
+def test_document_loader_rejects_policy_source_fingerprint_contradiction() -> None:
+    document, _, connector = make_document()
+    document["policy"]["source"]["fingerprint"] = "sha256:" + "1" * 64
+
+    with pytest.raises(ArtifactCompatibilityError, match="policy.*source"):
+        document_to_result(document, connector)
+
+
+def test_document_loader_rejects_internal_search_fingerprint_contradiction() -> None:
+    document, _, connector = make_document()
+    document["metadata"]["search_fingerprint"] = "sha256:" + "2" * 64
+
+    with pytest.raises(ArtifactCompatibilityError, match="search.*fingerprint"):
+        document_to_result(document, connector)
+
+
 def test_document_loader_rejects_action_normalization_version_mismatch() -> None:
     document, _, connector = make_document()
     document["policy"]["action_normalization_schema_version"] = 999
@@ -296,7 +327,7 @@ def test_yaml_save_load_round_trip_and_refuse_overwrite(tmp_path: Path) -> None:
     restored = load_result(
         target,
         connector,
-        expected_policy_fingerprint="toy-policy-sha256",
+        expected_policy_fingerprint=result.metadata.policy_fingerprint,
     )
 
     assert restored == result

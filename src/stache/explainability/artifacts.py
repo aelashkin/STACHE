@@ -35,7 +35,12 @@ from .core.models import (
     StateRecord,
     StopReason,
 )
-from .core.policy import ACTION_NORMALIZATION_SCHEMA_VERSION
+from .core.policy import (
+    ACTION_NORMALIZATION_SCHEMA_VERSION,
+    PolicyConfigurationError,
+    policy_fingerprint_from_source,
+)
+from .core.search import derive_search_fingerprint
 
 
 ARTIFACT_SCHEMA = "stache.rr-result"
@@ -336,6 +341,27 @@ def result_to_document(
         path="policy.source",
         error_type=ArtifactError,
     )
+    try:
+        derived_policy_fingerprint = policy_fingerprint_from_source(
+            policy_source
+        )
+    except PolicyConfigurationError as error:
+        raise ArtifactCompatibilityError(
+            f"result policy source identity is invalid: {error}"
+        ) from error
+    if derived_policy_fingerprint != result.metadata.policy_fingerprint:
+        raise ArtifactCompatibilityError(
+            "result policy fingerprint disagrees with policy source identity"
+        )
+    derived_search_fingerprint = derive_search_fingerprint(
+        connector,
+        policy_fingerprint=derived_policy_fingerprint,
+        options=result.metadata.options,
+    )
+    if derived_search_fingerprint != result.metadata.search_fingerprint:
+        raise ArtifactCompatibilityError(
+            "result search fingerprint disagrees with scientific identity"
+        )
 
     document: dict[str, object] = {
         "schema": ARTIFACT_SCHEMA,
@@ -1297,19 +1323,32 @@ def document_to_result(
             f"expected {ACTION_NORMALIZATION_SCHEMA_VERSION}, "
             f"got {action_normalization_version!r}"
         )
-    if (
-        expected_policy_fingerprint is not None
-        and policy_fingerprint != expected_policy_fingerprint
-    ):
-        raise ArtifactCompatibilityError(
-            "policy fingerprint mismatch: "
-            f"artifact={policy_fingerprint!r}, expected={expected_policy_fingerprint!r}"
-        )
     policy_source = _primitive_copy(
         _mapping(_required(policy, "source", path="policy"), path="policy.source"),
         path="policy.source",
         error_type=ArtifactSchemaError,
     )
+    try:
+        derived_policy_fingerprint = policy_fingerprint_from_source(
+            policy_source
+        )
+    except PolicyConfigurationError as error:
+        raise ArtifactCompatibilityError(
+            f"policy source identity is invalid: {error}"
+        ) from error
+    if policy_fingerprint != derived_policy_fingerprint:
+        raise ArtifactCompatibilityError(
+            "policy fingerprint disagrees with policy source identity"
+        )
+    if (
+        expected_policy_fingerprint is not None
+        and derived_policy_fingerprint != expected_policy_fingerprint
+    ):
+        raise ArtifactCompatibilityError(
+            "policy fingerprint mismatch: "
+            f"artifact={derived_policy_fingerprint!r}, "
+            f"expected={expected_policy_fingerprint!r}"
+        )
     options = _decode_options(_required(root, "options", path="document"))
     metadata_document = _mapping(
         _required(root, "metadata", path="document"),
@@ -1328,6 +1367,15 @@ def document_to_result(
         raise ArtifactSchemaError(
             "core_schema_version mismatch: "
             f"expected {CORE_SCHEMA_VERSION}, got {core_schema_version}"
+        )
+    derived_search_fingerprint = derive_search_fingerprint(
+        connector,
+        policy_fingerprint=derived_policy_fingerprint,
+        options=options,
+    )
+    if search_fingerprint != derived_search_fingerprint:
+        raise ArtifactCompatibilityError(
+            "search fingerprint disagrees with connector, policy, or options identity"
         )
 
     result_document = _mapping(

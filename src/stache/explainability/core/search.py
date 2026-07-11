@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass, field, fields, is_dataclass
 from typing import Any, Hashable, Iterable, Mapping
 
 from .connector import ExactActionInvariance, FormalDistanceLayer
+from .identity import IdentityEncodingError, fingerprint_document
 from .models import (
     ContinuationMismatchError,
     CounterfactualExistence,
@@ -29,6 +30,7 @@ from .models import (
     StateRecord,
     StopReason,
 )
+from .policy import PolicyConfigurationError, policy_fingerprint_from_source
 
 
 CHECKPOINT_VERSION = "stache-rr-continuation-v1"
@@ -194,26 +196,58 @@ def _fingerprint(
     options: SearchOptions,
     invariance: Any,
 ) -> str:
-    payload = {
-        "connector": asdict(connector.identity),
-        "metric_certificate": asdict(connector.metric_certificate),
-        "action_count": _connector_action_count(connector),
-        "policy_fingerprint": str(oracle.fingerprint),
-        "options": dict(options.semantic_values()),
-        "invariance": getattr(
+    return derive_search_fingerprint(
+        connector,
+        policy_fingerprint=str(oracle.fingerprint),
+        options=options,
+        invariance_fingerprint=getattr(
             invariance,
             "fingerprint",
             type(invariance).__qualname__,
         ),
-        "checkpoint_version": CHECKPOINT_VERSION,
+        checkpoint_version=CHECKPOINT_VERSION,
+    )
+
+
+def derive_search_fingerprint(
+    connector: Any,
+    *,
+    policy_fingerprint: str,
+    options: SearchOptions,
+    invariance_fingerprint: str = ExactActionInvariance.fingerprint,
+    checkpoint_version: str = CHECKPOINT_VERSION,
+) -> str:
+    """Derive the canonical scientific identity of a search request."""
+
+    payload = {
+        "connector": asdict(connector.identity),
+        "metric_certificate": asdict(connector.metric_certificate),
+        "action_count": _connector_action_count(connector),
+        "policy_fingerprint": policy_fingerprint,
+        "options": dict(options.semantic_values()),
+        "invariance": invariance_fingerprint,
+        "checkpoint_version": checkpoint_version,
     }
-    encoded = json.dumps(
-        _stable(payload),
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+    try:
+        return fingerprint_document(_stable(payload))
+    except IdentityEncodingError as error:
+        raise SearchInvariantError(str(error)) from error
+
+
+def _validate_oracle_identity(oracle: Any) -> None:
+    source = getattr(oracle, "source_description", None)
+    if not isinstance(source, Mapping):
+        raise SearchInvariantError(
+            "action oracle source_description must be a mapping"
+        )
+    try:
+        derived = policy_fingerprint_from_source(source)
+    except PolicyConfigurationError as error:
+        raise SearchInvariantError(f"invalid action oracle identity: {error}") from error
+    if getattr(oracle, "fingerprint", None) != derived:
+        raise SearchInvariantError(
+            "action oracle fingerprint disagrees with source identity"
+        )
 
 
 def _canonical_state(connector: Any, state: Any) -> tuple[Any, Hashable]:
@@ -1130,6 +1164,7 @@ def compute_rr(
             "Phase 1 supports exact action invariance only"
         )
     _connector_action_count(connector)
+    _validate_oracle_identity(oracle)
 
     if continuation is None:
         checkpoint, fingerprint, graph_certifies_formal = _initialize(

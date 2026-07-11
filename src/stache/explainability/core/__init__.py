@@ -6,6 +6,7 @@ from .connector import (
     ExactActionInvariance,
     FormalDistanceLayer,
     MetricCertificate,
+    ObservationIdentity,
     ObservationSpec,
     PolicyConnector,
     SearchConnector,
@@ -19,12 +20,17 @@ from .policy import (
     CacheRestoreError,
     ModelActionOracle,
     ModelCompatibilityError,
+    ModelManifest,
     OracleStats,
     PolicyConfigurationError,
     PolicyError,
     TableActionOracle,
     TableThenModelActionOracle,
     UnknownTableKeyError,
+    custom_policy_source,
+    model_manifest_from_document,
+    model_manifest_to_document,
+    policy_fingerprint_from_source,
     normalize_discrete_action,
 )
 from .models import (
@@ -47,7 +53,7 @@ from .models import (
     StateRecord,
     StopReason,
 )
-from .search import compute_rr
+from .search import compute_rr, derive_search_fingerprint
 
 __all__ = [
     "ACTION_NORMALIZATION_SCHEMA_VERSION",
@@ -71,6 +77,8 @@ __all__ = [
     "MinimumBasis",
     "ModelActionOracle",
     "ModelCompatibilityError",
+    "ModelManifest",
+    "ObservationIdentity",
     "ObservationSpec",
     "OracleStats",
     "PolicyConfigurationError",
@@ -90,6 +98,11 @@ __all__ = [
     "TableActionOracle",
     "TableThenModelActionOracle",
     "UnknownTableKeyError",
+    "custom_policy_source",
+    "model_manifest_from_document",
+    "model_manifest_to_document",
+    "policy_fingerprint_from_source",
     "normalize_discrete_action",
     "compute_rr",
+    "derive_search_fingerprint",
 ]

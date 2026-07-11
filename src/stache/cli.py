@@ -34,6 +34,7 @@ _CONFIG_KEYS = {
     "seed",
     "policy_table",
     "model",
+    "model_manifest",
     "minimum_basis",
     "counterfactuals",
     "extent",
@@ -109,6 +110,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help="Stable-Baselines3 DQN model archive",
+    )
+    compute.add_argument(
+        "--model-manifest",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "versioned semantic manifest for --model "
+            "(defaults to model.manifest.yaml beside the archive)"
+        ),
     )
     compute.add_argument(
         "--minimum-basis",
@@ -271,13 +282,41 @@ def _validated_compute_config(arguments: argparse.Namespace) -> dict[str, Any]:
         policy_table_value = arguments.policy_table
         model_value = arguments.model
         source_config_dir = None
+        model_manifest_value = arguments.model_manifest
     else:
         policy_table_value = config.get("policy_table")
         model_value = config.get("model")
         source_config_dir = config_dir
+        model_manifest_value = config.get("model_manifest")
     if (policy_table_value is None) == (model_value is None):
         raise CliUsageError(
             "exactly one of --policy-table or --model must be provided"
+        )
+    if policy_table_value is not None and model_manifest_value is not None:
+        raise CliUsageError(
+            "--model-manifest may only be used with --model"
+        )
+
+    model_path = (
+        None
+        if model_value is None
+        else _path_value(
+            model_value,
+            option="--model",
+            config_dir=source_config_dir,
+        )
+    )
+    if model_path is None:
+        model_manifest_path = None
+    elif model_manifest_value is None:
+        from stache.explainability.model_manifest import manifest_path_for_model
+
+        model_manifest_path = manifest_path_for_model(model_path)
+    else:
+        model_manifest_path = _path_value(
+            model_manifest_value,
+            option="--model-manifest",
+            config_dir=source_config_dir,
         )
 
     minimum_basis = _configured(
@@ -337,15 +376,8 @@ def _validated_compute_config(arguments: argparse.Namespace) -> dict[str, Any]:
                 config_dir=source_config_dir,
             )
         ),
-        "model": (
-            None
-            if model_value is None
-            else _path_value(
-                model_value,
-                option="--model",
-                config_dir=source_config_dir,
-            )
-        ),
+        "model": model_path,
+        "model_manifest": model_manifest_path,
         "minimum_basis": minimum_basis,
         "counterfactuals": counterfactuals,
         "extent": extent,
@@ -460,6 +492,10 @@ def _run_compute_rr(config: Mapping[str, Any]) -> int:
 
     from stache.explainability.artifacts import ArtifactError, save_result
     from stache.explainability.connectors import TaxiConnector
+    from stache.explainability.model_manifest import (
+        ModelManifestError,
+        load_model_manifest,
+    )
     from stache.explainability.core import (
         CounterfactualSelection,
         MinimumBasis,
@@ -483,6 +519,10 @@ def _run_compute_rr(config: Mapping[str, Any]) -> int:
         model_path = config["model"]
         model_snapshot, fingerprint = _snapshot_model(model_path)
         try:
+            manifest = load_model_manifest(config["model_manifest"])
+        except ModelManifestError as error:
+            raise CliUsageError(str(error)) from error
+        try:
             model = DQN.load(model_snapshot, env=None)
         except Exception as error:
             raise CliExecutionError(
@@ -492,6 +532,7 @@ def _run_compute_rr(config: Mapping[str, Any]) -> int:
             connector,
             model,
             source_fingerprint=fingerprint,
+            manifest=manifest,
         )
 
     options = SearchOptions(

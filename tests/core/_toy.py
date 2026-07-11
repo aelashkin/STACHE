@@ -12,7 +12,7 @@ from stache.explainability.core.connector import (
     FormalDistanceLayer,
     MetricCertificate,
 )
-from stache.explainability.core.policy import OracleStats
+from stache.explainability.core.policy import OracleStats, custom_policy_source
 
 
 Edge = tuple[str, str]
@@ -81,6 +81,13 @@ class ToyConnector:
             state_universe_version="1",
             metric="toy-manhattan",
             metric_version="1",
+            object_projection="toy-canonical-string",
+            object_projection_version="1",
+            factorization="toy-coordinate-vector",
+            factorization_version="1",
+            topology="formal-unit-edges",
+            topology_version="1",
+            adjacency_threshold=1.0,
         )
         self.metric_certificate = MetricCertificate(
             formal_unit=1.0,
@@ -141,8 +148,6 @@ class ToyConnector:
 class ToyOracle:
     """Counting exact-action oracle with a checkpointable canonical-state cache."""
 
-    source_description = {"kind": "toy-table"}
-
     def __init__(
         self,
         actions: Mapping[str, int],
@@ -150,7 +155,16 @@ class ToyOracle:
         fingerprint: str = "toy-policy-v1",
     ) -> None:
         self.actions = dict(actions)
-        self.fingerprint = fingerprint
+        self.fingerprint, self.source_description = custom_policy_source(
+            {
+                "provider": "tests.core.ToyOracle",
+                "declared_fingerprint": fingerprint,
+                "actions": [
+                    [state, action]
+                    for state, action in sorted(self.actions.items())
+                ],
+            }
+        )
         self.calls: list[str] = []
         self._cache: dict[str, int] = {}
         self._policy_queries = 0

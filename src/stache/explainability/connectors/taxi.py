@@ -20,6 +20,7 @@ from stache.explainability.core.connector import (
     ConnectorIdentity,
     DiscreteActionSpec,
     MetricCertificate,
+    ObservationIdentity,
     ObservationSpec,
 )
 
@@ -47,6 +48,14 @@ _CERTIFICATE_SCOPE: Final = sha256(
     (
         "taxi-factored-500:v1|taxi-thesis-hybrid:v1|"
         "row+-1,column+-1,passenger-any-other,destination-any-other"
+    ).encode("utf-8")
+).hexdigest()
+
+_OBSERVATION_SCOPE: Final = "sha256:" + sha256(
+    (
+        "taxi-one-hot-500:v1|"
+        "index=(((row*5)+column)*5+passenger)*4+destination|"
+        "dtype=float32|shape=500"
     ).encode("utf-8")
 ).hexdigest()
 
@@ -99,6 +108,13 @@ class TaxiConnector:
         state_universe_version="1",
         metric="taxi-thesis-hybrid",
         metric_version="1",
+        object_projection="taxi-index-to-factored-objects",
+        object_projection_version="1",
+        factorization="taxi-oo-factors",
+        factorization_version="1",
+        topology="hybrid-distance-threshold",
+        topology_version="1",
+        adjacency_threshold=1,
         codec="taxi-state-key",
         codec_version="1",
     )
@@ -112,8 +128,16 @@ class TaxiConnector:
         certificate_version="1",
         scope_fingerprint=_CERTIFICATE_SCOPE,
     )
-    observation_codec_version: Final = "1"
-    observation_spec: Final = ObservationSpec(shape=(_STATE_COUNT,), dtype="float32")
+    observation_spec: Final = ObservationSpec(
+        shape=(_STATE_COUNT,),
+        dtype="float32",
+        identity=ObservationIdentity(
+            encoding="taxi-one-hot-500",
+            encoding_version="1",
+            scope_fingerprint=_OBSERVATION_SCOPE,
+        ),
+    )
+    observation_codec_version: Final = observation_spec.identity.encoding_version
     action_spec: Final = DiscreteActionSpec(count=_ACTION_COUNT)
 
     @property

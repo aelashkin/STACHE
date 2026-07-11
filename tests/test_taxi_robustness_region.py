@@ -8,6 +8,18 @@ from stache.explainability.taxi.robust_taxi import (
     get_neighbors_taxi,
     compute_rr_taxi,
 )
+from stache.explainability.connectors.taxi import TaxiConnector
+from stache.explainability.core.policy import ModelManifest
+
+
+def _attach_manifest(model, fingerprint):
+    connector = TaxiConnector()
+    model.stache_model_manifest = ModelManifest(
+        model_fingerprint=fingerprint,
+        observation_identity=connector.observation_spec.identity,
+        action_spec=connector.action_spec,
+    )
+    return model
 
 class DummyModelAlwaysZero:
     """Mock model that always predicts action 0"""
@@ -77,7 +89,7 @@ def test_translate_tuple_to_onehot_and_roundtrip():
 
 def test_compute_rr_taxi_full_coverage_for_constant_model():
     env = gym.make('Taxi-v3')
-    model = DummyModelAlwaysZero()
+    model = _attach_manifest(DummyModelAlwaysZero(), "legacy-zero-v1")
     seed = (0, 0, 4, 0)
     result = compute_rr_taxi(seed, model, env)
     rr_set = result['rr_tuple_set']
@@ -96,7 +108,7 @@ def test_compute_rr_taxi_full_coverage_for_constant_model():
 def test_compute_rr_taxi_varying_model_limits_region():
     env = gym.make('Taxi-v3')
     # dummy model that yields different actions => only seed remains
-    model = DummyModelIncremental()
+    model = _attach_manifest(DummyModelIncremental(), "legacy-incremental-v1")
     seed = (0, 0, 4, 0)
     # precomputed_sa mapping to force only seed matches
     # map seed state index to action seed_action, others to other action

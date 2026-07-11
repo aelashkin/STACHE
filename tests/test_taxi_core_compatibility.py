@@ -19,7 +19,7 @@ import yaml
 
 from stache.explainability.connectors.taxi import TaxiConnector
 from stache.explainability.core.models import SearchResult
-from stache.explainability.core.policy import normalize_discrete_action
+from stache.explainability.core.policy import ModelManifest, normalize_discrete_action
 from stache.explainability.taxi.robust_taxi import (
     compute_rr_taxi,
     compute_taxi_rr,
@@ -71,6 +71,15 @@ def _policy_table() -> dict[int, int]:
         index: (index * 37 + index // 13 + (index % 5) * 2) % 6
         for index in range(500)
     }
+
+
+def _model_manifest(fingerprint: str) -> ModelManifest:
+    connector = TaxiConnector()
+    return ModelManifest(
+        model_fingerprint=fingerprint,
+        observation_identity=connector.observation_spec.identity,
+        action_spec=connector.action_spec,
+    )
 
 
 def _scientific_signature(result: SearchResult[object, object]) -> tuple[object, ...]:
@@ -136,6 +145,7 @@ def test_model_and_complete_table_sources_have_identical_scientific_results() ->
         seed,
         model=TableModel(table),
         model_fingerprint="test-model:same-policy-v1",
+        model_manifest=_model_manifest("test-model:same-policy-v1"),
     )
 
     assert _scientific_signature(model_result) == _scientific_signature(table_result)
@@ -153,6 +163,7 @@ def test_committed_dqn_and_materialized_table_have_seed_and_result_parity(
         seed,
         model=model,
         model_fingerprint=fingerprint,
+        model_manifest=_model_manifest(fingerprint),
     )
 
     assert model_result.seed_action == table_result.seed_action
@@ -171,6 +182,7 @@ def test_table_then_model_source_uses_the_table_for_the_seed() -> None:
         model=model,
         policy_table={seed_index: 0},
         model_fingerprint="test-model:fallback-v1",
+        model_manifest=_model_manifest("test-model:fallback-v1"),
     )
 
     assert result.seed_action == 0
@@ -184,6 +196,7 @@ def test_legacy_compute_rr_taxi_warns_and_retains_mapping_contract() -> None:
     table = _policy_table()
     seed = (1, 3, 2, 0)
     model = TableModel(table)
+    model.stache_model_manifest = _model_manifest("legacy-table-model-v1")
     env = SimpleNamespace(
         unwrapped=SimpleNamespace(
             observation_space=SimpleNamespace(n=500),
@@ -234,6 +247,7 @@ def test_model_only_search_queries_the_seed_once() -> None:
         seed,
         model=model,
         model_fingerprint="test-model:constant-v1",
+        model_manifest=_model_manifest("test-model:constant-v1"),
     )
 
     assert len(result.region) == 500
@@ -265,6 +279,7 @@ def test_visualization_uses_result_actions_without_policy_requery() -> None:
         (2, 2, 4, 1),
         model=model,
         model_fingerprint="test-model:visualization-v1",
+        model_manifest=_model_manifest("test-model:visualization-v1"),
     )
     before = model.calls.copy()
 
@@ -299,6 +314,7 @@ def test_policy_map_collects_all_500_connector_states_once() -> None:
         model,
         connector=connector,
         model_fingerprint="test-model:policy-map-v1",
+        model_manifest=_model_manifest("test-model:policy-map-v1"),
     )
 
     assert mapping == table
@@ -396,6 +412,7 @@ def test_committed_dqn_policy_map_matches_independent_materialization(
         model,
         connector=TaxiConnector(),
         model_fingerprint=fingerprint,
+        model_manifest=_model_manifest(fingerprint),
     )
 
     assert mapping == expected_table
@@ -407,6 +424,7 @@ def test_policy_map_legacy_env_first_calls_warn_and_delegate(
     connector = TaxiConnector()
     table = _policy_table()
     model = TableModel(table)
+    model.stache_model_manifest = _model_manifest("legacy-policy-map-v1")
     wrapped_env = SimpleNamespace(
         observation_space=SimpleNamespace(shape=(500,))
     )

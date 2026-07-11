@@ -173,6 +173,40 @@ def test_metric_certificate_truthfully_covers_the_declared_universe(
     assert certificate.certificate_version == "1"
     assert isinstance(certificate.scope_fingerprint, str)
     assert certificate.scope_fingerprint
+
+
+def test_connector_identity_declares_oo_projection_and_epsilon_topology(
+    connector: TaxiConnector,
+) -> None:
+    identity = connector.identity
+
+    assert identity.object_projection == "taxi-index-to-factored-objects"
+    assert identity.object_projection_version == "1"
+    assert identity.factorization == "taxi-oo-factors"
+    assert identity.factorization_version == "1"
+    assert identity.topology == "hybrid-distance-threshold"
+    assert identity.topology_version == "1"
+    assert identity.adjacency_threshold == 1
+    assert connector.observation_spec.identity.encoding == "taxi-one-hot-500"
+    assert connector.observation_spec.identity.encoding_version == "1"
+    assert connector.observation_spec.identity.scope_fingerprint.startswith(
+        "sha256:"
+    )
+
+
+def test_neighbors_are_exactly_distinct_states_with_hybrid_distance_at_most_one(
+    connector: TaxiConnector,
+) -> None:
+    all_states = tuple(connector.declared_states())
+
+    for state in all_states:
+        expected = {
+            candidate
+            for candidate in all_states
+            if candidate != state
+            and _independent_distance(state, candidate) <= 1
+        }
+        assert set(connector.atomic_neighbors(state)) == expected
     assert connector.formal_layers((0, 0, 0, 0)) is None
 
 

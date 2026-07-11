@@ -25,7 +25,12 @@ from stable_baselines3 import DQN
 from stache.explainability.connectors.taxi import TaxiConnector
 from stache.explainability.core.policy import (
     ModelActionOracle,
+    ModelManifest,
     normalize_discrete_action,
+)
+from stache.explainability.model_manifest import (
+    load_model_manifest,
+    manifest_path_for_model,
 )
 
 
@@ -76,6 +81,7 @@ def collect_state_actions(
     *,
     connector: TaxiConnector | None = None,
     model_fingerprint: str | None = None,
+    model_manifest: ModelManifest | None = None,
 ) -> dict[int, int]:
     """Query ``model`` exactly once for each of the 500 declared Taxi states.
 
@@ -92,18 +98,19 @@ def collect_state_actions(
             stacklevel=2,
         )
         _validate_legacy_policy_envs(env, base_env)
-        if model_fingerprint is None:
-            model_type = type(model)
-            model_fingerprint = (
-                "legacy-unverified-model:"
-                f"{model_type.__module__}.{model_type.__qualname__}"
-            )
+    if not isinstance(model_manifest, ModelManifest):
+        model_manifest = getattr(model, "stache_model_manifest", None)
+    if not isinstance(model_manifest, ModelManifest):
+        raise ValueError("model_manifest is required for policy-map collection")
+    if model_fingerprint is None:
+        model_fingerprint = model_manifest.model_fingerprint
     if not isinstance(model_fingerprint, str) or not model_fingerprint.strip():
         raise ValueError("model_fingerprint is required for policy-map collection")
     oracle = ModelActionOracle(
         connector,
         model,
         source_fingerprint=model_fingerprint,
+        manifest=model_manifest,
     )
     mapping: dict[int, int] = {}
     for state in connector.declared_states():
@@ -310,11 +317,13 @@ def run_visualisation(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     connector = TaxiConnector()
+    manifest = load_model_manifest(manifest_path_for_model(zip_path))
     model = DQN.load(zip_path, env=None, print_system_info=False)
     mapping = collect_state_actions(
         model,
         connector=connector,
         model_fingerprint=_file_fingerprint(zip_path),
+        model_manifest=manifest,
     )
 
     yaml_path = output_dir / "state_action_mapping.yaml"

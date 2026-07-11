@@ -15,6 +15,11 @@ import pytest
 import yaml
 
 from stache import cli
+from stache.explainability.connectors.taxi import TaxiConnector
+from stache.explainability.core.policy import (
+    ModelManifest,
+    model_manifest_to_document,
+)
 
 
 def installed_stache() -> str:
@@ -418,6 +423,22 @@ def test_model_fingerprint_and_load_use_the_same_immutable_snapshot(
     original = b"trusted model snapshot"
     model_path = tmp_path / "model.zip"
     model_path.write_bytes(original)
+    model_fingerprint = "sha256:" + sha256(original).hexdigest()
+    connector = TaxiConnector()
+    manifest_path = tmp_path / "model.manifest.yaml"
+    manifest_path.write_text(
+        yaml.safe_dump(
+            model_manifest_to_document(
+                ModelManifest(
+                    model_fingerprint=model_fingerprint,
+                    observation_identity=connector.observation_spec.identity,
+                    action_spec=connector.action_spec,
+                )
+            ),
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     target = tmp_path / "result.yaml"
     captured: list[bytes] = []
 
@@ -457,6 +478,7 @@ def test_model_fingerprint_and_load_use_the_same_immutable_snapshot(
             "seed": 0,
             "policy_table": None,
             "model": model_path,
+            "model_manifest": manifest_path,
             "minimum_basis": "graph_boundary",
             "counterfactuals": "both",
             "extent": "exact",
@@ -471,6 +493,6 @@ def test_model_fingerprint_and_load_use_the_same_immutable_snapshot(
     assert exit_code == 0
     assert captured == [original]
     document = yaml.safe_load(target.read_text(encoding="utf-8"))
-    assert document["policy"]["fingerprint"] == (
-        "sha256:" + sha256(original).hexdigest()
-    )
+    assert document["policy"]["fingerprint"].startswith("sha256:")
+    assert document["policy"]["fingerprint"] != model_fingerprint
+    assert document["policy"]["source"]["model_fingerprint"] == model_fingerprint

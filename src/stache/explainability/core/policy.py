@@ -7,8 +7,7 @@ canonical-state cache, including in the explicit table-then-model source.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-import hashlib
+from dataclasses import asdict, dataclass
 import json
 import math
 from numbers import Integral
@@ -16,8 +15,12 @@ from typing import Hashable, Mapping, Protocol, Sequence
 
 import numpy as np
 
+from .connector import DiscreteActionSpec, ObservationIdentity
+from .identity import IdentityEncodingError, fingerprint_document
+
 
 ACTION_NORMALIZATION_SCHEMA_VERSION = 1
+MODEL_MANIFEST_SCHEMA_VERSION = 1
 
 
 class PolicyError(Exception):
@@ -46,6 +49,87 @@ class CacheRestoreError(PolicyError, ValueError):
 
 class PolicyConfigurationError(PolicyError, ValueError):
     """An action source cannot be constructed safely."""
+
+
+@dataclass(frozen=True, slots=True)
+class ModelManifest:
+    """Result-affecting model semantics recorded alongside model bytes."""
+
+    model_fingerprint: str
+    observation_identity: ObservationIdentity
+    action_spec: DiscreteActionSpec
+    schema_version: int = MODEL_MANIFEST_SCHEMA_VERSION
+
+
+def model_manifest_to_document(manifest: ModelManifest) -> dict[str, object]:
+    """Encode a validated manifest as primitive versioned data."""
+
+    if not isinstance(manifest, ModelManifest):
+        raise PolicyConfigurationError("manifest must be a ModelManifest")
+    return asdict(manifest)
+
+
+def model_manifest_from_document(document: Mapping[str, object]) -> ModelManifest:
+    """Decode strict primitive manifest data without trusting caller types."""
+
+    if not isinstance(document, Mapping):
+        raise PolicyConfigurationError("model manifest must be a mapping")
+    required = {
+        "schema_version",
+        "model_fingerprint",
+        "observation_identity",
+        "action_spec",
+    }
+    if set(document) != required:
+        raise PolicyConfigurationError(
+            "model manifest must contain exactly: "
+            + ", ".join(sorted(required))
+        )
+    if document["schema_version"] != MODEL_MANIFEST_SCHEMA_VERSION:
+        raise PolicyConfigurationError(
+            "model manifest schema version is unsupported"
+        )
+    observation = document["observation_identity"]
+    if not isinstance(observation, Mapping) or set(observation) != {
+        "encoding",
+        "encoding_version",
+        "scope_fingerprint",
+    }:
+        raise PolicyConfigurationError(
+            "model manifest observation_identity is invalid"
+        )
+    action = document["action_spec"]
+    if not isinstance(action, Mapping) or set(action) != {"count"}:
+        raise PolicyConfigurationError("model manifest action_spec is invalid")
+    encoding = observation["encoding"]
+    encoding_version = observation["encoding_version"]
+    scope_fingerprint = observation["scope_fingerprint"]
+    if any(
+        not isinstance(value, str) or not value.strip()
+        for value in (encoding, encoding_version, scope_fingerprint)
+    ):
+        raise PolicyConfigurationError(
+            "model manifest observation identity values must be non-empty strings"
+        )
+    count = action["count"]
+    if type(count) is not int or count <= 0:
+        raise PolicyConfigurationError(
+            "model manifest action_spec.count must be a positive integer"
+        )
+    model_fingerprint = document["model_fingerprint"]
+    if not isinstance(model_fingerprint, str):
+        raise PolicyConfigurationError(
+            "model manifest model_fingerprint must be a string"
+        )
+    return ModelManifest(
+        model_fingerprint=_validated_fingerprint(model_fingerprint),
+        observation_identity=ObservationIdentity(
+            encoding=encoding,
+            encoding_version=encoding_version,
+            scope_fingerprint=scope_fingerprint,
+        ),
+        action_spec=DiscreteActionSpec(count=count),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -316,16 +400,26 @@ class ModelActionOracle(_CachedActionOracle):
         model: object,
         *,
         source_fingerprint: str,
+        manifest: ModelManifest,
     ) -> None:
         self._model = model
+        self._model_identity, fingerprint = _validated_model_binding(
+            connector,
+            source_fingerprint,
+            manifest,
+        )
         self._observation_shape, self._observation_dtype = (
             _validate_model_compatibility(connector, model)
         )
-        super().__init__(connector, fingerprint=source_fingerprint)
+        super().__init__(connector, fingerprint=fingerprint)
 
     @property
     def source_description(self) -> Mapping[str, object]:
-        return {"source": "model", "fingerprint": self.fingerprint}
+        return {
+            "source": "model",
+            "fingerprint": self.fingerprint,
+            **self._model_identity,
+        }
 
     def _query_uncached(self, canonical_state: object) -> object:
         observation = _encoded_observation(
@@ -360,6 +454,7 @@ class TableThenModelActionOracle(_CachedActionOracle):
         *,
         table_fingerprint: str | None = None,
         model_fingerprint: str,
+        model_manifest: ModelManifest,
     ) -> None:
         action_count = _connector_action_count(connector)
         self._table = _validated_table(table, action_count)
@@ -375,7 +470,16 @@ class TableThenModelActionOracle(_CachedActionOracle):
             self._table_content_fingerprint,
             table_fingerprint,
         )
-        self._model_fingerprint = _validated_fingerprint(model_fingerprint)
+        self._model_identity, self._model_policy_fingerprint = (
+            _validated_model_binding(
+                connector,
+                model_fingerprint,
+                model_manifest,
+            )
+        )
+        self._model_fingerprint = str(
+            self._model_identity["model_fingerprint"]
+        )
         self._model = model
         self._observation_shape, self._observation_dtype = (
             _validate_model_compatibility(connector, model)
@@ -384,7 +488,7 @@ class TableThenModelActionOracle(_CachedActionOracle):
             {
                 "source": "table_then_model",
                 "table_fingerprint": self._table_fingerprint,
-                "model_fingerprint": self._model_fingerprint,
+                "model_policy_fingerprint": self._model_policy_fingerprint,
             }
         )
         super().__init__(connector, fingerprint=combined)
@@ -398,6 +502,8 @@ class TableThenModelActionOracle(_CachedActionOracle):
             "table_content_fingerprint": self._table_content_fingerprint,
             "declared_table_fingerprint": self._declared_table_fingerprint,
             "model_fingerprint": self._model_fingerprint,
+            "model_policy_fingerprint": self._model_policy_fingerprint,
+            "model_manifest": self._model_identity["model_manifest"],
             "action_count": self._action_count,
             "action_normalization_schema_version": (
                 ACTION_NORMALIZATION_SCHEMA_VERSION
@@ -527,6 +633,292 @@ def _validate_model_compatibility(
     return expected_shape, expected_dtype
 
 
+def _validated_model_binding(
+    connector: object,
+    source_fingerprint: str,
+    manifest: ModelManifest,
+) -> tuple[dict[str, object], str]:
+    """Validate a model-owned manifest and derive its policy identity."""
+
+    fingerprint = _validated_fingerprint(source_fingerprint)
+    if not isinstance(manifest, ModelManifest):
+        raise ModelCompatibilityError(
+            "policy model requires a versioned ModelManifest"
+        )
+    if manifest.schema_version != MODEL_MANIFEST_SCHEMA_VERSION:
+        raise ModelCompatibilityError(
+            "policy model manifest schema version is unsupported"
+        )
+    manifest_fingerprint = _validated_fingerprint(manifest.model_fingerprint)
+    if manifest_fingerprint != fingerprint:
+        raise ModelCompatibilityError(
+            "policy model fingerprint does not match its manifest"
+        )
+
+    try:
+        observation_spec = getattr(connector, "observation_spec")
+        expected_observation_identity = getattr(observation_spec, "identity")
+    except AttributeError as error:
+        raise PolicyConfigurationError(
+            "connector must declare observation_spec.identity"
+        ) from error
+    if not isinstance(expected_observation_identity, ObservationIdentity):
+        raise PolicyConfigurationError(
+            "connector observation_spec.identity must be ObservationIdentity"
+        )
+    if manifest.observation_identity != expected_observation_identity:
+        raise ModelCompatibilityError(
+            "policy model observation identity is incompatible with the connector"
+        )
+
+    expected_action_count = _connector_action_count(connector)
+    if (
+        not isinstance(manifest.action_spec, DiscreteActionSpec)
+        or manifest.action_spec.count != expected_action_count
+    ):
+        raise ModelCompatibilityError(
+            "policy model action contract is incompatible with the connector"
+        )
+
+    manifest_document = asdict(manifest)
+    identity: dict[str, object] = {
+        "model_fingerprint": fingerprint,
+        "model_manifest": manifest_document,
+        "deterministic": True,
+        "action_normalization_schema_version": (
+            ACTION_NORMALIZATION_SCHEMA_VERSION
+        ),
+    }
+    policy_fingerprint = _model_policy_fingerprint(
+        model_fingerprint=fingerprint,
+        model_manifest=manifest_document,
+        deterministic=True,
+        action_normalization_schema_version=(
+            ACTION_NORMALIZATION_SCHEMA_VERSION
+        ),
+    )
+    return identity, policy_fingerprint
+
+
+def _model_policy_fingerprint(
+    *,
+    model_fingerprint: str,
+    model_manifest: Mapping[str, object],
+    deterministic: bool,
+    action_normalization_schema_version: int,
+) -> str:
+    return _hash_json(
+        {
+            "schema": "stache.model-policy-binding/v1",
+            "model_fingerprint": model_fingerprint,
+            "model_manifest": dict(model_manifest),
+            "deterministic": deterministic,
+            "action_normalization_schema_version": (
+                action_normalization_schema_version
+            ),
+        }
+    )
+
+
+def custom_policy_source(
+    identity: Mapping[str, object],
+) -> tuple[str, dict[str, object]]:
+    """Build a canonically bound source descriptor for a custom oracle."""
+
+    if not isinstance(identity, Mapping) or any(
+        type(key) is not str for key in identity
+    ):
+        raise PolicyConfigurationError(
+            "custom policy identity must be a string-keyed mapping"
+        )
+    material = dict(identity)
+    fingerprint = _hash_json(
+        {"schema": "stache.custom-policy-binding/v1", "identity": material}
+    )
+    return fingerprint, {
+        "source": "custom",
+        "fingerprint": fingerprint,
+        "identity": material,
+    }
+
+
+def policy_fingerprint_from_source(source: Mapping[str, object]) -> str:
+    """Recompute and validate the canonical fingerprint of a source descriptor."""
+
+    if not isinstance(source, Mapping) or any(
+        type(key) is not str for key in source
+    ):
+        raise PolicyConfigurationError(
+            "policy source must be a string-keyed mapping"
+        )
+    kind = source.get("source")
+    if kind == "table":
+        required = {
+            "source",
+            "fingerprint",
+            "content_fingerprint",
+            "declared_fingerprint",
+            "action_count",
+            "action_normalization_schema_version",
+            "missing_key_policy",
+        }
+        _require_source_fields(source, required)
+        if source["missing_key_policy"] != "error":
+            raise PolicyConfigurationError(
+                "table policy source has an invalid missing-key policy"
+            )
+        _validate_source_action_contract(source)
+        content = _validated_fingerprint(str(source["content_fingerprint"]))
+        declared_value = source["declared_fingerprint"]
+        if declared_value is not None and not isinstance(declared_value, str):
+            raise PolicyConfigurationError(
+                "table declared_fingerprint must be a string or null"
+            )
+        derived, _ = _bind_table_fingerprint(content, declared_value)
+    elif kind == "model":
+        required = {
+            "source",
+            "fingerprint",
+            "model_fingerprint",
+            "model_manifest",
+            "deterministic",
+            "action_normalization_schema_version",
+        }
+        _require_source_fields(source, required)
+        manifest = source["model_manifest"]
+        if not isinstance(manifest, Mapping):
+            raise PolicyConfigurationError("model_manifest must be a mapping")
+        parsed = model_manifest_from_document(manifest)
+        model_fingerprint = _validated_fingerprint(
+            str(source["model_fingerprint"])
+        )
+        if parsed.model_fingerprint != model_fingerprint:
+            raise PolicyConfigurationError(
+                "model source fingerprint disagrees with its manifest"
+            )
+        if source["deterministic"] is not True:
+            raise PolicyConfigurationError(
+                "model source must declare deterministic prediction"
+            )
+        normalization = source["action_normalization_schema_version"]
+        if normalization != ACTION_NORMALIZATION_SCHEMA_VERSION:
+            raise PolicyConfigurationError(
+                "model source action normalization version is unsupported"
+            )
+        derived = _model_policy_fingerprint(
+            model_fingerprint=model_fingerprint,
+            model_manifest=dict(manifest),
+            deterministic=True,
+            action_normalization_schema_version=normalization,
+        )
+    elif kind == "table_then_model":
+        required = {
+            "source",
+            "fingerprint",
+            "table_fingerprint",
+            "table_content_fingerprint",
+            "declared_table_fingerprint",
+            "model_fingerprint",
+            "model_policy_fingerprint",
+            "model_manifest",
+            "action_count",
+            "action_normalization_schema_version",
+            "missing_key_policy",
+        }
+        _require_source_fields(source, required)
+        if source["missing_key_policy"] != "model_fallback":
+            raise PolicyConfigurationError(
+                "table-then-model source has an invalid missing-key policy"
+            )
+        _validate_source_action_contract(source)
+        table_content = _validated_fingerprint(
+            str(source["table_content_fingerprint"])
+        )
+        declared = source["declared_table_fingerprint"]
+        if declared is not None and not isinstance(declared, str):
+            raise PolicyConfigurationError(
+                "declared_table_fingerprint must be a string or null"
+            )
+        table_fingerprint, _ = _bind_table_fingerprint(table_content, declared)
+        if table_fingerprint != source["table_fingerprint"]:
+            raise PolicyConfigurationError(
+                "table source fingerprint is internally inconsistent"
+            )
+        manifest = source["model_manifest"]
+        if not isinstance(manifest, Mapping):
+            raise PolicyConfigurationError("model_manifest must be a mapping")
+        parsed = model_manifest_from_document(manifest)
+        model_fingerprint = _validated_fingerprint(
+            str(source["model_fingerprint"])
+        )
+        if parsed.model_fingerprint != model_fingerprint:
+            raise PolicyConfigurationError(
+                "model source fingerprint disagrees with its manifest"
+            )
+        model_policy_fingerprint = _model_policy_fingerprint(
+            model_fingerprint=model_fingerprint,
+            model_manifest=dict(manifest),
+            deterministic=True,
+            action_normalization_schema_version=(
+                ACTION_NORMALIZATION_SCHEMA_VERSION
+            ),
+        )
+        if model_policy_fingerprint != source["model_policy_fingerprint"]:
+            raise PolicyConfigurationError(
+                "model policy fingerprint is internally inconsistent"
+            )
+        derived = _hash_json(
+            {
+                "source": "table_then_model",
+                "table_fingerprint": table_fingerprint,
+                "model_policy_fingerprint": model_policy_fingerprint,
+            }
+        )
+    elif kind == "custom":
+        required = {"source", "fingerprint", "identity"}
+        _require_source_fields(source, required)
+        identity = source["identity"]
+        if not isinstance(identity, Mapping):
+            raise PolicyConfigurationError(
+                "custom policy identity must be a mapping"
+            )
+        derived, _ = custom_policy_source(identity)
+    else:
+        raise PolicyConfigurationError(f"unknown policy source kind: {kind!r}")
+
+    declared_fingerprint = source.get("fingerprint")
+    if declared_fingerprint != derived:
+        raise PolicyConfigurationError(
+            "policy source fingerprint is internally inconsistent"
+        )
+    return derived
+
+
+def _require_source_fields(
+    source: Mapping[str, object],
+    required: set[str],
+) -> None:
+    if set(source) != required:
+        raise PolicyConfigurationError(
+            "policy source fields do not match its declared source kind"
+        )
+
+
+def _validate_source_action_contract(source: Mapping[str, object]) -> None:
+    count = source["action_count"]
+    if type(count) is not int or count <= 0:
+        raise PolicyConfigurationError(
+            "policy source action_count must be a positive integer"
+        )
+    if (
+        source["action_normalization_schema_version"]
+        != ACTION_NORMALIZATION_SCHEMA_VERSION
+    ):
+        raise PolicyConfigurationError(
+            "policy source action normalization version is unsupported"
+        )
+
+
 def _encoded_observation(
     connector: object,
     canonical_state: object,
@@ -648,14 +1040,12 @@ def _stable_node(value: object) -> object:
 
 
 def _hash_json(value: object) -> str:
-    payload = json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    ).encode("utf-8")
-    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+    if not isinstance(value, Mapping):
+        raise TypeError("identity material must be a mapping")
+    try:
+        return fingerprint_document(value)
+    except IdentityEncodingError as error:
+        raise PolicyConfigurationError(str(error)) from error
 
 
 def _require_hashable(value: object, *, label: str) -> None:

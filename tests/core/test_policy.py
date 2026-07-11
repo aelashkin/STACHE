@@ -15,29 +15,24 @@ import numpy as np
 import pytest
 
 from stache.explainability import core as public_core
+from stache.explainability.core.connector import (
+    DiscreteActionSpec,
+    ObservationIdentity,
+    ObservationSpec,
+)
 from stache.explainability.core.policy import (
     ActionShapeError,
     ActionValidationError,
     CacheRestoreError,
     ModelActionOracle,
     ModelCompatibilityError,
+    ModelManifest,
     OracleStats,
     TableActionOracle,
     TableThenModelActionOracle,
     UnknownTableKeyError,
     normalize_discrete_action,
 )
-
-
-@dataclass(frozen=True)
-class _ObservationSpec:
-    shape: tuple[int, ...]
-    dtype: str
-
-
-@dataclass(frozen=True)
-class _DiscreteActionSpec:
-    count: int
 
 
 class TinyPolicyConnector:
@@ -54,14 +49,22 @@ class TinyPolicyConnector:
         *,
         observation_shape: tuple[int, ...] = (2,),
         observation_dtype: str = "int64",
+        observation_encoding: str = "tiny-vector",
+        observation_encoding_version: str = "1",
+        observation_scope_fingerprint: str = "sha256:tiny-vector-v1",
         action_count: int = 3,
         encoded_overrides: dict[str, np.ndarray] | None = None,
     ) -> None:
-        self.observation_spec = _ObservationSpec(
+        self.observation_spec = ObservationSpec(
             shape=observation_shape,
             dtype=observation_dtype,
+            identity=ObservationIdentity(
+                encoding=observation_encoding,
+                encoding_version=observation_encoding_version,
+                scope_fingerprint=observation_scope_fingerprint,
+            ),
         )
-        self.action_spec = _DiscreteActionSpec(count=action_count)
+        self.action_spec = DiscreteActionSpec(count=action_count)
         self._encoded_overrides = encoded_overrides or {}
 
     def canonicalize(self, state: str) -> str:
@@ -141,6 +144,23 @@ class DeterministicModel:
         self.calls.append((copied, deterministic))
         key = tuple(int(value) for value in copied.tolist())
         return self._output(self._actions[key]), None
+
+
+def model_manifest(
+    connector: TinyPolicyConnector,
+    *,
+    model_fingerprint: str = "sha256:model-v1",
+    observation_identity: ObservationIdentity | None = None,
+) -> ModelManifest:
+    return ModelManifest(
+        model_fingerprint=model_fingerprint,
+        observation_identity=(
+            connector.observation_spec.identity
+            if observation_identity is None
+            else observation_identity
+        ),
+        action_spec=connector.action_spec,
+    )
 
 
 def test_public_core_exports_raised_contract_errors() -> None:
@@ -322,6 +342,10 @@ def test_derived_table_fingerprint_distinguishes_model_fallback_semantics() -> N
         table,
         DeterministicModel({(0, 0): 0}),
         model_fingerprint="model-v1",
+        model_manifest=model_manifest(
+            connector,
+            model_fingerprint="model-v1",
+        ),
     )
 
     assert strict.fingerprint != hybrid.source_description["table_fingerprint"]
@@ -351,6 +375,10 @@ def test_declared_table_labels_cannot_replace_content_identity() -> None:
         DeterministicModel({(0, 0): 0}),
         table_fingerprint="shared-label",
         model_fingerprint="model-v1",
+        model_manifest=model_manifest(
+            connector,
+            model_fingerprint="model-v1",
+        ),
     )
     changed_hybrid = TableThenModelActionOracle(
         connector,
@@ -358,6 +386,10 @@ def test_declared_table_labels_cannot_replace_content_identity() -> None:
         DeterministicModel({(0, 0): 0}),
         table_fingerprint="shared-label",
         model_fingerprint="model-v1",
+        model_manifest=model_manifest(
+            connector,
+            model_fingerprint="model-v1",
+        ),
     )
 
     assert first.fingerprint != changed.fingerprint
@@ -410,6 +442,7 @@ def test_model_oracle_predicts_deterministically_and_caches_normalized_action() 
         connector,
         model,
         source_fingerprint="model-v1",
+        manifest=model_manifest(connector, model_fingerprint="model-v1"),
     )
 
     assert oracle.action(" LEFT ") == 1
@@ -425,8 +458,85 @@ def test_model_oracle_predicts_deterministically_and_caches_normalized_action() 
         table_hits=0,
         model_queries=1,
     )
-    assert oracle.fingerprint == "model-v1"
+    assert oracle.fingerprint.startswith("sha256:")
+    assert oracle.fingerprint != "model-v1"
     assert oracle.source_description["source"] == "model"
+    assert oracle.source_description["model_fingerprint"] == "model-v1"
+    assert oracle.source_description["model_manifest"]["observation_identity"] == {
+        "encoding": "tiny-vector",
+        "encoding_version": "1",
+        "scope_fingerprint": "sha256:tiny-vector-v1",
+    }
+
+
+def test_model_manifest_rejects_same_shape_but_different_observation_semantics() -> None:
+    connector = TinyPolicyConnector()
+    model = DeterministicModel({(0, 0): 0})
+    incompatible = ObservationIdentity(
+        encoding="tiny-vector-permuted",
+        encoding_version="1",
+        scope_fingerprint="sha256:tiny-vector-permuted-v1",
+    )
+
+    with pytest.raises(ModelCompatibilityError, match="observation identity"):
+        ModelActionOracle(
+            connector,
+            model,
+            source_fingerprint="model-v1",
+            manifest=model_manifest(
+                connector,
+                model_fingerprint="model-v1",
+                observation_identity=incompatible,
+            ),
+        )
+
+    assert model.calls == []
+
+
+def test_model_manifest_rejects_model_content_fingerprint_mismatch() -> None:
+    connector = TinyPolicyConnector()
+    model = DeterministicModel({(0, 0): 0})
+
+    with pytest.raises(ModelCompatibilityError, match="model fingerprint"):
+        ModelActionOracle(
+            connector,
+            model,
+            source_fingerprint="sha256:actual-model",
+            manifest=model_manifest(
+                connector,
+                model_fingerprint="sha256:different-model",
+            ),
+        )
+
+    assert model.calls == []
+
+
+def test_model_policy_identity_changes_when_observation_semantics_change() -> None:
+    first_connector = TinyPolicyConnector()
+    changed_connector = TinyPolicyConnector(
+        observation_encoding="tiny-vector-permuted",
+        observation_scope_fingerprint="sha256:tiny-vector-permuted-v1",
+    )
+    first = ModelActionOracle(
+        first_connector,
+        DeterministicModel({(0, 0): 0}),
+        source_fingerprint="same-model-bytes",
+        manifest=model_manifest(
+            first_connector,
+            model_fingerprint="same-model-bytes",
+        ),
+    )
+    changed = ModelActionOracle(
+        changed_connector,
+        DeterministicModel({(0, 0): 0}),
+        source_fingerprint="same-model-bytes",
+        manifest=model_manifest(
+            changed_connector,
+            model_fingerprint="same-model-bytes",
+        ),
+    )
+
+    assert first.fingerprint != changed.fingerprint
 
 
 @pytest.mark.parametrize(
@@ -453,13 +563,18 @@ def test_model_oracle_rejects_declared_space_mismatches(
     model_kwargs: dict[str, object],
     diagnostic: str,
 ) -> None:
+    connector = TinyPolicyConnector()
     model = DeterministicModel({(0, 0): 0}, **model_kwargs)  # type: ignore[arg-type]
 
     with pytest.raises(ModelCompatibilityError, match=diagnostic):
         ModelActionOracle(
-            TinyPolicyConnector(),
+            connector,
             model,
             source_fingerprint="model-v1",
+            manifest=model_manifest(
+                connector,
+                model_fingerprint="model-v1",
+            ),
         )
 
 
@@ -487,6 +602,7 @@ def test_model_oracle_rejects_connector_encoding_that_violates_its_spec(
         connector,
         DeterministicModel({(0, 0): 0}),
         source_fingerprint="model-v1",
+        manifest=model_manifest(connector, model_fingerprint="model-v1"),
     )
 
     with pytest.raises(ModelCompatibilityError, match=diagnostic):
@@ -512,10 +628,12 @@ def test_model_oracle_rejects_invalid_model_action_output(
     output: Callable[[int], object],
     expected_error: type[Exception],
 ) -> None:
+    connector = TinyPolicyConnector()
     oracle = ModelActionOracle(
-        TinyPolicyConnector(),
+        connector,
         DeterministicModel({(0, 0): 0}, output=output),
         source_fingerprint="model-v1",
+        manifest=model_manifest(connector, model_fingerprint="model-v1"),
     )
 
     with pytest.raises(expected_error):
@@ -531,6 +649,10 @@ def test_table_then_model_uses_table_for_seed_and_model_only_on_missing_key() ->
         model,
         table_fingerprint="table-v1",
         model_fingerprint="model-v1",
+        model_manifest=model_manifest(
+            connector,
+            model_fingerprint="model-v1",
+        ),
     )
 
     # A search queries its seed through the same action() surface as candidates.
@@ -559,14 +681,19 @@ def test_table_then_model_uses_table_for_seed_and_model_only_on_missing_key() ->
 
 
 def test_table_then_model_rejects_malformed_table_instead_of_falling_back() -> None:
+    connector = TinyPolicyConnector()
     model = DeterministicModel({(0, 0): 1})
 
     with pytest.raises(ActionShapeError, match="policy:seed"):
         TableThenModelActionOracle(
-            TinyPolicyConnector(),
+            connector,
             {"policy:seed": np.array([[0]], dtype=np.int64)},
             model,
             model_fingerprint="model-v1",
+            model_manifest=model_manifest(
+                connector,
+                model_fingerprint="model-v1",
+            ),
         )
 
     assert model.calls == []

@@ -22,6 +22,7 @@ from stache.explainability.core.models import (
 )
 from stache.explainability.core.policy import (
     ModelActionOracle,
+    ModelManifest,
     TableActionOracle,
     TableThenModelActionOracle,
 )
@@ -34,6 +35,7 @@ def compute_taxi_rr(
     model: object | None = None,
     policy_table: Mapping[int, object] | None = None,
     model_fingerprint: str | None = None,
+    model_manifest: ModelManifest | None = None,
     table_fingerprint: str | None = None,
     options: SearchOptions | None = None,
     continuation: SearchContinuation | None = None,
@@ -43,8 +45,9 @@ def compute_taxi_rr(
     Exactly one explicit source strategy is selected from the supplied values:
     a strict table, a model, or table-then-model fallback.  A model fingerprint
     is required by the modern API because object identity is not evidence of
-    model contents; callers loading a checkpoint should hash that checkpoint.
-    Table fingerprints are derived deterministically when omitted.
+    model contents; callers loading a checkpoint must hash that checkpoint and
+    supply its independently persisted semantic manifest.  Table fingerprints
+    are derived deterministically when omitted.
     """
 
     connector = TaxiConnector()
@@ -63,11 +66,16 @@ def compute_taxi_rr(
             raise ValueError(
                 "model_fingerprint is required when a model policy source is used"
             )
+        if not isinstance(model_manifest, ModelManifest):
+            raise ValueError(
+                "model_manifest is required when a model policy source is used"
+            )
         if policy_table is None:
             oracle = ModelActionOracle(
                 connector,
                 model,
                 source_fingerprint=model_fingerprint,
+                manifest=model_manifest,
             )
         else:
             oracle = TableThenModelActionOracle(
@@ -76,6 +84,7 @@ def compute_taxi_rr(
                 model,
                 table_fingerprint=table_fingerprint,
                 model_fingerprint=model_fingerprint,
+                model_manifest=model_manifest,
             )
 
     result = compute_rr(
@@ -142,11 +151,18 @@ def compute_rr_taxi(
     )
     _validate_legacy_env(env)
     started = time.perf_counter()
+    legacy_manifest = getattr(model, "stache_model_manifest", None)
+    legacy_fingerprint = (
+        legacy_manifest.model_fingerprint
+        if isinstance(legacy_manifest, ModelManifest)
+        else _legacy_model_fingerprint(model)
+    )
     result = compute_taxi_rr(
         seed_f,
         model=model,
         policy_table=precomputed_sa,
-        model_fingerprint=_legacy_model_fingerprint(model),
+        model_fingerprint=legacy_fingerprint,
+        model_manifest=legacy_manifest,
     )
     elapsed = time.perf_counter() - started
 

@@ -1,0 +1,8 @@
+schema_version: 1
+model_fingerprint: sha256:4baec7c9729cbe7667625c556372c1949a153fa8f2092212152c31028d009220
+observation_identity:
+  encoding: taxi-one-hot-500
+  encoding_version: "1"
+  scope_fingerprint: sha256:b364bc20a7002807bff7febcfc1282e98576caa425bdc12dc8536f6a2dd68527
+action_spec:
+  count: 6
