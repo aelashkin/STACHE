@@ -420,11 +420,21 @@ def _optional_integer(value: object, *, path: str, minimum: int = 0) -> int | No
     return _integer(value, path=path, minimum=minimum)
 
 
-def _number(value: object, *, path: str, optional: bool = False) -> int | float | None:
+def _number(
+    value: object,
+    *,
+    path: str,
+    optional: bool = False,
+    minimum: int | float | None = None,
+) -> int | float | None:
     if value is None and optional:
         return None
     if type(value) not in {int, float} or not math.isfinite(float(value)):
         raise ArtifactSchemaError(f"{path} must be a finite number")
+    if minimum is not None and value < minimum:
+        if minimum == 0:
+            raise ArtifactSchemaError(f"{path} must be a non-negative number")
+        raise ArtifactSchemaError(f"{path} must be a number >= {minimum}")
     return value  # type: ignore[return-value]
 
 
@@ -583,6 +593,7 @@ def _decode_record(value: object, connector: object, *, path: str) -> StateRecor
     formal_distance = _number(
         _required(record, "formal_distance", path=path),
         path=f"{path}.formal_distance",
+        minimum=0,
     )
     discovery_source = _string(
         _required(record, "discovery_source", path=path),
@@ -762,6 +773,7 @@ def _decode_completeness(value: object) -> SearchCompleteness:
             _required(item, "max_scanned_formal_distance", path="result.completeness"),
             path="result.completeness.max_scanned_formal_distance",
             optional=True,
+            minimum=0,
         ),
         remaining_frontier_size=_integer(
             _required(item, "remaining_frontier_size", path="result.completeness"),
@@ -1112,6 +1124,10 @@ def _validate_result_invariants(
             raise ArtifactSchemaError(
                 "unknown counterfactual existence requires a null robustness radius"
             )
+        if best_known_radius is not None:
+            raise ArtifactSchemaError(
+                "unknown counterfactual existence requires a null best-known radius"
+            )
 
     if completeness.region_complete and completeness.boundary_complete:
         _validate_complete_graph_evidence(
@@ -1395,11 +1411,13 @@ def document_to_result(
         _required(result_document, "robustness_radius", path="result"),
         path="result.robustness_radius",
         optional=True,
+        minimum=0,
     )
     best_known_radius = _number(
         _required(result_document, "best_known_radius", path="result"),
         path="result.best_known_radius",
         optional=True,
+        minimum=0,
     )
 
     _validate_result_invariants(

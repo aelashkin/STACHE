@@ -581,6 +581,24 @@ def test_loader_rejects_action_range_completeness_and_result_invariants() -> Non
         document_to_result(invalid_stats, connector)
 
 
+@pytest.mark.parametrize("best_known_radius", [-7, 1])
+def test_unknown_existence_requires_no_best_known_radius(
+    best_known_radius: int,
+) -> None:
+    connector = ArtifactToyConnector()
+    partial = compute_rr(
+        "s",
+        connector,
+        ToyOracle(connector.space.actions, fingerprint="toy-policy-sha256"),
+        SearchOptions(max_expanded=0),
+    )
+    document = result_to_document(partial, connector)
+    document["result"]["best_known_radius"] = best_known_radius
+
+    with pytest.raises(ArtifactSchemaError, match="unknown|non-negative"):
+        document_to_result(document, connector)
+
+
 def test_failed_write_never_publishes_target_or_temporary_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
