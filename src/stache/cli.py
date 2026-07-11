@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping
 from hashlib import sha256
+from io import BytesIO
 from importlib import metadata
 import json
 import os
@@ -23,6 +24,52 @@ class CliUsageError(ValueError):
 
 class CliExecutionError(RuntimeError):
     """An input was valid but its requested computation could not complete."""
+
+
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects duplicate keys at every mapping level."""
+
+
+def _construct_unique_mapping(
+    loader: _UniqueKeySafeLoader,
+    node: yaml.Node,
+    deep: bool = False,
+) -> dict[object, object]:
+    if not isinstance(node, yaml.MappingNode):
+        raise yaml.constructor.ConstructorError(
+            None,
+            None,
+            "expected a mapping node",
+            node.start_mark,
+        )
+    loader.flatten_mapping(node)
+    mapping: dict[object, object] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError as error:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found an unhashable mapping key",
+                key_node.start_mark,
+            ) from error
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"found duplicate key {key!r}",
+                key_node.start_mark,
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
 
 
 _CONFIG_KEYS = {
@@ -178,7 +225,10 @@ def _safe_mapping(
     if not path.is_file():
         raise CliUsageError(f"{label} file does not exist or is not regular: {path}")
     try:
-        value = yaml.safe_load(path.read_text(encoding="utf-8"))
+        value = yaml.load(
+            path.read_text(encoding="utf-8"),
+            Loader=_UniqueKeySafeLoader,
+        )
     except (OSError, UnicodeError, yaml.YAMLError) as error:
         raise CliUsageError(f"cannot safely load {label} {path}: {error}") from error
     if not isinstance(value, Mapping):
@@ -390,17 +440,17 @@ def _load_policy_table(path: Path) -> dict[int, object]:
     return table
 
 
-def _file_fingerprint(path: Path) -> str:
+def _snapshot_model(path: Path) -> tuple[BytesIO, str]:
+    """Read once so the fingerprint and SB3 loader consume identical bytes."""
+
     if not path.is_file():
         raise CliUsageError(f"model file does not exist or is not regular: {path}")
-    digest = sha256()
     try:
-        with path.open("rb") as model_file:
-            for chunk in iter(lambda: model_file.read(1024 * 1024), b""):
-                digest.update(chunk)
+        payload = path.read_bytes()
     except OSError as error:
         raise CliUsageError(f"cannot read model file {path}: {error}") from error
-    return f"sha256:{digest.hexdigest()}"
+    fingerprint = f"sha256:{sha256(payload).hexdigest()}"
+    return BytesIO(payload), fingerprint
 
 
 def _provenance() -> dict[str, object]:
@@ -478,9 +528,9 @@ def _run_compute_rr(config: Mapping[str, Any]) -> int:
         oracle = TableActionOracle(connector, _load_policy_table(policy_table))
     else:
         model_path = config["model"]
-        fingerprint = _file_fingerprint(model_path)
+        model_snapshot, fingerprint = _snapshot_model(model_path)
         try:
-            model = DQN.load(str(model_path), env=None)
+            model = DQN.load(model_snapshot, env=None)
         except Exception as error:
             raise CliExecutionError(
                 f"could not load DQN model {model_path}: {error}"

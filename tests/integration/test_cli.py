@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+from hashlib import sha256
+from io import BytesIO
 from importlib import metadata
 from pathlib import Path
 import shutil
 import subprocess
+from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import yaml
+
+from stache import cli
 
 
 def installed_stache() -> str:
@@ -198,6 +204,66 @@ def test_safe_config_resolves_policy_and_output_relative_to_its_directory(
     assert document["result"]["completeness"]["stop_reason"] == "max_expanded"
 
 
+def test_config_rejects_duplicate_nested_keys_before_writing(
+    tmp_path: Path,
+) -> None:
+    write_constant_taxi_policy(tmp_path / "policy.yaml")
+    config = tmp_path / "compute.yaml"
+    config.write_text(
+        "compute_rr:\n"
+        "  domain: taxi\n"
+        "  state_universe: taxi-factored-500\n"
+        "  seed: 0\n"
+        "  seed: 1\n"
+        "  policy_table: policy.yaml\n"
+        "  max_expanded: 0\n"
+        "  output: result.yaml\n",
+        encoding="utf-8",
+    )
+
+    completed = run_stache("compute-rr", "--config", str(config))
+
+    assert completed.returncode != 0
+    assert "duplicate" in completed.stderr.lower()
+    assert not (tmp_path / "result.yaml").exists()
+
+
+@pytest.mark.parametrize(
+    "serialized",
+    [
+        pytest.param("0: 0\n0: 1\n", id="exact-yaml-key"),
+        pytest.param('0: 0\n"0": 1\n', id="normalized-taxi-key"),
+    ],
+)
+def test_policy_table_rejects_duplicate_keys_before_writing(
+    tmp_path: Path,
+    serialized: str,
+) -> None:
+    policy = tmp_path / "policy.yaml"
+    policy.write_text(serialized, encoding="utf-8")
+    target = tmp_path / "result.yaml"
+
+    completed = run_stache(
+        "compute-rr",
+        "--domain",
+        "taxi",
+        "--state-universe",
+        "taxi-factored-500",
+        "--seed",
+        "0",
+        "--policy-table",
+        str(policy),
+        "--max-expanded",
+        "0",
+        "--output",
+        str(target),
+    )
+
+    assert completed.returncode != 0
+    assert "duplicate" in completed.stderr.lower()
+    assert not target.exists()
+
+
 @pytest.mark.parametrize(
     "option, invalid_value",
     [
@@ -343,3 +409,68 @@ def test_committed_dqn_model_writes_a_fingerprinted_budget_result(
     assert document["policy"]["source"]["fingerprint"] == fingerprint
     assert document["result"]["stats"]["model_queries"] == 1
     assert document["result"]["completeness"]["stop_reason"] == "max_expanded"
+
+
+def test_model_fingerprint_and_load_use_the_same_immutable_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = b"trusted model snapshot"
+    model_path = tmp_path / "model.zip"
+    model_path.write_bytes(original)
+    target = tmp_path / "result.yaml"
+    captured: list[bytes] = []
+
+    class SnapshotModel:
+        observation_space = SimpleNamespace(
+            shape=(500,),
+            dtype=np.dtype("float32"),
+        )
+        action_space = SimpleNamespace(n=6)
+
+        def predict(
+            self,
+            observation: np.ndarray,
+            *,
+            deterministic: bool = False,
+        ) -> tuple[np.ndarray, None]:
+            assert observation.shape == (500,)
+            assert deterministic is True
+            return np.array([0], dtype=np.int64), None
+
+    def load_snapshot(source: object, *, env: object = None) -> SnapshotModel:
+        assert env is None
+        assert isinstance(source, BytesIO)
+        captured.append(source.getvalue())
+        model_path.write_bytes(b"mutated after snapshot")
+        return SnapshotModel()
+
+    from stable_baselines3 import DQN
+
+    monkeypatch.setattr(DQN, "load", staticmethod(load_snapshot))
+    monkeypatch.setattr(cli, "_provenance", lambda: {})
+
+    exit_code = cli._run_compute_rr(
+        {
+            "domain": "taxi",
+            "state_universe": "taxi-factored-500",
+            "seed": 0,
+            "policy_table": None,
+            "model": model_path,
+            "minimum_basis": "graph_boundary",
+            "counterfactuals": "both",
+            "extent": "exact",
+            "max_expanded": 0,
+            "max_policy_queries": None,
+            "max_graph_depth": None,
+            "output": target,
+            "overwrite": False,
+        }
+    )
+
+    assert exit_code == 0
+    assert captured == [original]
+    document = yaml.safe_load(target.read_text(encoding="utf-8"))
+    assert document["policy"]["fingerprint"] == (
+        "sha256:" + sha256(original).hexdigest()
+    )
