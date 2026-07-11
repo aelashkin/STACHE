@@ -17,6 +17,9 @@ from typing import Hashable, Mapping, Protocol, Sequence
 import numpy as np
 
 
+ACTION_NORMALIZATION_SCHEMA_VERSION = 1
+
+
 class PolicyError(Exception):
     """Base class for action-source contract failures."""
 
@@ -267,7 +270,11 @@ class TableActionOracle(_CachedActionOracle):
         action_count = _connector_action_count(connector)
         normalized_table = _validated_table(table, action_count)
         fingerprint = (
-            _table_fingerprint(normalized_table)
+            _table_fingerprint(
+                normalized_table,
+                action_count=action_count,
+                missing_key_policy="error",
+            )
             if source_fingerprint is None
             else _validated_fingerprint(source_fingerprint)
         )
@@ -276,7 +283,15 @@ class TableActionOracle(_CachedActionOracle):
 
     @property
     def source_description(self) -> Mapping[str, object]:
-        return {"source": "table", "fingerprint": self.fingerprint}
+        return {
+            "source": "table",
+            "fingerprint": self.fingerprint,
+            "action_count": self._action_count,
+            "action_normalization_schema_version": (
+                ACTION_NORMALIZATION_SCHEMA_VERSION
+            ),
+            "missing_key_policy": "error",
+        }
 
     def _query_uncached(self, canonical_state: object) -> object:
         lookup_key = _policy_lookup_key(self._connector, canonical_state)
@@ -347,7 +362,11 @@ class TableThenModelActionOracle(_CachedActionOracle):
         action_count = _connector_action_count(connector)
         self._table = _validated_table(table, action_count)
         self._table_fingerprint = (
-            _table_fingerprint(self._table)
+            _table_fingerprint(
+                self._table,
+                action_count=action_count,
+                missing_key_policy="model_fallback",
+            )
             if table_fingerprint is None
             else _validated_fingerprint(table_fingerprint)
         )
@@ -372,6 +391,11 @@ class TableThenModelActionOracle(_CachedActionOracle):
             "fingerprint": self.fingerprint,
             "table_fingerprint": self._table_fingerprint,
             "model_fingerprint": self._model_fingerprint,
+            "action_count": self._action_count,
+            "action_normalization_schema_version": (
+                ACTION_NORMALIZATION_SCHEMA_VERSION
+            ),
+            "missing_key_policy": "model_fallback",
         }
 
     def _query_uncached(self, canonical_state: object) -> object:
@@ -536,7 +560,12 @@ def _validated_fingerprint(value: str) -> str:
     return value
 
 
-def _table_fingerprint(table: Mapping[Hashable, int]) -> str:
+def _table_fingerprint(
+    table: Mapping[Hashable, int],
+    *,
+    action_count: int,
+    missing_key_policy: str,
+) -> str:
     entries = sorted(
         (
             {"key": _stable_node(key), "action": action}
@@ -548,7 +577,17 @@ def _table_fingerprint(table: Mapping[Hashable, int]) -> str:
             separators=(",", ":"),
         ),
     )
-    return _hash_json({"schema": "stache.policy-table-fingerprint/v1", "entries": entries})
+    return _hash_json(
+        {
+            "schema": "stache.policy-table-fingerprint/v1",
+            "action_count": action_count,
+            "action_normalization_schema_version": (
+                ACTION_NORMALIZATION_SCHEMA_VERSION
+            ),
+            "missing_key_policy": missing_key_policy,
+            "entries": entries,
+        }
+    )
 
 
 def _stable_token(value: object) -> str:

@@ -31,11 +31,11 @@ from .core.models import (
     StateRecord,
     StopReason,
 )
+from .core.policy import ACTION_NORMALIZATION_SCHEMA_VERSION
 
 
 ARTIFACT_SCHEMA = "stache.rr-result"
 ARTIFACT_VERSION = 1
-ACTION_NORMALIZATION_SCHEMA_VERSION = 1
 
 
 class ArtifactError(Exception):

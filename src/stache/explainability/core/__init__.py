@@ -11,6 +11,7 @@ from .connector import (
     SearchConnector,
 )
 from .policy import (
+    ACTION_NORMALIZATION_SCHEMA_VERSION,
     ActionCacheRecord,
     ActionOracle,
     ActionShapeError,
@@ -45,6 +46,7 @@ from .models import (
 from .search import compute_rr
 
 __all__ = [
+    "ACTION_NORMALIZATION_SCHEMA_VERSION",
     "ActionCacheRecord",
     "ActionOracle",
     "ActionShapeError",

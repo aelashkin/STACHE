@@ -284,6 +284,46 @@ def test_implicit_table_fingerprint_is_deterministic_across_mapping_order() -> N
     assert first.fingerprint
 
 
+def test_implicit_table_fingerprint_includes_the_action_contract() -> None:
+    table = {"policy:seed": 0}
+    two_actions = TableActionOracle(
+        TinyPolicyConnector(action_count=2),
+        table,
+    )
+    three_actions = TableActionOracle(
+        TinyPolicyConnector(action_count=3),
+        table,
+    )
+
+    assert two_actions.fingerprint != three_actions.fingerprint
+    assert two_actions.source_description["action_count"] == 2
+    assert (
+        two_actions.source_description["action_normalization_schema_version"]
+        == 1
+    )
+    assert two_actions.source_description["missing_key_policy"] == "error"
+
+
+def test_derived_table_fingerprint_distinguishes_model_fallback_semantics() -> None:
+    connector = TinyPolicyConnector()
+    table = {"policy:seed": 0}
+    strict = TableActionOracle(connector, table)
+    hybrid = TableThenModelActionOracle(
+        connector,
+        table,
+        DeterministicModel({(0, 0): 0}),
+        model_fingerprint="model-v1",
+    )
+
+    assert strict.fingerprint != hybrid.source_description["table_fingerprint"]
+    assert hybrid.source_description["missing_key_policy"] == "model_fallback"
+    assert hybrid.source_description["action_count"] == 3
+    assert (
+        hybrid.source_description["action_normalization_schema_version"]
+        == 1
+    )
+
+
 def test_cache_export_restore_avoids_requerying_the_policy_source() -> None:
     connector = TinyPolicyConnector()
     source = TableActionOracle(
