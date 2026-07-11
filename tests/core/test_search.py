@@ -8,6 +8,7 @@ from dataclasses import replace
 import pytest
 
 from stache.explainability.core.connector import ExactActionInvariance
+from stache.explainability.core.policy import TableActionOracle
 from stache.explainability.core.models import (
     ContinuationMismatchError,
     CounterfactualExistence,
@@ -410,6 +411,77 @@ def test_continuation_resume_matches_uninterrupted_scientific_result() -> None:
     assert resumed.stats.policy_queries == uninterrupted.stats.policy_queries
     assert resumed.completeness.stop_reason is StopReason.COMPLETE
     assert resumed.continuation is None
+
+
+def test_changed_table_content_cannot_resume_under_the_same_declared_label() -> None:
+    space = exact_space()
+    connector = ToyConnector(space)
+    first = compute_rr(
+        "s",
+        connector,
+        TableActionOracle(
+            connector,
+            space.actions,
+            source_fingerprint="shared-label",
+        ),
+        exact_options(max_expanded=0),
+    )
+    assert first.continuation is not None
+    changed_actions = {state: 1 for state in space.states}
+
+    with pytest.raises(ContinuationMismatchError, match="fingerprint"):
+        compute_rr(
+            "s",
+            connector,
+            TableActionOracle(
+                connector,
+                changed_actions,
+                source_fingerprint="shared-label",
+            ),
+            exact_options(),
+            continuation=first.continuation,
+        )
+
+
+def test_continuation_supports_valid_custom_hashable_connector_keys() -> None:
+    space = exact_space()
+
+    class ObjectKey:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def __hash__(self) -> int:
+            return hash(self.name)
+
+        def __eq__(self, other: object) -> bool:
+            return isinstance(other, ObjectKey) and self.name == other.name
+
+    class ObjectKeyConnector(ToyConnector):
+        def state_key(self, state: str) -> ObjectKey:
+            return ObjectKey(state)
+
+        def ordering_key(self, key: ObjectKey) -> tuple[str]:
+            return (key.name,)
+
+    connector = ObjectKeyConnector(space)
+    partial = compute_rr(
+        "s",
+        connector,
+        ToyOracle(space.actions),
+        exact_options(max_expanded=0),
+    )
+    assert partial.continuation is not None
+
+    resumed = compute_rr(
+        "s",
+        connector,
+        ToyOracle(space.actions),
+        exact_options(),
+        continuation=partial.continuation,
+    )
+
+    assert resumed.counterfactual_existence is CounterfactualExistence.FOUND
+    assert resumed.completeness.stop_reason is StopReason.COMPLETE
 
 
 @pytest.mark.parametrize("field", ["checkpoint_version", "fingerprint"])

@@ -105,6 +105,9 @@ class ToyConnector:
     def state_key(self, state: str) -> str:
         return state
 
+    def policy_lookup_key(self, state: str) -> str:
+        return state
+
     def ordering_key(self, key: str) -> tuple[str]:
         return (key,)
 

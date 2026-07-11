@@ -269,14 +269,14 @@ class TableActionOracle(_CachedActionOracle):
     ) -> None:
         action_count = _connector_action_count(connector)
         normalized_table = _validated_table(table, action_count)
-        fingerprint = (
-            _table_fingerprint(
-                normalized_table,
-                action_count=action_count,
-                missing_key_policy="error",
-            )
-            if source_fingerprint is None
-            else _validated_fingerprint(source_fingerprint)
+        self._content_fingerprint = _table_fingerprint(
+            normalized_table,
+            action_count=action_count,
+            missing_key_policy="error",
+        )
+        fingerprint, self._declared_fingerprint = _bind_table_fingerprint(
+            self._content_fingerprint,
+            source_fingerprint,
         )
         super().__init__(connector, fingerprint=fingerprint)
         self._table = normalized_table
@@ -286,6 +286,8 @@ class TableActionOracle(_CachedActionOracle):
         return {
             "source": "table",
             "fingerprint": self.fingerprint,
+            "content_fingerprint": self._content_fingerprint,
+            "declared_fingerprint": self._declared_fingerprint,
             "action_count": self._action_count,
             "action_normalization_schema_version": (
                 ACTION_NORMALIZATION_SCHEMA_VERSION
@@ -361,14 +363,17 @@ class TableThenModelActionOracle(_CachedActionOracle):
     ) -> None:
         action_count = _connector_action_count(connector)
         self._table = _validated_table(table, action_count)
-        self._table_fingerprint = (
-            _table_fingerprint(
-                self._table,
-                action_count=action_count,
-                missing_key_policy="model_fallback",
-            )
-            if table_fingerprint is None
-            else _validated_fingerprint(table_fingerprint)
+        self._table_content_fingerprint = _table_fingerprint(
+            self._table,
+            action_count=action_count,
+            missing_key_policy="model_fallback",
+        )
+        (
+            self._table_fingerprint,
+            self._declared_table_fingerprint,
+        ) = _bind_table_fingerprint(
+            self._table_content_fingerprint,
+            table_fingerprint,
         )
         self._model_fingerprint = _validated_fingerprint(model_fingerprint)
         self._model = model
@@ -390,6 +395,8 @@ class TableThenModelActionOracle(_CachedActionOracle):
             "source": "table_then_model",
             "fingerprint": self.fingerprint,
             "table_fingerprint": self._table_fingerprint,
+            "table_content_fingerprint": self._table_content_fingerprint,
+            "declared_table_fingerprint": self._declared_table_fingerprint,
             "model_fingerprint": self._model_fingerprint,
             "action_count": self._action_count,
             "action_normalization_schema_version": (
@@ -587,6 +594,25 @@ def _table_fingerprint(
             "missing_key_policy": missing_key_policy,
             "entries": entries,
         }
+    )
+
+
+def _bind_table_fingerprint(
+    content_fingerprint: str,
+    declared_fingerprint: str | None,
+) -> tuple[str, str | None]:
+    if declared_fingerprint is None:
+        return content_fingerprint, None
+    declared = _validated_fingerprint(declared_fingerprint)
+    return (
+        _hash_json(
+            {
+                "schema": "stache.policy-table-binding/v1",
+                "content_fingerprint": content_fingerprint,
+                "declared_fingerprint": declared,
+            }
+        ),
+        declared,
     )
 
 

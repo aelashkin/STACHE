@@ -14,6 +14,7 @@ from typing import Callable
 import numpy as np
 import pytest
 
+from stache.explainability import core as public_core
 from stache.explainability.core.policy import (
     ActionShapeError,
     ActionValidationError,
@@ -142,6 +143,12 @@ class DeterministicModel:
         return self._output(self._actions[key]), None
 
 
+def test_public_core_exports_raised_contract_errors() -> None:
+    assert public_core.PolicyError is not None
+    assert public_core.PolicyConfigurationError is not None
+    assert public_core.SearchInvariantError is not None
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -234,7 +241,9 @@ def test_table_oracle_uses_policy_key_and_one_cache_for_canonical_states() -> No
         table_hits=1,
         model_queries=0,
     )
-    assert oracle.fingerprint == "table-v1"
+    assert oracle.fingerprint.startswith("sha256:")
+    assert oracle.source_description["declared_fingerprint"] == "table-v1"
+    assert oracle.source_description["content_fingerprint"].startswith("sha256:")
     assert oracle.source_description["source"] == "table"
 
 
@@ -322,6 +331,37 @@ def test_derived_table_fingerprint_distinguishes_model_fallback_semantics() -> N
         hybrid.source_description["action_normalization_schema_version"]
         == 1
     )
+
+
+def test_declared_table_labels_cannot_replace_content_identity() -> None:
+    connector = TinyPolicyConnector()
+    first = TableActionOracle(
+        connector,
+        {"policy:seed": 0},
+        source_fingerprint="shared-label",
+    )
+    changed = TableActionOracle(
+        connector,
+        {"policy:seed": 1},
+        source_fingerprint="shared-label",
+    )
+    first_hybrid = TableThenModelActionOracle(
+        connector,
+        {"policy:seed": 0},
+        DeterministicModel({(0, 0): 0}),
+        table_fingerprint="shared-label",
+        model_fingerprint="model-v1",
+    )
+    changed_hybrid = TableThenModelActionOracle(
+        connector,
+        {"policy:seed": 1},
+        DeterministicModel({(0, 0): 0}),
+        table_fingerprint="shared-label",
+        model_fingerprint="model-v1",
+    )
+
+    assert first.fingerprint != changed.fingerprint
+    assert first_hybrid.fingerprint != changed_hybrid.fingerprint
 
 
 def test_cache_export_restore_avoids_requerying_the_policy_source() -> None:
@@ -508,7 +548,11 @@ def test_table_then_model_uses_table_for_seed_and_model_only_on_missing_key() ->
         model_queries=1,
     )
     assert oracle.source_description["source"] == "table_then_model"
-    assert oracle.source_description["table_fingerprint"] == "table-v1"
+    assert oracle.source_description["table_fingerprint"].startswith("sha256:")
+    assert oracle.source_description["declared_table_fingerprint"] == "table-v1"
+    assert oracle.source_description["table_content_fingerprint"].startswith(
+        "sha256:"
+    )
     assert oracle.source_description["model_fingerprint"] == "model-v1"
     assert isinstance(oracle.fingerprint, str)
     assert oracle.fingerprint

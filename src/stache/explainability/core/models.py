@@ -15,6 +15,7 @@ from .connector import ConnectorIdentity, MetricCertificate
 
 StateT = TypeVar("StateT")
 KeyT = TypeVar("KeyT")
+CORE_SCHEMA_VERSION = 1
 
 
 class InvalidSearchOptions(ValueError):
@@ -192,7 +193,7 @@ class SearchMetadata:
     policy_fingerprint: str
     policy_source: Mapping[str, Any]
     search_fingerprint: str
-    core_schema_version: int = 1
+    core_schema_version: int = CORE_SCHEMA_VERSION
 
 
 @dataclass(frozen=True)

@@ -119,7 +119,10 @@ def _stable(value: Any) -> Any:
         return {"set": entries}
     if isinstance(value, (tuple, list)):
         return [_stable(item) for item in value]
-    return {"type": type(value).__qualname__, "repr": repr(value)}
+    return {
+        "type": f"{type(value).__module__}.{type(value).__qualname__}",
+        "object_identity": id(value),
+    }
 
 
 def _checkpoint_digest(checkpoint: _Checkpoint) -> str:
@@ -134,7 +137,6 @@ def _checkpoint_digest(checkpoint: _Checkpoint) -> str:
 
 def _fingerprint(
     connector: Any,
-    seed_key: Hashable,
     oracle: Any,
     options: SearchOptions,
     invariance: Any,
@@ -143,7 +145,6 @@ def _fingerprint(
         "connector": asdict(connector.identity),
         "metric_certificate": asdict(connector.metric_certificate),
         "action_count": _connector_action_count(connector),
-        "seed_key": _stable(seed_key),
         "policy_fingerprint": str(oracle.fingerprint),
         "options": dict(options.semantic_values()),
         "invariance": getattr(
@@ -436,7 +437,6 @@ def _initialize(
 
     fingerprint = _fingerprint(
         connector,
-        seed_key,
         oracle,
         options,
         predicate,
@@ -495,7 +495,6 @@ def _resume(
     canonical_seed, seed_key = _canonical_state(connector, seed)
     fingerprint = _fingerprint(
         connector,
-        seed_key,
         oracle,
         options,
         predicate,
@@ -993,11 +992,12 @@ def _build_result(
         StopReason.MAX_GRAPH_DEPTH,
     }:
         checkpoint.cache_export = oracle.export_cache()
+        snapshot = copy.deepcopy(checkpoint)
         continuation = SearchContinuation(
             checkpoint_version=CHECKPOINT_VERSION,
             fingerprint=fingerprint,
-            payload_digest=_checkpoint_digest(checkpoint),
-            checkpoint=copy.deepcopy(checkpoint),
+            payload_digest=_checkpoint_digest(snapshot),
+            checkpoint=snapshot,
         )
 
     source = oracle.source_description
