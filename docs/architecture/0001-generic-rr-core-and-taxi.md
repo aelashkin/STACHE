@@ -1,0 +1,175 @@
+# ADR 0001: Generic RR core and Taxi connector boundary
+
+- Status: Accepted for Phase 1
+- Date: 2026-07-11
+- Audit findings: A1, A2, C3, C4, C6, C7, C8, C9, D1, D5, G2, G5, G6, G8, P1, Q1, R1, R2, R4, R6, T1, T2, T4
+
+## Context
+
+STACHE previously had separate robustness-region traversals for MiniGrid and
+Taxi. Those implementations mixed state identity, policy encoding, traversal,
+rendering, and persistence, and their partial results did not carry enough
+information to distinguish observations from certified scientific results.
+
+The normative definitions are the thesis' formal state space and distance,
+Robustness Region, Minimal Counterfactual, Algorithms 1 and 2, and composite
+explanation framework. In particular:
+
+- the RR is the connected same-action component containing the seed;
+- an atomic graph edge represents a declared unit perturbation;
+- the formal robustness radius is a global minimum over the declared state
+  universe, including every tied minimum;
+- Algorithm 2's graph-layer stopping rule establishes a formal-global claim
+  only when the connector truthfully certifies the missing geodesic premise.
+
+The architecture audit leaves MiniGrid's scientific state universe unresolved.
+Changing its object order, observation encoding, or neighbor relation would
+change model inputs and potentially invalidate published artifacts.
+
+## Decision
+
+### One domain-neutral search
+
+`stache.explainability.core` owns the RR/CF search exactly once. It imports no
+Taxi, MiniGrid, Gymnasium, Stable-Baselines3, rendering, YAML, or artifact code.
+Connectors own canonical state identity, validation, stable keys and ordering,
+the declared universe, atomic neighbors, formal distance, and the truth of a
+versioned metric certificate.
+
+The action-oracle boundary normalizes a policy output to one Python `int` in a
+declared discrete action space. Seed and candidate queries use the same cache.
+The supported sources are a strict table, a model, and explicit table-then-model
+fallback. Table fallback therefore applies at the seed too.
+
+### Graph and formal minima are distinct
+
+The result records graph depth and formal distance independently.
+
+| Minimum basis | Meaning | Permitted evidence |
+| --- | --- | --- |
+| `graph_boundary` | Smallest graph-hop depth among policy-changing RR boundary states | Complete BFS layers in the connector's atomic graph |
+| `formal_global` | Smallest formal distance among every policy-changing state in the declared universe | A sufficient geodesic certificate, or connector-provided complete increasing formal-distance layers |
+
+The core never infers a formal-global minimum from a graph boundary when those
+conditions are absent. A formal-global minimum may therefore have no graph
+depth when it lies outside the seed's graph component.
+
+### Extent, budgets, and completeness
+
+`exact` searches the complete connected RR and boundary. `through_minimal_cf`
+finishes the first policy-changing graph layer, including invariant peers, and
+is only valid for a minimal-counterfactual projection. Requested extent is
+separate from the optional total ceilings `max_expanded`,
+`max_policy_queries`, and `max_graph_depth`.
+
+Every result reports completeness independently for:
+
+- the observed robustness region;
+- the policy-changing graph boundary;
+- the certified radius;
+- all tied minima.
+
+Counterfactual existence is `found`, `proven_absent`, or `unknown`. Mathematical
+infinity is represented by `proven_absent` with a null serialized radius, not a
+non-standard JSON infinity. A first counterfactual in a partly evaluated layer
+can certify the radius while leaving tied-minimum completeness false.
+
+Budget stops produce a versioned in-memory continuation with a semantic
+fingerprint, cryptographic payload-integrity digest, ordered frontier, phase and
+layer cursors, resolved actions, action-cache checkpoint, accumulated result,
+and cumulative statistics. Scientific options cannot change on resume;
+resource ceilings may be increased because they are deliberately excluded from
+the semantic fingerprint.
+
+### Taxi is the first connector
+
+Taxi uses the thesis' complete `5 × 5 × 5 × 4 = 500` factored universe. The 100
+states where passenger location equals destination (`P == D`) are mandatory.
+Its formal metric is:
+
+```text
+|row1-row2| + |column1-column2| + [passenger differs] + [destination differs]
+```
+
+Atomic perturbations are row/column ±1 within bounds and categorical passenger
+or destination changes to any other value. Taxi road walls are MDP transition
+constraints and do not restrict this explanation graph. Exhaustive connector
+tests establish symmetry, complete unit-neighbor coverage, connectivity, and
+graph/formal geodesy over all 250,000 ordered state pairs.
+
+The connector owns the 0..499 policy-table key, flat float32 500-way one-hot
+model observation, action metadata, and primitive state/key codec. Rendering is
+an optional consumer outside the core.
+
+### Artifacts and compatibility
+
+New RR result artifacts use an independently versioned schema and connector
+codec. Documents contain only null, booleans, finite numbers, strings, lists,
+and string-keyed mappings. They include connector/universe/metric/codec
+versions, the metric certificate, policy fingerprint/source, options,
+completeness, stop reason, statistics, and supplied Git/dependency provenance.
+Loading verifies schema, connector identity, expected policy fingerprint, and
+lossless state/key round trips.
+
+`compute_rr_taxi` remains as a warning-emitting compatibility shim. Its legacy
+dictionary shape remains available, while scientific computation is delegated
+to the generic core. The corrected table-at-seed behavior is intentional and
+documented because the old mixed source could report a seed action from the
+model while using table actions for candidates. Python-tagged historical YAML
+is not silently treated as the current safe result schema.
+
+## Deliberately deferred MiniGrid decision
+
+This ADR does not register a MiniGrid connector and does not change MiniGrid
+object ordering, observation encoding, neighbor generation, state injection,
+models, or published artifacts. Follow-up work for C1, C2, C4, C5, and the
+MiniGrid portion of C7 must first:
+
+1. choose and document the scientific state universe;
+2. version both historical and proposed observation/artifact codecs;
+3. run shadow action checks on committed models before changing inputs;
+4. independently validate the neighbor graph and metric certificate;
+5. revalidate, rather than regenerate by default, affected research artifacts;
+6. migrate consumers only after compatibility and scientific review.
+
+## Consequences and rollback
+
+Partial results can no longer be mistaken for exact/global results, and Taxi
+model/table policies share one reproducible path. The cost is a stricter public
+contract and explicit schema/version checks that may reject ambiguous legacy
+inputs.
+
+The change is additive except for the Taxi compatibility shim's corrected seed
+source. Rollback is the normal revert of the Phase 1 commits; no models,
+training outputs, or research artifacts are rewritten by this decision.
+
+## External compatibility baseline
+
+Implementation decisions were checked against current authoritative sources
+before coding. The tested environment is Python 3.11.15 with NumPy 1.26.4,
+Gymnasium 1.0.0, Stable-Baselines3 2.4.1, PyTorch 2.2.2, PyYAML 6.0.2,
+matplotlib 3.10.0, and pytest 9.1.1.
+
+- Gymnasium's official Taxi documentation was consulted for the 500-state
+  encoding and six discrete actions. The installed 1.0.0 implementation was
+  used to corroborate the exact index formula; Gymnasium's 404 reachable MDP
+  states are not the thesis explanation universe.
+- Stable-Baselines3 2.4.1 official source was consulted for deterministic
+  `predict`, non-vectorized observation handling, space declarations, and
+  environment-free `DQN.load`.
+- NumPy's official scalar/array documentation was consulted for integer scalar,
+  zero-dimensional, and exact `(1,)` action normalization. Context7 did not
+  expose a 1.26.4-specific corpus, so the installed 1.26.4 behavior is covered
+  directly by contract tests.
+- PyYAML's official safe-loader/dumper documentation was consulted for
+  primitive-only serialization and rejection of Python-specific tags.
+- pytest's official collection-hook documentation was consulted when removing
+  the global collection filter; the installed 9.1.1 collection result is the
+  validation authority.
+- setuptools' official `src`-layout and `project.scripts` documentation was
+  consulted for the installed `stache` entry point and wheel smoke test.
+
+Context7 returned insufficient detail for the exact SB3 and installed-version
+shape contracts, so those points use the official versioned source plus runtime
+tests. No external source overrides the thesis' normative scientific
+definitions.

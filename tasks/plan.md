@@ -19,7 +19,7 @@ evidence. Experimental thesis prose does not override the formal definitions.
 - Gymnasium 1.0.0, Stable-Baselines3 2.4.1, NumPy 1.26.4, PyYAML 6.0.2.
 - Collection: `uv run --python 3.11 --extra test pytest --collect-only -q`
 - Tests: `uv run --python 3.11 --extra test pytest -q`
-- Build: `uv run --python 3.11 --with build --no-project python -m build`
+- Build: `uv build`
 - CLI: `stache compute-rr --config <path>` after wheel/editable installation.
 
 ## Architecture decisions
@@ -49,7 +49,8 @@ evidence. Experimental thesis prose does not override the formal definitions.
 8. New artifacts contain only recursively validated JSON/YAML primitives and have
    independent result, continuation, connector, metric, observation-codec, and
    state-codec versions. Existing Python-tagged Taxi configs are accepted only by a
-   narrow warning-emitting compatibility reader and are normalized to primitives.
+   narrow loader that recognizes the historical tuple tag; new writes are normalized
+   to primitives and the config is never promoted to a current RR result artifact.
 
 ## Work packets
 
@@ -67,7 +68,7 @@ evidence. Experimental thesis prose does not override the formal definitions.
 - Tests are behavioral and independent of legacy RR YAML. Toy graphs use an explicit
   state list, edge set, formal-distance map, and fixed-point/brute-force oracle.
 - Taxi expected neighbors and policy results are derived independently from the
-  formal metric over all 500 states, not from `TaxiConnector.unit_neighbors`.
+  formal metric over all 500 states, not from `TaxiConnector.atomic_neighbors`.
 - Cheap committed-model tests load DQN only; no training or tuning is permitted.
 - Every behavior change follows red → green → refactor, then an atomic commit after a
   green checkpoint. Final gates include collect-only, focused tests, full pytest,
@@ -101,4 +102,3 @@ Taxi variant; batching/caching performance work beyond the required correctness 
 and unrelated entry-point/CI modernization. MiniGrid follow-up must first select a
 state universe, historical observation codec, collision/cardinality rules, formal
 minimum strategy, shadow-model checks, and artifact revalidation plan.
-

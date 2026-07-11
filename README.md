@@ -128,19 +128,39 @@ python -m src.stache.explainability.evaluate \
 
 ## Explaining an agent
 
-Compute and visualise robustness regions **without touching model internals**:
+Compute a versioned Taxi robustness-region result through the installed generic
+core (the seed is Taxi's encoded 0..499 index):
 
 ```bash
-python scripts/run_taxi_rr.sh \
-    --model-path data/experiments/models/Taxi-v3_DQN_model_100 \
-    --state "0,1,2,1"
-# → data/experiments/rr/taxi_robustness_region/…
+stache compute-rr \
+    --domain taxi \
+    --state-universe taxi-factored-500 \
+    --seed 2 \
+    --model data/experiments/models/Taxi-v3_DQN_model_100/model.zip \
+    --minimum-basis formal_global \
+    --counterfactuals both \
+    --extent exact \
+    --output result.yaml
 ```
 
-* **YAML** output lists all RR states, BFS depths, and minimal counter-factuals.
-* **PNG** grids illustrate where the chosen action stays constant and where it flips.
+The YAML artifact contains connector/universe/metric/codec versions, the policy
+fingerprint, options, independent completeness fields, stop reason, statistics,
+and primitive-only state records. `graph_boundary` and `formal_global` are
+different minimum claims; see
+[ADR 0001](docs/architecture/0001-generic-rr-core-and-taxi.md) before comparing
+results.
 
-See `src/stache/explainability/minigrid/minigrid_neighbor_generation.py` for environment-specific neighbour logic.
+To render the full 500-state Taxi view, including `P == D` panels:
+
+```bash
+stache-viz-rr-taxi \
+    --model-path data/experiments/models/Taxi-v3_DQN_model_100 \
+    --state "0,0,0,2"
+```
+
+MiniGrid still uses its historical path in this phase. Its state universe and
+observation-codec decision are deliberately deferred rather than inferred from
+the existing implementation.
 
 ---
 
@@ -149,7 +169,9 @@ See `src/stache/explainability/minigrid/minigrid_neighbor_generation.py` for env
 1. **Install** as above.
 2. Models shown in the paper are already downloaded in `data/experiments/models/`.
 3. Run the corresponding `scripts/run_*` helper—each script sets the exact seeds and configs used in the paper.
-4. Generated artefacts (YAML, PNGs) reproduce Figures and Tables for Minigrid and TaxiV3 of the manuscript.
+4. Historical reproduction helpers and committed artifacts remain available.
+   Phase 1 revalidates the Taxi connector and policy results; it does not claim
+   that MiniGrid artifacts have been revalidated or silently regenerate them.
 
 ---
 
