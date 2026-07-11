@@ -42,7 +42,9 @@ invariance predicate. Seed and candidate queries use the same cache. The
 supported sources are a strict table, a model, and explicit table-then-model
 fallback. Table fallback therefore applies at the seed too. Automatically
 derived table fingerprints bind the entries, action count, action-normalization
-version, and error-versus-model-fallback policy.
+version, and error-versus-model-fallback policy. Caller labels are retained as
+provenance but combined with the content digest; they never replace scientific
+policy identity or permit a changed table to resume an old continuation.
 
 ### Graph and formal minima are distinct
 
@@ -113,9 +115,20 @@ versions, the metric certificate, policy fingerprint/source, options,
 completeness, stop reason, statistics, and supplied Git/dependency provenance.
 Loading verifies schema, connector identity, expected policy fingerprint, and
 lossless state/key round trips. It also recomputes connector-owned formal
-distances, reconciles repeated state records, and validates boundary/minimum and
-tied-completeness claims. CLI configuration and policy-table YAML reject
-duplicate mapping keys recursively.
+distances, reconciles repeated state records, and, for complete graph results,
+re-walks RR closure and BFS depths before accepting radius/minimum claims.
+Current RR artifacts and `stache compute-rr` configuration/policy-table YAML
+reject duplicate mapping keys recursively.
+
+Artifact loading is structural and scientific-evidence validation, not policy
+re-execution or authentication. In particular, the result schema does not carry
+a full action ledger for every state scanned by a non-geodesic `formal_global`
+search. Its all-tied-minima completeness flag is therefore a producer assertion:
+the loader checks it against every serialized counterfactual record but cannot
+detect a disconnected formal tie omitted from the document entirely. Consumers
+of an untrusted artifact must verify the expected policy fingerprint through a
+trusted channel and recompute the policy/search when that global assertion is
+material.
 
 Stable-Baselines3 archives are a trust boundary: loading can deserialize
 cloudpickled Python objects. The CLI reads an archive once and passes the same

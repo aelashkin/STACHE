@@ -64,7 +64,8 @@ STACHE identifies these states by examining the **boundary** of the computed Rob
 
 ## Quick install
 
-First, clone the repository and create a Python virtual environment (version 3.11 or newer is required).
+First, clone the repository and create a Python 3.11 virtual environment (the
+current dependency set is supported on Python 3.11 only).
 
 ```bash
 git clone https://github.com/your-org/stache.git
@@ -147,15 +148,19 @@ Treat `--model` archives as trusted-code inputs. Stable-Baselines3 model loading
 can deserialize cloudpickled Python objects; STACHE's SHA-256 fingerprint records
 the exact snapshotted bytes used for the computation, but it does not authenticate
 the archive or sandbox deserialization. Use model files only from sources you
-trust. Config and policy-table YAML also reject duplicate mapping keys instead
-of applying last-value-wins behavior.
+trust. Current RR artifacts and `stache compute-rr` configuration/policy-table
+YAML also reject duplicate mapping keys instead of applying last-value-wins
+behavior.
 
 The YAML artifact contains connector/universe/metric/codec versions, the policy
 fingerprint, options, independent completeness fields, stop reason, statistics,
 and primitive-only state records. `graph_boundary` and `formal_global` are
 different minimum claims; see
 [ADR 0001](docs/architecture/0001-generic-rr-core-and-taxi.md) before comparing
-results.
+results. Loading revalidates complete graph evidence, but a non-geodesic
+`formal_global` all-ties flag remains a producer assertion unless the policy is
+independently recomputed; an unsigned artifact cannot prove that a disconnected
+formal tie was not omitted.
 
 To render the full 500-state Taxi view, including `P == D` panels:
 
