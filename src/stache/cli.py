@@ -35,6 +35,7 @@ _CONFIG_KEYS = {
     "policy_table",
     "model",
     "model_manifest",
+    "acknowledge_trusted_model",
     "minimum_basis",
     "counterfactuals",
     "extent",
@@ -119,6 +120,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "versioned semantic manifest for --model "
             "(defaults to model.manifest.yaml beside the archive)"
+        ),
+    )
+    compute.add_argument(
+        "--acknowledge-trusted-model",
+        action="store_true",
+        default=None,
+        help=(
+            "confirm that --model came from a trusted source; Stable-Baselines3 "
+            "archives deserialize Python objects, so this flag (or "
+            "acknowledge_trusted_model: true in --config) is required before "
+            "STACHE reads or loads the archive"
         ),
     )
     compute.add_argument(
@@ -256,16 +268,30 @@ def _exact_integer(value: object, *, option: str, minimum: int) -> int | None:
     return value
 
 
+def _exact_string_choice(
+    value: object,
+    *,
+    option: str,
+    choices: tuple[str, ...],
+) -> str:
+    if type(value) is not str or value not in choices:
+        allowed = ", ".join(repr(choice) for choice in choices)
+        raise CliUsageError(f"{option} must be one of: {allowed}")
+    return value
+
+
 def _validated_compute_config(arguments: argparse.Namespace) -> dict[str, Any]:
     config, config_dir = _load_config(arguments.config)
-    domain = _configured(arguments, config, "domain")
-    if domain != "taxi":
-        raise CliUsageError("--domain must be 'taxi' in Phase 1")
-    state_universe = _configured(arguments, config, "state_universe")
-    if state_universe != "taxi-factored-500":
-        raise CliUsageError(
-            "--state-universe must be 'taxi-factored-500' in Phase 1"
-        )
+    domain = _exact_string_choice(
+        _configured(arguments, config, "domain"),
+        option="--domain",
+        choices=("taxi",),
+    )
+    state_universe = _exact_string_choice(
+        _configured(arguments, config, "state_universe"),
+        option="--state-universe",
+        choices=("taxi-factored-500",),
+    )
 
     seed = _exact_integer(
         _configured(arguments, config, "seed"),
@@ -297,6 +323,31 @@ def _validated_compute_config(arguments: argparse.Namespace) -> dict[str, Any]:
             "--model-manifest may only be used with --model"
         )
 
+    if cli_source_supplied:
+        acknowledge_trusted_model = arguments.acknowledge_trusted_model
+        if acknowledge_trusted_model is None:
+            acknowledge_trusted_model = False
+    else:
+        acknowledge_trusted_model = _configured(
+            arguments,
+            config,
+            "acknowledge_trusted_model",
+            default=False,
+        )
+    if type(acknowledge_trusted_model) is not bool:
+        raise CliUsageError(
+            "acknowledge_trusted_model must be a boolean in --config"
+        )
+    if model_value is None and acknowledge_trusted_model:
+        raise CliUsageError(
+            "--acknowledge-trusted-model may only be used with --model"
+        )
+    if model_value is not None and not acknowledge_trusted_model:
+        raise CliUsageError(
+            "--model requires --acknowledge-trusted-model to confirm that the "
+            "archive came from a trusted source"
+        )
+
     model_path = (
         None
         if model_value is None
@@ -319,29 +370,31 @@ def _validated_compute_config(arguments: argparse.Namespace) -> dict[str, Any]:
             config_dir=source_config_dir,
         )
 
-    minimum_basis = _configured(
-        arguments,
-        config,
-        "minimum_basis",
-        default="graph_boundary",
+    minimum_basis = _exact_string_choice(
+        _configured(
+            arguments,
+            config,
+            "minimum_basis",
+            default="graph_boundary",
+        ),
+        option="--minimum-basis",
+        choices=("graph_boundary", "formal_global"),
     )
-    if minimum_basis not in {"graph_boundary", "formal_global"}:
-        raise CliUsageError(
-            "--minimum-basis must be 'graph_boundary' or 'formal_global'"
-        )
-    counterfactuals = _configured(
-        arguments,
-        config,
-        "counterfactuals",
-        default="both",
+    counterfactuals = _exact_string_choice(
+        _configured(
+            arguments,
+            config,
+            "counterfactuals",
+            default="both",
+        ),
+        option="--counterfactuals",
+        choices=("minimal", "boundary", "both"),
     )
-    if counterfactuals not in {"minimal", "boundary", "both"}:
-        raise CliUsageError(
-            "--counterfactuals must be 'minimal', 'boundary', or 'both'"
-        )
-    extent = _configured(arguments, config, "extent", default="exact")
-    if extent not in {"exact", "through_minimal_cf"}:
-        raise CliUsageError("--extent must be 'exact' or 'through_minimal_cf'")
+    extent = _exact_string_choice(
+        _configured(arguments, config, "extent", default="exact"),
+        option="--extent",
+        choices=("exact", "through_minimal_cf"),
+    )
     if extent == "through_minimal_cf" and counterfactuals != "minimal":
         raise CliUsageError(
             "--extent through_minimal_cf requires --counterfactuals minimal"
@@ -378,6 +431,7 @@ def _validated_compute_config(arguments: argparse.Namespace) -> dict[str, Any]:
         ),
         "model": model_path,
         "model_manifest": model_manifest_path,
+        "acknowledge_trusted_model": acknowledge_trusted_model,
         "minimum_basis": minimum_basis,
         "counterfactuals": counterfactuals,
         "extent": extent,
@@ -488,7 +542,13 @@ def _provenance() -> dict[str, object]:
 
 
 def _run_compute_rr(config: Mapping[str, Any]) -> int:
-    from stable_baselines3 import DQN
+    if config["policy_table"] is None and config.get(
+        "acknowledge_trusted_model"
+    ) is not True:
+        raise CliUsageError(
+            "--model requires --acknowledge-trusted-model to confirm that the "
+            "archive came from a trusted source"
+        )
 
     from stache.explainability.artifacts import ArtifactError, save_result
     from stache.explainability.connectors import TaxiConnector
@@ -522,6 +582,8 @@ def _run_compute_rr(config: Mapping[str, Any]) -> int:
             manifest = load_model_manifest(config["model_manifest"])
         except ModelManifestError as error:
             raise CliUsageError(str(error)) from error
+        from stable_baselines3 import DQN
+
         try:
             model = DQN.load(model_snapshot, env=None)
         except Exception as error:

@@ -6,8 +6,8 @@ from hashlib import sha256
 from io import BytesIO
 from importlib import metadata
 from pathlib import Path
-import shutil
 import subprocess
+import sysconfig
 from types import SimpleNamespace
 
 import numpy as np
@@ -23,15 +23,20 @@ from stache.explainability.core.policy import (
 
 
 def installed_stache() -> str:
+    distribution = metadata.distribution("stache")
     entry_points = [
         entry_point
-        for entry_point in metadata.entry_points(group="console_scripts")
-        if entry_point.name == "stache"
+        for entry_point in distribution.entry_points
+        if entry_point.group == "console_scripts" and entry_point.name == "stache"
     ]
     assert len(entry_points) == 1, "the wheel must install exactly one `stache` command"
-    executable = shutil.which("stache")
-    assert executable is not None, "the installed `stache` executable is not on PATH"
-    return executable
+    assert entry_points[0].value == "stache.cli:main"
+    suffix = ".exe" if sysconfig.get_platform().startswith("win") else ""
+    executable = Path(sysconfig.get_path("scripts")) / f"stache{suffix}"
+    assert executable.is_file(), (
+        "the exact `stache` script for the active Python environment is not installed"
+    )
+    return str(executable)
 
 
 def run_stache(*arguments: str) -> subprocess.CompletedProcess[str]:
@@ -42,6 +47,25 @@ def run_stache(*arguments: str) -> subprocess.CompletedProcess[str]:
         text=True,
         timeout=20,
     )
+
+
+def test_installed_stache_ignores_path_decoys(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    decoy = tmp_path / "stache"
+    decoy.write_text("", encoding="utf-8")
+    decoy.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    executable = Path(installed_stache())
+    completed = run_stache("--help")
+
+    assert executable.resolve() != decoy.resolve()
+    assert executable.parent.resolve() == Path(
+        sysconfig.get_path("scripts")
+    ).resolve()
+    assert completed.returncode == 0, completed.stderr
 
 
 def write_constant_taxi_policy(path: Path, *, action: int = 0) -> Path:
@@ -97,6 +121,7 @@ def test_installed_compute_rr_help_exposes_scientific_and_budget_options() -> No
         "--seed",
         "--policy-table",
         "--model",
+        "--acknowledge-trusted-model",
         "--minimum-basis",
         "--counterfactuals",
         "--extent",
@@ -108,6 +133,10 @@ def test_installed_compute_rr_help_exposes_scientific_and_budget_options() -> No
         "--overwrite",
     ):
         assert option in completed.stdout
+    assert "trusted" in completed.stdout.lower()
+    assert "deserialize" in completed.stdout.lower()
+    assert "acknowledge_trusted_model" in completed.stdout
+    assert "required" in completed.stdout.lower()
 
 
 def complete_arguments(tmp_path: Path) -> list[str]:
@@ -294,6 +323,61 @@ def test_invalid_option_values_fail_without_writing_artifacts(
     assert not (tmp_path / "result.yaml").exists()
 
 
+@pytest.mark.parametrize(
+    "key, invalid_value, option",
+    [
+        pytest.param("domain", ["taxi"], "--domain", id="domain-list"),
+        pytest.param(
+            "state_universe",
+            {"name": "taxi-factored-500"},
+            "--state-universe",
+            id="state-universe-mapping",
+        ),
+        pytest.param(
+            "minimum_basis",
+            ["graph_boundary"],
+            "--minimum-basis",
+            id="minimum-basis-list",
+        ),
+        pytest.param(
+            "counterfactuals",
+            {"selection": "both"},
+            "--counterfactuals",
+            id="counterfactuals-mapping",
+        ),
+        pytest.param("extent", True, "--extent", id="extent-boolean"),
+    ],
+)
+def test_config_choice_values_must_be_exact_strings_without_traceback(
+    tmp_path: Path,
+    key: str,
+    invalid_value: object,
+    option: str,
+) -> None:
+    policy = write_constant_taxi_policy(tmp_path / "policy.yaml")
+    config_document: dict[str, object] = {
+        "domain": "taxi",
+        "state_universe": "taxi-factored-500",
+        "seed": 0,
+        "policy_table": str(policy),
+        "minimum_basis": "graph_boundary",
+        "counterfactuals": "both",
+        "extent": "exact",
+        "max_expanded": 0,
+        "output": str(tmp_path / "result.yaml"),
+    }
+    config_document[key] = invalid_value
+    config = tmp_path / "compute.yaml"
+    config.write_text(yaml.safe_dump(config_document), encoding="utf-8")
+
+    completed = run_stache("compute-rr", "--config", str(config))
+
+    assert completed.returncode != 0
+    assert option in completed.stderr
+    assert "traceback" not in completed.stderr.lower()
+    assert not (tmp_path / "result.yaml").exists()
+
+
 def test_policy_table_and_model_are_mutually_exclusive(tmp_path: Path) -> None:
     arguments = complete_arguments(tmp_path)
     arguments.extend(["--model", str(tmp_path / "model.zip")])
@@ -302,6 +386,142 @@ def test_policy_table_and_model_are_mutually_exclusive(tmp_path: Path) -> None:
 
     assert completed.returncode != 0
     assert "--policy-table" in completed.stderr
+    assert "--model" in completed.stderr
+    assert not (tmp_path / "result.yaml").exists()
+
+
+def test_model_requires_explicit_trusted_source_acknowledgement_before_read(
+    tmp_path: Path,
+) -> None:
+    missing_model = tmp_path / "not-read.zip"
+    target = tmp_path / "result.yaml"
+
+    completed = run_stache(
+        "compute-rr",
+        "--domain",
+        "taxi",
+        "--state-universe",
+        "taxi-factored-500",
+        "--seed",
+        "0",
+        "--model",
+        str(missing_model),
+        "--max-expanded",
+        "0",
+        "--output",
+        str(target),
+    )
+
+    assert completed.returncode != 0
+    assert "--acknowledge-trusted-model" in completed.stderr
+    assert "trusted source" in completed.stderr.lower()
+    assert "does not exist" not in completed.stderr.lower()
+    assert "traceback" not in completed.stderr.lower()
+    assert not target.exists()
+
+
+def test_cli_model_override_does_not_inherit_config_model_acknowledgement(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "compute.yaml"
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "domain": "taxi",
+                "state_universe": "taxi-factored-500",
+                "seed": 0,
+                "model": "configured-model.zip",
+                "acknowledge_trusted_model": True,
+                "max_expanded": 0,
+                "output": "result.yaml",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    completed = run_stache(
+        "compute-rr",
+        "--config",
+        str(config),
+        "--model",
+        str(tmp_path / "replacement-model.zip"),
+    )
+
+    assert completed.returncode != 0
+    assert "--acknowledge-trusted-model" in completed.stderr
+    assert "does not exist" not in completed.stderr.lower()
+    assert "traceback" not in completed.stderr.lower()
+    assert not (tmp_path / "result.yaml").exists()
+
+
+@pytest.mark.parametrize("acknowledgement", [[True], "yes", 1])
+def test_config_trusted_model_acknowledgement_requires_a_boolean(
+    tmp_path: Path,
+    acknowledgement: object,
+) -> None:
+    config = tmp_path / "compute.yaml"
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "domain": "taxi",
+                "state_universe": "taxi-factored-500",
+                "seed": 0,
+                "model": "not-read.zip",
+                "acknowledge_trusted_model": acknowledgement,
+                "max_expanded": 0,
+                "output": "result.yaml",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    completed = run_stache("compute-rr", "--config", str(config))
+
+    assert completed.returncode != 0
+    assert "acknowledge_trusted_model" in completed.stderr
+    assert "boolean" in completed.stderr.lower()
+    assert "traceback" not in completed.stderr.lower()
+    assert not (tmp_path / "result.yaml").exists()
+
+
+def test_config_accepts_true_trusted_model_acknowledgement(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "compute.yaml"
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "domain": "taxi",
+                "state_universe": "taxi-factored-500",
+                "seed": 0,
+                "model": "missing-after-acknowledgement.zip",
+                "acknowledge_trusted_model": True,
+                "max_expanded": 0,
+                "output": "result.yaml",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    completed = run_stache("compute-rr", "--config", str(config))
+
+    assert completed.returncode != 0
+    assert "does not exist" in completed.stderr.lower()
+    assert "--acknowledge-trusted-model" not in completed.stderr
+    assert "traceback" not in completed.stderr.lower()
+    assert not (tmp_path / "result.yaml").exists()
+
+
+def test_trusted_model_acknowledgement_is_rejected_for_policy_tables(
+    tmp_path: Path,
+) -> None:
+    arguments = complete_arguments(tmp_path)
+    arguments.append("--acknowledge-trusted-model")
+
+    completed = run_stache(*arguments)
+
+    assert completed.returncode != 0
+    assert "--acknowledge-trusted-model" in completed.stderr
     assert "--model" in completed.stderr
     assert not (tmp_path / "result.yaml").exists()
 
@@ -317,7 +537,7 @@ def test_complete_constant_policy_writes_safe_current_schema_artifact(
     document = yaml.safe_load(serialized)
     assert "!!python" not in serialized
     assert document["schema"] == "stache.rr-result"
-    assert document["schema_version"] == 1
+    assert document["schema_version"] == 2
     assert document["connector"]["state_universe"] == "taxi-factored-500"
     assert len(document["result"]["region"]) == 500
     assert document["result"]["completeness"]["region_complete"] is True
@@ -394,6 +614,7 @@ def test_committed_dqn_model_writes_a_fingerprinted_budget_result(
         "0",
         "--model",
         str(model),
+        "--acknowledge-trusted-model",
         "--minimum-basis",
         "graph_boundary",
         "--counterfactuals",
@@ -479,6 +700,7 @@ def test_model_fingerprint_and_load_use_the_same_immutable_snapshot(
             "policy_table": None,
             "model": model_path,
             "model_manifest": manifest_path,
+            "acknowledge_trusted_model": True,
             "minimum_basis": "graph_boundary",
             "counterfactuals": "both",
             "extent": "exact",
