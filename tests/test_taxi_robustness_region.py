@@ -3,22 +3,49 @@ import numpy as np
 import gymnasium as gym
 from stable_baselines3 import DQN
 
-from explainability.robust_taxi import (
+from stache.explainability.taxi.robust_taxi import (
     translate_tuple_to_onehot,
     get_neighbors_taxi,
     compute_rr_taxi,
 )
+from stache.explainability.connectors.taxi import TaxiConnector
+from stache.explainability.core.policy import ModelManifest
+
+
+def _attach_manifest(model, fingerprint):
+    connector = TaxiConnector()
+    model.stache_model_manifest = ModelManifest(
+        model_fingerprint=fingerprint,
+        observation_identity=connector.observation_spec.identity,
+        action_spec=connector.action_spec,
+    )
+    return model
 
 class DummyModelAlwaysZero:
     """Mock model that always predicts action 0"""
+    observation_space = gym.spaces.Box(
+        low=0.0,
+        high=1.0,
+        shape=(500,),
+        dtype=np.float32,
+    )
+    action_space = gym.spaces.Discrete(6)
+
     def predict(self, obs, deterministic=True):
-        # obs shape (1,500)
         return 0, None
 
 class DummyModelIncremental:
     """Mock model that predicts action equal to sum of one-hot index mod 6"""
+    observation_space = gym.spaces.Box(
+        low=0.0,
+        high=1.0,
+        shape=(500,),
+        dtype=np.float32,
+    )
+    action_space = gym.spaces.Discrete(6)
+
     def predict(self, obs, deterministic=True):
-        vec = obs[0]
+        vec = np.asarray(obs).reshape(-1)
         idx = int(np.argmax(vec))
         return idx % 6, None
 
@@ -62,7 +89,7 @@ def test_translate_tuple_to_onehot_and_roundtrip():
 
 def test_compute_rr_taxi_full_coverage_for_constant_model():
     env = gym.make('Taxi-v3')
-    model = DummyModelAlwaysZero()
+    model = _attach_manifest(DummyModelAlwaysZero(), "legacy-zero-v1")
     seed = (0, 0, 4, 0)
     result = compute_rr_taxi(seed, model, env)
     rr_set = result['rr_tuple_set']
@@ -81,7 +108,7 @@ def test_compute_rr_taxi_full_coverage_for_constant_model():
 def test_compute_rr_taxi_varying_model_limits_region():
     env = gym.make('Taxi-v3')
     # dummy model that yields different actions => only seed remains
-    model = DummyModelIncremental()
+    model = _attach_manifest(DummyModelIncremental(), "legacy-incremental-v1")
     seed = (0, 0, 4, 0)
     # precomputed_sa mapping to force only seed matches
     # map seed state index to action seed_action, others to other action

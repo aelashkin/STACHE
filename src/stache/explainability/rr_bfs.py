@@ -21,6 +21,7 @@ This file uses Gymnasium 1.0.0 and assumes a Stable Baselines 3 model (or any ot
 agent that follows the Gymnasium API).
 """
 
+import argparse
 import os
 import copy
 import time
@@ -31,6 +32,21 @@ from PIL import Image
 
 import yaml
 import gymnasium as gym
+
+
+def _parse_entrypoint_args(
+    argv: list[str] | None = None,
+) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run the historical MiniGrid robustness-region workflow"
+    )
+    parser.add_argument(
+        "--acknowledge-trusted-model",
+        action="store_true",
+        required=True,
+        help="Confirm that the configured model archive came from a trusted source",
+    )
+    return parser.parse_args(argv)
 
 
 from stache.utils.experiment_io import load_experiment
@@ -273,11 +289,18 @@ def bfs_rr(
 # === Example Usage ===
 if __name__ == '__main__':
 
+    entrypoint_args = _parse_entrypoint_args()
+
     # Currently hardcoded at the top of the file
     # Hardcode the model path (folder) to load the saved model.
     # model_path = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_031749"
 
-    model, config_data = load_experiment(model_path)
+    model, config_data = load_experiment(
+        model_path,
+        acknowledge_trusted_model=(
+            entrypoint_args.acknowledge_trusted_model
+        ),
+    )
     env_config = config_data["env_config"]  # Extract the environment configuration
 
     # Set render_mode to human for an on-screen render (optional).

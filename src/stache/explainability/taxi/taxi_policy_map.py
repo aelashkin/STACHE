@@ -1,195 +1,218 @@
 #!/usr/bin/env python3
-"""Taxi‑v3 SB3‑policy visualizer
+"""Render a Taxi policy over the thesis-compatible 500-state universe.
 
-This script
-1. loads a deterministic Stable‑Baselines3 model trained on *Taxi‑v3* with a
-   one‑hot observation wrapper;
-2. queries the policy for **every one of the 404 discrete states** in the
-   environment;
-3. stores the resulting state‑→action mapping as a **YAML** file in the
-   experiment folder structure requested by the user; and
-4. builds colour‑blind‑friendly **PNG** visualisations that show, for each
-   destination, the action the policy would take from every taxi position in
-   (a) the three possible "passenger waiting" configurations and (b) the
-   corresponding "passenger in taxi" configuration.
-
-Usage (from the command line) ───────────────────────────────────────────────
-
-    python taxi_policy_visualization.py \
-        --model-path data/models/taxi_dqn \
-        [--timestamp 20250423_153045]  # optional; generated if omitted
-
-The outputs are written to
-
-    data/experiments/rr/policy_map/<model_name>/<timestamp>/
-
-Dependencies
-------------
-* gymnasium >= 1.0.0
-* stable‑baselines3 >= 2.0.0
-* pyyaml
-* matplotlib
-
-The script is fully self‑contained and PEP 8 compliant.
+The policy map queries every factored state declared by :class:`TaxiConnector`
+and renders all 20 passenger/destination configurations, including ``P == D``.
+The connector owns state indexing, one-hot observations, and action metadata;
+this module contains only model loading, primitive YAML output, and rendering.
 """
+
 from __future__ import annotations
 
 import argparse
-import datetime as _dt
-import os
-import sys
+from collections.abc import Iterable, Mapping
+import datetime as dt
 from pathlib import Path
-from typing import Dict, Tuple
+import re
+import warnings
 
-import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from matplotlib.colors import ListedColormap
-from stable_baselines3 import DQN
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Constants & colour palette (colour‑blind friendly)
-# ──────────────────────────────────────────────────────────────────────────────
+from stache.explainability.connectors.taxi import TaxiConnector
+from stache.explainability.core.policy import (
+    ModelActionOracle,
+    ModelManifest,
+    normalize_discrete_action,
+)
+from stache.explainability.taxi.model_loading import load_trusted_taxi_model
 
+
+_ACTION_METADATA = TaxiConnector().action_metadata
 ACTION_NAMES = {
-    0: "South",
-    1: "North",
-    2: "East",
-    3: "West",
-    4: "Pickup",
-    5: "Dropoff",
+    int(item["action"]): str(item["label"]).title()
+    for item in _ACTION_METADATA
 }
 
 CB_PALETTE = [
     "#0072B2",  # blue
     "#D55E00",  # vermillion
-    "#009E73",  # bluish‑green
-    "#CC79A7",  # reddish‑purple
+    "#009E73",  # bluish-green
+    "#CC79A7",  # reddish-purple
     "#F0E442",  # yellow
     "#56B4E9",  # sky blue
 ]
 
 _COLORMAP = ListedColormap(CB_PALETTE, name="taxi_actions")
 
-# Map locations as (row, col)
+# Rendering-only map locations as (row, column).
 PICKUP_LOCS = {
     0: (0, 0),  # R
     1: (0, 4),  # G
     2: (4, 0),  # Y
     3: (4, 3),  # B
-}   
-
-# Character representation for labelling
+}
 LOC_CHARS = {0: "R", 1: "G", 2: "Y", 3: "B"}
+_DESTINATION_DISPLAY_ORDER = (3, 1, 0, 2)  # B, G, R, Y
+_TIMESTAMP_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 
-# ──────────────────────────────────────────────────────────────────────────────
-# One‑hot observation wrapper (unchanged from training)
-# ──────────────────────────────────────────────────────────────────────────────
 
-class OneHotObs(gym.ObservationWrapper):
-    """Convert Discrete(N) observation to one‑hot float32 vector length N."""
-
-    def __init__(self, env: gym.Env):
-        super().__init__(env)
-        assert isinstance(
-            env.observation_space, gym.spaces.Discrete
-        ), "OneHotObs only supports Discrete spaces"
-        n = env.observation_space.n
-        self.observation_space = gym.spaces.Box(
-            low=0.0, high=1.0, shape=(n,), dtype=np.float32
+def _validated_output_timestamp(timestamp: str | None) -> str:
+    if timestamp is None:
+        return dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    if (
+        type(timestamp) is not str
+        or timestamp in {".", ".."}
+        or _TIMESTAMP_COMPONENT.fullmatch(timestamp) is None
+    ):
+        raise ValueError(
+            "timestamp must be one safe relative filename component"
         )
+    return timestamp
 
-    def observation(self, obs: int) -> np.ndarray:  # type: ignore[override]
-        vec = np.zeros(self.observation_space.shape, dtype=np.float32)
-        vec[obs] = 1.0
-        return vec
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Core functionality
-# ──────────────────────────────────────────────────────────────────────────────
+def _policy_map_panel_pairs(
+    destination_order: Iterable[int] = _DESTINATION_DISPLAY_ORDER,
+) -> tuple[tuple[int, int], ...]:
+    """Return all 20 ``(passenger, destination)`` rendering panels."""
 
-def collect_state_actions(model: DQN, env: gym.Env, base_env: gym.Env) -> Dict[int, int]:
-    """Query *model* once for **every** discrete state in *base_env*.
+    return tuple(
+        (passenger, destination)
+        for destination in destination_order
+        for passenger in range(5)
+    )
 
-    Parameters
-    ----------
-    model : DQN
-        The trained SB3 model.
-    env : gym.Env
-        The *wrapped* environment (e.g., OneHotObs) compatible with the model.
-    base_env : gym.Env
-        The *unwrapped* base environment (e.g., Taxi-v3) to get state count.
 
-    Returns
-    -------
-    mapping : dict[int, int]
-        Dictionary ``{state_id: chosen_action}``.
+def collect_state_actions(
+    model: object,
+    env: object | None = None,
+    base_env: object | None = None,
+    *,
+    connector: TaxiConnector | None = None,
+    model_fingerprint: str | None = None,
+    model_manifest: ModelManifest | None = None,
+) -> dict[int, int]:
+    """Query ``model`` exactly once for each of the 500 declared Taxi states.
+
+    The historical ``env`` and ``base_env`` positional arguments are accepted
+    with a deprecation warning but no longer provide encoding or enumeration.
     """
-    mapping: Dict[int, int] = {}
-    num_states = base_env.observation_space.n # Use base_env here
-    # Ensure the wrapped env's space matches the base env's discrete count
-    assert isinstance(env.observation_space, gym.spaces.Box) and \
-           env.observation_space.shape == (num_states,)
 
-    for state in range(num_states):
-        # Create the one-hot observation expected by the model
-        obs = np.zeros((1,) + env.observation_space.shape, dtype=np.float32)
-        obs[0, state] = 1.0
-        action, _ = model.predict(obs, deterministic=True)
-        mapping[state] = int(action[0])
+    connector = connector or TaxiConnector()
+    if env is not None or base_env is not None:
+        warnings.warn(
+            "collect_state_actions env/base_env arguments are deprecated; "
+            "TaxiConnector now owns enumeration and observation encoding",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        _validate_legacy_policy_envs(env, base_env)
+    if not isinstance(model_manifest, ModelManifest):
+        model_manifest = getattr(model, "stache_model_manifest", None)
+    if not isinstance(model_manifest, ModelManifest):
+        raise ValueError("model_manifest is required for policy-map collection")
+    if model_fingerprint is None:
+        model_fingerprint = model_manifest.model_fingerprint
+    if not isinstance(model_fingerprint, str) or not model_fingerprint.strip():
+        raise ValueError("model_fingerprint is required for policy-map collection")
+    oracle = ModelActionOracle(
+        connector,
+        model,
+        source_fingerprint=model_fingerprint,
+        manifest=model_manifest,
+    )
+    mapping: dict[int, int] = {}
+    for state in connector.declared_states():
+        lookup_key = connector.policy_lookup_key(state)
+        if lookup_key in mapping:
+            raise RuntimeError(
+                f"TaxiConnector produced duplicate policy key {lookup_key}"
+            )
+        mapping[lookup_key] = oracle.action(state)
+
+    if set(mapping) != set(range(500)):
+        raise RuntimeError("Taxi policy map must cover exactly keys 0..499")
     return mapping
 
 
-def save_mapping_yaml(mapping: Dict[int, int], filepath: Path) -> None:
-    """Save the state‑action mapping as YAML."""
-    with filepath.open("w", encoding="utf‑8") as f:
-        yaml.safe_dump(mapping, f, sort_keys=True)
+def save_mapping_yaml(mapping: Mapping[int, object], filepath: Path) -> None:
+    """Save a complete primitive-only 500-state policy mapping as safe YAML."""
+
+    normalized = _validated_mapping(mapping)
+    with filepath.open("w", encoding="utf-8") as stream:
+        yaml.safe_dump(normalized, stream, sort_keys=True)
 
 
 def build_action_grid(
-    taxi_env: gym.Env, mapping: Dict[int, int], passenger_loc: int, dest_idx: int
+    mapping: Mapping[int, object] | object,
+    passenger_loc: int | Mapping[int, object],
+    dest_idx: int,
+    legacy_dest_idx: int | None = None,
+    *,
+    connector: TaxiConnector | None = None,
 ) -> np.ndarray:
-    """Create a 5×5 grid where each cell holds the policy action (0‑5).
+    """Build one 5x5 action grid, accepting the deprecated env-first call."""
 
-    Parameters
-    ----------
-    taxi_env : gym.Env
-        *Unwrapped* Taxi‑v3 environment (for encode())
-    mapping : dict[int, int]
-        State‑action lookup produced by :pyfunc:`collect_state_actions`.
-    passenger_loc : int
-        Passenger location index (0‑3 for waiting, 4 for in‑taxi).
-    dest_idx : int
-        Destination index (0‑3).
-
-    Returns
-    -------
-    grid : ndarray shape (5, 5)
-        ``grid[row, col]`` → action id (int) for that taxi position.
-    """
+    connector = connector or TaxiConnector()
+    if legacy_dest_idx is not None:
+        warnings.warn(
+            "build_action_grid(taxi_env, mapping, passenger, destination) is "
+            "deprecated; pass mapping, passenger, destination instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        mapping, passenger_loc, dest_idx = (
+            passenger_loc,
+            dest_idx,
+            legacy_dest_idx,
+        )
+    if not isinstance(mapping, Mapping):
+        raise TypeError("Taxi policy mapping must be a mapping")
+    if type(passenger_loc) is not int:
+        raise TypeError("Taxi passenger factor must be an integer")
+    connector.validate_state((0, 0, passenger_loc, dest_idx))
     grid = np.full((5, 5), fill_value=-1, dtype=int)
     for row in range(5):
-        for col in range(5):
-            state = taxi_env.encode(row, col, passenger_loc, dest_idx)  # type: ignore[attr-defined]
-            grid[row, col] = mapping[state]
+        for column in range(5):
+            state = (row, column, passenger_loc, dest_idx)
+            lookup_key = connector.policy_lookup_key(state)
+            try:
+                raw_action = mapping[lookup_key]
+            except KeyError as error:
+                raise KeyError(
+                    "Taxi policy mapping has no action for state "
+                    f"{state} (key {lookup_key})"
+                ) from error
+            grid[row, column] = normalize_discrete_action(
+                raw_action,
+                connector.action_spec.count,
+            )
     return grid
 
 
-def _annotate_grid(ax, grid: np.ndarray, passenger: Tuple[int, int] | None, dest: Tuple[int, int], show_walls: bool = True) -> None:
-    """Overlay P/G labels and walls on an imshow‑based grid."""
-    ax.set_xticks([])
-    ax.set_yticks([])
+def _annotate_grid(
+    ax: object,
+    grid: np.ndarray,
+    passenger: tuple[int, int] | None,
+    dest: tuple[int, int],
+    show_walls: bool = True,
+) -> None:
+    """Overlay passenger/destination labels and Taxi road walls."""
+
+    ax.set_xticks([])  # type: ignore[attr-defined]
+    ax.set_yticks([])  # type: ignore[attr-defined]
     for row in range(5):
-        for col in range(5):
+        for column in range(5):
             label = ""
-            if passenger and (row, col) == passenger:
+            if passenger and (row, column) == passenger:
                 label = "P"
-            if (row, col) == dest:
+            if (row, column) == dest:
                 label = "D" if not label else "PD"
             if label:
-                ax.text(
-                    col,
+                ax.text(  # type: ignore[attr-defined]
+                    column,
                     row,
                     label,
                     ha="center",
@@ -198,143 +221,247 @@ def _annotate_grid(ax, grid: np.ndarray, passenger: Tuple[int, int] | None, dest
                     color="black",
                     weight="bold",
                 )
-    ax.set_xlim(-0.5, 4.5)
-    ax.set_ylim(4.5, -0.5)
+    ax.set_xlim(-0.5, 4.5)  # type: ignore[attr-defined]
+    ax.set_ylim(4.5, -0.5)  # type: ignore[attr-defined]
 
-    # Draw walls if requested
     if show_walls:
-        wall_kwargs = {'color': 'black', 'linewidth': 2.5}
-        # Vertical walls
-        ax.plot([0.5, 0.5], [2.5, 4.5], **wall_kwargs) # Between col 0 & 1, rows 3-4
-        ax.plot([1.5, 1.5], [-0.5, 1.5], **wall_kwargs) # Between col 1 & 2, rows 0-1
-        ax.plot([3.5, 3.5], [2.5, 4.5], **wall_kwargs) # Between col 3 & 4, rows 3-4
+        wall_kwargs = {"color": "black", "linewidth": 2.5}
+        ax.plot([0.5, 0.5], [2.5, 4.5], **wall_kwargs)  # type: ignore[attr-defined]
+        ax.plot([1.5, 1.5], [-0.5, 1.5], **wall_kwargs)  # type: ignore[attr-defined]
+        ax.plot([3.5, 3.5], [2.5, 4.5], **wall_kwargs)  # type: ignore[attr-defined]
 
 
 def plot_dest_maps(
-    taxi_env: gym.Env,
-    mapping: Dict[int, int],
-    dest_idx: int,
-    output_path: Path,
+    mapping: Mapping[int, object] | object,
+    dest_idx: int | Mapping[int, object],
+    output_path: Path | int,
+    legacy_output_path: Path | None = None,
     show_walls: bool = True,
+    *,
+    connector: TaxiConnector | None = None,
 ) -> None:
-    """Render the 4‑panel visualisation for a given destination."""
-    waiting_locs = [i for i in range(4) if i != dest_idx]
-    passenger_configs = waiting_locs + [4]  # + in‑taxi
+    """Render five panels, accepting the deprecated env-first call shape."""
 
-    # Increase figure height slightly to accommodate legend below
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4.5))
+    connector = connector or TaxiConnector()
+    if legacy_output_path is not None:
+        warnings.warn(
+            "plot_dest_maps(taxi_env, mapping, destination, output) is "
+            "deprecated; pass mapping, destination, output instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        mapping, dest_idx, output_path = (
+            dest_idx,
+            output_path,
+            legacy_output_path,
+        )
+    if not isinstance(mapping, Mapping):
+        raise TypeError("Taxi policy mapping must be a mapping")
+    if type(dest_idx) is not int:
+        raise TypeError("Taxi destination factor must be an integer")
+    if not isinstance(output_path, Path):
+        raise TypeError("Taxi policy-map output_path must be a pathlib.Path")
+    connector.validate_state((0, 0, 0, dest_idx))
+    passenger_configs = tuple(range(5))
+    fig, axes = plt.subplots(1, 5, figsize=(20, 4.5))
 
-    for ax, pass_loc in zip(axes, passenger_configs):
-        grid = build_action_grid(taxi_env, mapping, pass_loc, dest_idx)
-        im = ax.imshow(grid, cmap=_COLORMAP, vmin=0, vmax=5)
-
-        pickup_cell = PICKUP_LOCS[pass_loc] if pass_loc < 4 else None
-        dest_cell = PICKUP_LOCS[dest_idx]
-        _annotate_grid(ax, grid, pickup_cell, dest_cell, show_walls=show_walls)
-
+    for ax, passenger in zip(axes, passenger_configs, strict=True):
+        grid = build_action_grid(
+            mapping,
+            passenger,
+            dest_idx,
+            connector=connector,
+        )
+        ax.imshow(grid, cmap=_COLORMAP, vmin=0, vmax=5)
+        pickup_cell = PICKUP_LOCS[passenger] if passenger < 4 else None
+        destination_cell = PICKUP_LOCS[dest_idx]
+        _annotate_grid(
+            ax,
+            grid,
+            pickup_cell,
+            destination_cell,
+            show_walls=show_walls,
+        )
         subtitle = (
-            f"Passenger at {LOC_CHARS[pass_loc]}" if pass_loc < 4 else "Passenger in taxi"
+            f"Passenger at {LOC_CHARS[passenger]}"
+            if passenger < 4
+            else "Passenger in taxi"
         )
         ax.set_title(subtitle, fontsize="small")
 
-    # Single legend for the whole figure, placed below axes
-    legend_elems = [
-        plt.Line2D([0], [0], marker="s", linestyle="", color=CB_PALETTE[a], label=ACTION_NAMES[a])
-        for a in range(6)
-    ]
     fig.legend(
-        handles=legend_elems,
-        loc='upper center',  # Anchor point of the legend box
-        bbox_to_anchor=(0.5, 0.05),  # Position: horizontal center, lower down
+        handles=_legend_elements(),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.05),
         ncol=6,
         title="Action taken by policy",
         fontsize="small",
     )
-
-    # Adjust layout to prevent overlap, leaving space at the bottom
-    fig.tight_layout(rect=[0, 0.05, 1, 1])  # Adjust bottom margin if needed
-
-    fig.suptitle(f"Destination = {LOC_CHARS[dest_idx]}", y=1.05)  # Adjust title position if needed
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')  # Use bbox_inches='tight' for better saving
+    fig.tight_layout(rect=[0, 0.05, 1, 1])
+    fig.suptitle(f"Destination = {LOC_CHARS[dest_idx]}", y=1.05)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# High‑level orchestration
-# ──────────────────────────────────────────────────────────────────────────────
 
-def run_visualisation(model_path: Path, timestamp: str | None = None, show_walls: bool = True) -> None:
-    """Main entry point for policy‑map visualisation.
-    
-    - model_path: directory containing 'model.zip'
-    - timestamp: fixed timestamp or now
-    - show_walls: whether to draw env walls
-    """
+def run_visualisation(
+    model_path: Path,
+    timestamp: str | None = None,
+    show_walls: bool = True,
+    *,
+    acknowledge_trusted_model: bool = False,
+    overwrite: bool = False,
+) -> None:
+    """Load a DQN and write the 500-state mapping and 20-panel images."""
+
+    timestamp = _validated_output_timestamp(timestamp)
     model_name = model_path.name
     zip_path = model_path / "model.zip"
-    if not zip_path.is_file():
-        raise FileNotFoundError(f"Could not find model.zip in {model_path}")
-    timestamp = timestamp or _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    loaded_model = load_trusted_taxi_model(
+        zip_path,
+        acknowledge_trusted_model=acknowledge_trusted_model,
+    )
+    output_dir = (
+        Path.cwd()
+        / "data"
+        / "experiments"
+        / "rr"
+        / "policy_map"
+        / model_name
+        / timestamp
+    )
+    if output_dir.exists() and not overwrite:
+        raise FileExistsError(
+            f"policy-map output already exists: {output_dir}; pass overwrite=True"
+        )
+    output_dir.mkdir(parents=True, exist_ok=overwrite)
 
-    rr_dir = Path.cwd() / "data" / "experiments" / "rr" / "policy_map" / model_name / timestamp
-    rr_dir.mkdir(parents=True, exist_ok=True)
+    connector = TaxiConnector()
+    mapping = collect_state_actions(
+        loaded_model.model,
+        connector=connector,
+        model_fingerprint=loaded_model.model_fingerprint,
+        model_manifest=loaded_model.manifest,
+    )
 
-    # environment setup
-    base_env = gym.make("Taxi-v3")
-    env = OneHotObs(base_env)  # type: ignore[arg-type]
-    model = DQN.load(zip_path, env=env, print_system_info=False)
-
-    # 1. Collect actions for all states
-    mapping = collect_state_actions(model, env, base_env)
-
-    # 2. Save state‑action mapping to YAML
-    yaml_path = rr_dir / "state_action_mapping.yaml"
+    yaml_path = output_dir / "state_action_mapping.yaml"
     save_mapping_yaml(mapping, yaml_path)
-    print(f"✔ Saved mapping → {yaml_path.relative_to(Path.cwd())}")
+    print(f"Saved mapping -> {yaml_path.relative_to(Path.cwd())}")
 
-    # 3. Build per‑destination visualisations
-    unwrapped_env = base_env.unwrapped
-    for dest in range(4):
-        img_path = rr_dir / f"policy_map_dest_{LOC_CHARS[dest]}.png"
-        plot_dest_maps(unwrapped_env, mapping, dest, img_path, show_walls=show_walls)
-        print(f"✔ Saved visualisation → {img_path.relative_to(Path.cwd())}")
+    for destination in range(4):
+        image_path = output_dir / f"policy_map_dest_{LOC_CHARS[destination]}.png"
+        plot_dest_maps(
+            mapping,
+            destination,
+            image_path,
+            connector=connector,
+            show_walls=show_walls,
+        )
+        print(f"Saved visualisation -> {image_path.relative_to(Path.cwd())}")
 
-    # 4. Combined 4×4 policy map
-    dest_order = [3, 1, 0, 2]
-    def passenger_list(d):
-        return [p for p in range(5) if p != d][:3] + [4]
-    fig4, axes4 = plt.subplots(4, 4, figsize=(16, 16))
-    for row_idx, d in enumerate(dest_order):
-        for col_idx, p in enumerate(passenger_list(d)):
-            ax = axes4[row_idx, col_idx]
-            grid = build_action_grid(unwrapped_env, mapping, p, d)
-            ax.imshow(grid, cmap=_COLORMAP, vmin=0, vmax=5)
-            pickup = PICKUP_LOCS[p] if p < 4 else None
-            dest_cell = PICKUP_LOCS[d]
-            _annotate_grid(ax, grid, pickup, dest_cell, show_walls=show_walls)
-    legend_elems = [
-        plt.Line2D([0], [0], marker="s", linestyle="", color=CB_PALETTE[a], label=ACTION_NAMES[a])
-        for a in range(len(ACTION_NAMES))
+    fig, axes = plt.subplots(4, 5, figsize=(20, 16))
+    for panel_index, (passenger, destination) in enumerate(
+        _policy_map_panel_pairs()
+    ):
+        row_index, column_index = divmod(panel_index, 5)
+        ax = axes[row_index, column_index]
+        grid = build_action_grid(
+            mapping,
+            passenger,
+            destination,
+            connector=connector,
+        )
+        ax.imshow(grid, cmap=_COLORMAP, vmin=0, vmax=5)
+        pickup = PICKUP_LOCS[passenger] if passenger < 4 else None
+        destination_cell = PICKUP_LOCS[destination]
+        _annotate_grid(
+            ax,
+            grid,
+            pickup,
+            destination_cell,
+            show_walls=show_walls,
+        )
+        passenger_label = (
+            LOC_CHARS[passenger] if passenger < 4 else "InTaxi"
+        )
+        ax.set_title(
+            f"P={passenger_label}, D={LOC_CHARS[destination]}",
+            fontsize="small",
+        )
+
+    fig.legend(
+        handles=_legend_elements(),
+        loc="lower center",
+        ncol=6,
+        title="Action",
+        fontsize="small",
+    )
+    fig.tight_layout(rect=[0, 0.05, 1, 1])
+    fig.suptitle(f"500-state Policy Map for {model_name}", y=1.02)
+    combined_path = output_dir / "policy_map.png"
+    fig.savefig(combined_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved combined 4x5 visualisation -> {combined_path.relative_to(Path.cwd())}")
+
+
+def _legend_elements() -> list[object]:
+    return [
+        plt.Line2D(
+            [0],
+            [0],
+            marker="s",
+            linestyle="",
+            color=CB_PALETTE[action],
+            label=ACTION_NAMES[action],
+        )
+        for action in sorted(ACTION_NAMES)
     ]
-    fig4.legend(handles=legend_elems, loc="lower center", ncol=6, title="Action", fontsize="small")
-    fig4.tight_layout(rect=[0, 0.05, 1, 1])
-    fig4.suptitle(f"Policy Map for {model_name}", y=1.02)
-    out4_path = rr_dir / "policy_map.png"
-    fig4.savefig(out4_path, dpi=150, bbox_inches='tight')
-    plt.close(fig4)
-    print(f"✔ Saved combined 4x4 visualisation → {out4_path.relative_to(Path.cwd())}")
-    print("All done! ✨")
 
-# ──────────────────────────────────────────────────────────────────────────────
-# CLI
-# ──────────────────────────────────────────────────────────────────────────────
+
+def _validated_mapping(mapping: Mapping[int, object]) -> dict[int, int]:
+    if not isinstance(mapping, Mapping):
+        raise TypeError("Taxi policy mapping must be a mapping")
+    if set(mapping) != set(range(500)):
+        raise ValueError("Taxi policy mapping must contain exactly keys 0..499")
+    connector = TaxiConnector()
+    return {
+        index: normalize_discrete_action(
+            mapping[index],
+            connector.action_spec.count,
+        )
+        for index in range(500)
+    }
+
+
+def _validate_legacy_policy_envs(
+    env: object | None,
+    base_env: object | None,
+) -> None:
+    observation_space = getattr(env, "observation_space", None)
+    shape = getattr(observation_space, "shape", None)
+    if shape is not None and tuple(shape) != (500,):
+        raise ValueError(
+            "legacy wrapped Taxi environment must expose shape (500,), "
+            f"got {tuple(shape)!r}"
+        )
+    unwrapped = getattr(base_env, "unwrapped", base_env)
+    state_space = getattr(unwrapped, "observation_space", None)
+    state_count = getattr(state_space, "n", None)
+    if state_count is not None and state_count != 500:
+        raise ValueError(
+            "legacy base Taxi environment must expose Discrete(500), "
+            f"got n={state_count!r}"
+        )
+
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Taxi‑v3 policy visualiser")
+    parser = argparse.ArgumentParser(
+        description="Taxi-v3 500-state thesis policy visualiser"
+    )
     parser.add_argument(
         "--model-path",
         type=Path,
-        default=Path("data/experiments/models/Taxi-v3_DQN_model_20250428_194438"),
-        help="Path to the folder containing model.zip (e.g. data/experiments/models/.../).",
+        default=Path("data/experiments/models/Taxi-v3_DQN_model_50"),
+        help="Path to the folder containing model.zip.",
     )
     parser.add_argument(
         "--timestamp",
@@ -342,17 +469,40 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Use a fixed timestamp instead of the current datetime.",
     )
     parser.add_argument(
+        "--acknowledge-trusted-model",
+        action="store_true",
+        help="Confirm that model.zip came from a trusted source.",
+    )
+    parser.add_argument(
         "--hide-walls",
         action="store_false",
         dest="show_walls",
         help="Do not draw the environment walls on the plots.",
     )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace files in an existing fixed-timestamp output directory.",
+    )
     parser.set_defaults(show_walls=True)
     return parser.parse_args(argv)
 
+
 def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     args = _parse_args(argv)
-    run_visualisation(args.model_path, args.timestamp, show_walls=args.show_walls)
+    if not args.acknowledge_trusted_model:
+        raise SystemExit(
+            "stache-viz-policy-map: error: --acknowledge-trusted-model is "
+            "required before loading model.zip"
+        )
+    run_visualisation(
+        args.model_path,
+        args.timestamp,
+        show_walls=args.show_walls,
+        acknowledge_trusted_model=args.acknowledge_trusted_model,
+        overwrite=args.overwrite,
+    )
+
 
 if __name__ == "__main__":  # pragma: no cover
     main()

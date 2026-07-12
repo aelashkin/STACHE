@@ -1,4 +1,5 @@
 import copy
+from numbers import Integral
 
 from stache.envs.minigrid.constants import (
     COLOR_TO_IDX,
@@ -10,6 +11,21 @@ from stache.envs.minigrid.state_utils import (
     get_occupied_positions,
     get_env_dimensions_from_name,
 )
+
+
+def _direction_neighbors(direction: int) -> tuple[int, int]:
+    """Return the states reachable by one MiniGrid turn action.
+
+    MiniGrid directions form a four-element cycle. A single ``left`` or
+    ``right`` action changes the direction by one quarter turn; the opposite
+    direction therefore requires two actions and is not adjacent.
+    """
+    if isinstance(direction, bool) or not isinstance(direction, Integral):
+        raise TypeError("direction must be an integer")
+    if not 0 <= direction <= 3:
+        raise ValueError("direction must be in [0, 3]")
+    value = int(direction)
+    return ((value - 1) % 4, (value + 1) % 4)
 
 
 def get_neighbors(state, env_name, max_gen_objects=2, **kwargs):
@@ -32,7 +48,7 @@ def get_neighbors_empty(state, env_dimensions=None, **kwargs):
     Given a symbolic state (dict) for an EmptyEnv, returns a list of neighbor states
     that are exactly one atomic modification away. The only allowed modifications are:
       - Moving the agent's position by 1 step (up/down/left/right) within the valid interior.
-      - Changing the agent's direction by ±1, if still in [0,3].
+      - Turning the agent left or right by 90 degrees.
     
     Notes:
     - The 'goal' remains fixed in the bottom-right corner.
@@ -45,9 +61,7 @@ def get_neighbors_empty(state, env_dimensions=None, **kwargs):
 
     # --- 1. Modify agent's direction ---
     current_direction = state["direction"]
-    # Direction wraps around [0, 3] interval
-    new_directions = ((current_direction - 1) % 4, (current_direction + 1) % 4)
-    for d in new_directions:
+    for d in _direction_neighbors(current_direction):
         new_state = copy.deepcopy(state)
         new_state["direction"] = d
         neighbors.append(new_state)
@@ -103,7 +117,7 @@ def get_neighbors_fetch_old(state, max_gen_objects, **kwargs):
     exactly one atomic modification (L1 difference of 1) away.
 
     Atomic modifications include:
-      - Changing agent direction by ±1 (if within bounds [0, 3])
+      - Turning the agent left or right by 90 degrees
       - Changing the goal's color (to any other allowed color) or type (to key/ball)
       - For each non-agent object:
             • Changing its color (to any other allowed color)
@@ -117,9 +131,7 @@ def get_neighbors_fetch_old(state, max_gen_objects, **kwargs):
     neighbors = []
     # --- 1. Modify agent's direction ---
     current_direction = state["direction"]
-    # Direction wraps around [0, 3] interval
-    new_directions = ((current_direction - 1) % 4, (current_direction + 1) % 4)
-    for d in new_directions:
+    for d in _direction_neighbors(current_direction):
         new_state = copy.deepcopy(state)
         new_state["direction"] = d
         neighbors.append(new_state)

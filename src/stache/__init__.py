@@ -4,7 +4,7 @@ STACHE: Stable Training of Agents through Comprehensive Hyperparameter Explorati
 A toolkit for training, evaluating, and explaining RL agents in structured environments.
 """
 
-__version__ = '0.6.0'
+__version__ = "1.0.0"
 
 # Make wrappers and utilities accessible at the package level
 # from .wrappers import FactorizedSymbolicWrapper, PaddedObservationWrapper

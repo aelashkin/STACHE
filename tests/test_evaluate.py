@@ -13,14 +13,15 @@ import sys
 # Add this import for our debugging helper
 import inspect
 
-from src.explainability.evaluate import (
+from stache.explainability.evaluate import (
+    UntrustedModelError,
     evaluate_model,
     evaluate_symbolic_env,
     evaluate_policy_performance,
     get_fully_obs_env,
     evaluate_single_policy_run
 )
-from src.minigrid_ext.environment_utils import create_symbolic_minigrid_env, create_standard_minigrid_env
+from stache.envs.minigrid.factory import create_symbolic_minigrid_env, create_standard_minigrid_env
 
 
 # Add a debugging helper for the get_fully_obs_env function
@@ -83,11 +84,20 @@ class TestEvaluate:
         # Clean up after test
         shutil.rmtree(tmp_dir)
     
-    @patch("src.explainability.evaluate.gym.make")
-    @patch("src.explainability.evaluate.evaluate_policy")
-    @patch("src.explainability.evaluate.FlatObsWrapper")
-    @patch("src.explainability.evaluate.PPO.load")
-    def test_evaluate_model(self, mock_ppo_load, mock_flat_wrapper, mock_evaluate_policy, mock_gym_make, mock_model):
+    @patch("stache.explainability.evaluate.gym.make")
+    @patch("stache.explainability.evaluate.evaluate_policy")
+    @patch("stache.explainability.evaluate.FlatObsWrapper")
+    @patch("stache.explainability.evaluate.snapshot_model_file")
+    @patch("stache.explainability.evaluate.PPO.load")
+    def test_evaluate_model(
+        self,
+        mock_ppo_load,
+        mock_snapshot_model,
+        mock_flat_wrapper,
+        mock_evaluate_policy,
+        mock_gym_make,
+        mock_model,
+    ):
         """Test that evaluate_model correctly loads and evaluates a model."""
         # Configure mocks
         mock_env = MagicMock()
@@ -99,21 +109,42 @@ class TestEvaluate:
         
         # Setup mock model loading
         mock_ppo_load.return_value = mock_model
+        snapshot = object()
+        mock_snapshot_model.return_value = (snapshot, "sha256:test")
         
         # Setup evaluation return values
         mock_evaluate_policy.return_value = (10.5, 2.5)  # Mean and std reward
         
         # Call the function under test
-        evaluate_model("/path/to/model", env_name="MiniGrid-Test-Env", n_eval_episodes=5)
+        evaluate_model(
+            "/path/to/model",
+            env_name="MiniGrid-Test-Env",
+            n_eval_episodes=5,
+            acknowledge_trusted_model=True,
+        )
         
         # Verify correct function calls
         mock_gym_make.assert_called_once_with("MiniGrid-Test-Env", render_mode='rgb_array')
         mock_flat_wrapper.assert_called_once_with(mock_env)
-        mock_ppo_load.assert_called_once_with("/path/to/model")
+        mock_snapshot_model.assert_called_once()
+        mock_ppo_load.assert_called_once_with(snapshot)
         mock_evaluate_policy.assert_called_once()
         mock_wrapped_env.close.assert_called_once()
+
+    @patch("stache.explainability.evaluate.gym.make")
+    def test_evaluate_model_requires_trust_before_environment_or_file_access(
+        self,
+        mock_gym_make,
+    ):
+        with pytest.raises(
+            UntrustedModelError,
+            match="trusted source",
+        ):
+            evaluate_model("/path/that/is/not/read")
+
+        mock_gym_make.assert_not_called()
     
-    @patch("src.explainability.evaluate.create_symbolic_minigrid_env")
+    @patch("stache.explainability.evaluate.create_minigrid_env")
     def test_evaluate_symbolic_env(self, mock_create_env, env_config):
         """Test that evaluate_symbolic_env correctly creates and interacts with the environment."""
         # Setup mock environment
@@ -132,8 +163,8 @@ class TestEvaluate:
         assert mock_env.step.call_count == 4  # Should step through 4 iterations
         mock_env.close.assert_called_once()
     
-    @patch("src.explainability.evaluate.create_symbolic_minigrid_env")
-    @patch("src.explainability.evaluate.plt")
+    @patch("stache.explainability.evaluate.create_minigrid_env")
+    @patch("stache.explainability.evaluate.plt")
     def test_evaluate_policy_performance(self, mock_plt, mock_create_env, mock_model, env_config):
         """Test that evaluate_policy_performance correctly evaluates a policy over multiple episodes."""
         # Setup mock environment
@@ -212,7 +243,7 @@ class TestEvaluate:
         result = debug_get_fully_obs_env(fully_wrapper)
         
         # Now test with the actual function
-        with patch("src.explainability.evaluate.get_fully_obs_env", side_effect=get_fully_obs_env):
+        with patch("stache.explainability.evaluate.get_fully_obs_env", side_effect=get_fully_obs_env):
             result = get_fully_obs_env(fully_wrapper)
             print(f"Result of get_fully_obs_env: {result}")
             
@@ -224,10 +255,10 @@ class TestEvaluate:
             print(f"Result with flat_wrapper: {result}")
             assert result is None
     
-    @patch("src.explainability.evaluate.create_symbolic_minigrid_env")
-    @patch("src.explainability.evaluate.get_fully_obs_env")
-    @patch("src.explainability.evaluate.os.makedirs")
-    @patch("src.explainability.evaluate.Image.fromarray")
+    @patch("stache.explainability.evaluate.create_minigrid_env")
+    @patch("stache.explainability.evaluate.get_fully_obs_env")
+    @patch("stache.explainability.evaluate.os.makedirs")
+    @patch("stache.explainability.evaluate.Image.fromarray")
     @patch("builtins.open", new_callable=mock_open)
     def test_evaluate_single_policy_run(self, mock_file, mock_image_fromarray, mock_makedirs, 
                                         mock_get_fully_obs, mock_create_env, mock_model, env_config, temp_dir):
@@ -261,7 +292,7 @@ class TestEvaluate:
         mock_image_fromarray.return_value = mock_image
         
         # Call the function under test with a fixed timestamp for reproducibility
-        with patch("src.explainability.evaluate.datetime") as mock_datetime:
+        with patch("stache.explainability.evaluate.datetime") as mock_datetime:
             mock_datetime.now.return_value.strftime.return_value = "20250410-120000"
             evaluate_single_policy_run(mock_model, env_config, seed=42, max_steps=10, save_full_obs=True)
         
@@ -282,10 +313,10 @@ class TestEvaluate:
         # Verify that fully observable observations were recorded
         assert mock_fully_obs.observation.call_count > 0
     
-    @patch("src.explainability.evaluate.create_symbolic_minigrid_env")
-    @patch("src.explainability.evaluate.get_fully_obs_env")
-    @patch("src.explainability.evaluate.os.makedirs")
-    @patch("src.explainability.evaluate.Image.fromarray")
+    @patch("stache.explainability.evaluate.create_minigrid_env")
+    @patch("stache.explainability.evaluate.get_fully_obs_env")
+    @patch("stache.explainability.evaluate.os.makedirs")
+    @patch("stache.explainability.evaluate.Image.fromarray")
     def test_evaluate_single_policy_run_log_content(self, mock_image_fromarray, mock_makedirs, 
                                                  mock_get_fully_obs, mock_create_env, mock_model, env_config, temp_dir):
         """Test that the log file contains correct and complete information about the policy run."""
@@ -337,8 +368,8 @@ class TestEvaluate:
         
         log_path = os.path.join(temp_dir, "evaluation_log.txt")
         
-        with patch("src.explainability.evaluate.os.path.join", return_value=log_path):
-            with patch("src.explainability.evaluate.datetime") as mock_datetime:
+        with patch("stache.explainability.evaluate.os.path.join", return_value=log_path):
+            with patch("stache.explainability.evaluate.datetime") as mock_datetime:
                 mock_datetime.now.return_value.strftime.return_value = "20250410-120000"
                 
                 evaluate_single_policy_run(mock_model, env_config, seed=42, max_steps=10, save_full_obs=True)
@@ -375,10 +406,10 @@ class TestEvaluate:
         assert mock_model.predict.call_count == 2
         assert mock_fully_obs.observation.call_count == 3
 
-    @patch("src.explainability.evaluate.create_symbolic_minigrid_env")
-    @patch("src.explainability.evaluate.get_fully_obs_env")
-    @patch("src.explainability.evaluate.os.makedirs")
-    @patch("src.explainability.evaluate.Image.fromarray")
+    @patch("stache.explainability.evaluate.create_minigrid_env")
+    @patch("stache.explainability.evaluate.get_fully_obs_env")
+    @patch("stache.explainability.evaluate.os.makedirs")
+    @patch("stache.explainability.evaluate.Image.fromarray")
     def test_evaluate_single_policy_run_max_steps_limit(self, mock_image_fromarray, mock_makedirs, 
                                                      mock_get_fully_obs, mock_create_env, mock_model, env_config, temp_dir):
         """Test that evaluate_single_policy_run respects the max_steps parameter and stops after the limit."""
@@ -405,7 +436,7 @@ class TestEvaluate:
         
         log_path = os.path.join(temp_dir, "evaluation_log.txt")
         
-        with patch("src.explainability.evaluate.os.path.join", return_value=log_path):
+        with patch("stache.explainability.evaluate.os.path.join", return_value=log_path):
             evaluate_single_policy_run(mock_model, env_config, seed=42, max_steps=3, save_full_obs=True)
         
         assert mock_env.step.call_count == 3
@@ -417,25 +448,25 @@ class TestEvaluate:
         action_logs = [line for line in log_content.split('\n') if "Action taken" in line]
         assert len(action_logs) == 3
 
-    @patch("src.explainability.evaluate.create_symbolic_minigrid_env")
-    @patch("src.explainability.evaluate.open", new_callable=mock_open)
+    @patch("stache.explainability.evaluate.create_minigrid_env")
+    @patch("stache.explainability.evaluate.open", new_callable=mock_open)
     def test_evaluate_single_policy_run_error_handling(self, mock_file, mock_create_env, mock_model, env_config, temp_dir):
         """Test that evaluate_single_policy_run handles errors gracefully."""
         # Setup mock to raise an exception during environment creation
         mock_create_env.side_effect = ValueError("Test error: Invalid environment configuration")
         
         # Test that the function raises the expected exception
-        with patch("src.explainability.evaluate.os.makedirs"):  # Mock makedirs to avoid directory creation issues
+        with patch("stache.explainability.evaluate.os.makedirs"):  # Mock makedirs to avoid directory creation issues
             with pytest.raises(ValueError, match="Test error: Invalid environment configuration"):
                 evaluate_single_policy_run(mock_model, env_config, seed=42)
         
         # Verify the environment creation was attempted
         mock_create_env.assert_called_once()
 
-    @patch("src.explainability.evaluate.create_symbolic_minigrid_env")
-    @patch("src.explainability.evaluate.get_fully_obs_env")
-    @patch("src.explainability.evaluate.os.makedirs")
-    @patch("src.explainability.evaluate.Image.fromarray")
+    @patch("stache.explainability.evaluate.create_minigrid_env")
+    @patch("stache.explainability.evaluate.get_fully_obs_env")
+    @patch("stache.explainability.evaluate.os.makedirs")
+    @patch("stache.explainability.evaluate.Image.fromarray")
     def test_evaluate_single_policy_run_truncation(self, mock_image_fromarray, mock_makedirs, 
                                                 mock_get_fully_obs, mock_create_env, mock_model, env_config, temp_dir):
         """Test that evaluate_single_policy_run correctly handles episode truncation."""
@@ -453,7 +484,7 @@ class TestEvaluate:
         
         log_path = os.path.join(temp_dir, "truncation_log.txt")
         
-        with patch("src.explainability.evaluate.os.path.join", return_value=log_path):
+        with patch("stache.explainability.evaluate.os.path.join", return_value=log_path):
             evaluate_single_policy_run(mock_model, env_config, seed=42, max_steps=100, save_full_obs=False)
         
         assert mock_env.step.call_count == 1
