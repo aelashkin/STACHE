@@ -208,7 +208,34 @@ def test_through_minimal_finishes_the_entire_layer_including_invariant_states() 
     assert result.completeness.minimal_counterfactuals_complete
     assert not result.completeness.region_complete
     assert not result.completeness.boundary_complete
+    assert result.completeness.remaining_frontier_size == 1
     assert result.completeness.stop_reason is StopReason.THROUGH_MINIMAL
+    assert result.continuation is None
+
+
+def test_through_minimal_is_complete_when_minimum_layer_exhausts_region() -> None:
+    space = query_budget_space()
+    options = SearchOptions(
+        counterfactuals=CounterfactualSelection.MINIMAL,
+        minimum_basis=MinimumBasis.GRAPH_BOUNDARY,
+        extent=SearchExtent.THROUGH_MINIMAL_CF,
+    )
+
+    result = compute_rr(
+        "s",
+        ToyConnector(space),
+        ToyOracle(space.actions),
+        options,
+    )
+
+    assert record_keys(result.region) == ("s",)
+    assert record_keys(result.minimal_counterfactuals) == ("a", "b", "c")
+    assert result.completeness.region_complete
+    assert result.completeness.boundary_complete
+    assert result.completeness.radius_complete
+    assert result.completeness.minimal_counterfactuals_complete
+    assert result.completeness.remaining_frontier_size == 0
+    assert result.completeness.stop_reason is StopReason.COMPLETE
     assert result.continuation is None
 
 
@@ -447,7 +474,7 @@ def test_certified_formal_through_minimal_returns_every_tied_minimum() -> None:
     assert result.robustness_radius == 1.0
     assert result.completeness.radius_complete
     assert result.completeness.minimal_counterfactuals_complete
-    assert result.completeness.stop_reason is StopReason.THROUGH_MINIMAL
+    assert result.completeness.stop_reason is StopReason.COMPLETE
 
 
 def test_graph_depth_budget_is_not_treated_as_a_formal_distance_result() -> None:
@@ -541,7 +568,7 @@ def test_changed_table_content_cannot_resume_under_the_same_declared_label() -> 
         )
 
 
-def test_continuation_supports_valid_custom_hashable_connector_keys() -> None:
+def test_builtin_oracle_continuation_supports_custom_hashable_state_keys() -> None:
     space = exact_space()
 
     class ObjectKey:
@@ -565,7 +592,7 @@ def test_continuation_supports_valid_custom_hashable_connector_keys() -> None:
     partial = compute_rr(
         "s",
         connector,
-        ToyOracle(space.actions),
+        TableActionOracle(connector, space.actions),
         exact_options(max_expanded=0),
     )
     assert partial.continuation is not None
@@ -573,7 +600,7 @@ def test_continuation_supports_valid_custom_hashable_connector_keys() -> None:
     resumed = compute_rr(
         "s",
         connector,
-        ToyOracle(space.actions),
+        TableActionOracle(connector, space.actions),
         exact_options(),
         continuation=partial.continuation,
     )
@@ -584,7 +611,7 @@ def test_continuation_supports_valid_custom_hashable_connector_keys() -> None:
     corrupted = compute_rr(
         "s",
         connector,
-        ToyOracle(space.actions),
+        TableActionOracle(connector, space.actions),
         exact_options(max_expanded=0),
     )
     assert corrupted.continuation is not None
@@ -593,7 +620,7 @@ def test_continuation_supports_valid_custom_hashable_connector_keys() -> None:
         compute_rr(
             "s",
             connector,
-            ToyOracle(space.actions),
+            TableActionOracle(connector, space.actions),
             exact_options(),
             continuation=corrupted.continuation,
         )

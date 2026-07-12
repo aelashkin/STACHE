@@ -283,17 +283,17 @@ class _CachedActionOracle:
         return key in self._cache
 
     def export_cache(self) -> tuple[ActionCacheRecord, ...]:
-        try:
-            records = [
-                ActionCacheRecord(key=key, action=action)
-                for key, action in self._cache.items()
-            ]
-            records.sort(key=lambda record: _stable_token(record.key))
-        except (TypeError, ValueError) as error:
-            raise CacheRestoreError(
-                f"action cache contains a non-serializable connector key: {error}"
-            ) from error
-        return tuple(records)
+        """Return immutable records without narrowing the Hashable key contract.
+
+        Cache record order has no semantic meaning.  Retaining insertion order
+        avoids serializing connector-owned state keys solely to sort them;
+        persistence remains the artifact codec's responsibility.
+        """
+
+        return tuple(
+            ActionCacheRecord(key=key, action=action)
+            for key, action in self._cache.items()
+        )
 
     def restore_cache(
         self,
@@ -355,7 +355,7 @@ class _CachedActionOracle:
 
 
 class TableActionOracle(_CachedActionOracle):
-    """Strict precomputed table source with error-on-missing semantics."""
+    """Strict precomputed table source with primitive fingerprintable keys."""
 
     def __init__(
         self,
@@ -457,7 +457,7 @@ class ModelActionOracle(_CachedActionOracle):
 
 
 class TableThenModelActionOracle(_CachedActionOracle):
-    """Explicit table-first source with deterministic model fallback."""
+    """Table-first source with primitive keys and deterministic model fallback."""
 
     def __init__(
         self,
@@ -1017,17 +1017,23 @@ def _table_fingerprint(
     action_count: int,
     missing_key_policy: str,
 ) -> str:
-    entries = sorted(
-        (
-            {"key": _stable_node(key), "action": action}
-            for key, action in table.items()
-        ),
-        key=lambda entry: json.dumps(
-            entry["key"],
-            sort_keys=True,
-            separators=(",", ":"),
-        ),
-    )
+    try:
+        entries = sorted(
+            (
+                {"key": _stable_node(key), "action": action}
+                for key, action in table.items()
+            ),
+            key=lambda entry: json.dumps(
+                entry["key"],
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
+    except (TypeError, ValueError) as error:
+        raise PolicyConfigurationError(
+            "policy table fingerprint keys must use finite primitive scalars "
+            f"or tuples: {error}"
+        ) from error
     return _hash_json(
         {
             "schema": "stache.policy-table-fingerprint/v1",
@@ -1060,15 +1066,6 @@ def _bind_table_fingerprint(
     )
 
 
-def _stable_token(value: object) -> str:
-    return json.dumps(
-        _stable_node(value),
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-    )
-
-
 def _stable_node(value: object) -> object:
     if value is None:
         return {"type": "null", "value": None}
@@ -1086,7 +1083,7 @@ def _stable_node(value: object) -> object:
     if isinstance(value, tuple):
         return {"type": "tuple", "value": [_stable_node(item) for item in value]}
     raise TypeError(
-        "connector policy/cache keys must use primitive scalars or tuples, "
+        "policy table keys must use primitive scalars or tuples, "
         f"got {type(value).__name__}"
     )
 

@@ -677,7 +677,10 @@ def _validate_continuation_summary(
             raise ArtifactSchemaError(
                 "result.continuation summary is required for a budget stop"
             )
-        if completeness.remaining_frontier_size != 0:
+        if (
+            completeness.remaining_frontier_size != 0
+            and completeness.stop_reason is not StopReason.THROUGH_MINIMAL
+        ):
             raise ArtifactSchemaError(
                 "result.continuation summary is required for a remaining frontier"
             )
@@ -1216,9 +1219,13 @@ def _validate_result_invariants(
             raise ArtifactSchemaError(
                 "through-minimal results require complete radius and tied minima"
             )
-        if completeness.remaining_frontier_size != 0:
+        if completeness.region_complete or completeness.boundary_complete:
             raise ArtifactSchemaError(
-                "through-minimal results may not retain a remaining frontier"
+                "through-minimal stop reason requires an intentionally partial graph"
+            )
+        if completeness.remaining_frontier_size <= 0:
+            raise ArtifactSchemaError(
+                "through-minimal partial results require a remaining frontier"
             )
 
     has_counterfactual_record = bool(boundary or minima)

@@ -32,6 +32,7 @@ from stache.explainability.core.models import (
     MinimumBasis,
     SearchExtent,
     SearchOptions,
+    StopReason,
 )
 from stache.explainability.core.search import compute_rr
 from stache.explainability.core.policy import TableActionOracle
@@ -450,6 +451,26 @@ def test_certified_formal_partial_minimum_round_trips_truthfully() -> None:
     assert restored.robustness_radius == 1.0
     assert restored.completeness.radius_complete
     assert not restored.completeness.minimal_counterfactuals_complete
+
+
+def test_through_minimal_artifact_preserves_truthful_remaining_frontier() -> None:
+    connector = ArtifactToyConnector(tied_minimum_space())
+    result = compute_rr(
+        "s",
+        connector,
+        ToyOracle(connector.space.actions),
+        SearchOptions(
+            counterfactuals=CounterfactualSelection.MINIMAL,
+            extent=SearchExtent.THROUGH_MINIMAL_CF,
+        ),
+    )
+
+    assert result.completeness.stop_reason is StopReason.THROUGH_MINIMAL
+    assert result.completeness.remaining_frontier_size > 0
+    document = result_to_document(result, connector)
+    restored = document_to_result(document, connector)
+
+    assert restored.completeness == result.completeness
 
 
 def test_loader_rejects_duplicate_record_keys_and_missing_seed_membership() -> None:

@@ -28,6 +28,7 @@ from stache.explainability.core.policy import (
     ModelCompatibilityError,
     ModelManifest,
     OracleStats,
+    PolicyConfigurationError,
     TableActionOracle,
     TableThenModelActionOracle,
     UnknownTableKeyError,
@@ -441,6 +442,60 @@ def test_cache_export_restore_avoids_requerying_the_policy_source() -> None:
         table_hits=0,
         model_queries=0,
     )
+
+
+def test_cache_export_supports_stable_nonprimitive_hashable_state_keys() -> None:
+    @dataclass(frozen=True)
+    class StableStateKey:
+        name: str
+
+    class StableKeyConnector(TinyPolicyConnector):
+        def state_key(self, state: str) -> StableStateKey:
+            canonical = self.canonicalize(state)
+            self.validate_state(canonical)
+            return StableStateKey(canonical)
+
+    connector = StableKeyConnector()
+    source = TableActionOracle(
+        connector,
+        {"policy:seed": 0, "policy:left": 1},
+        source_fingerprint="table-v1",
+    )
+    assert source.action("seed") == 0
+    assert source.action("left") == 1
+
+    records = source.export_cache()
+    assert {record.key for record in records} == {
+        StableStateKey("seed"),
+        StableStateKey("left"),
+    }
+
+    restored = TableActionOracle(
+        connector,
+        {"policy:seed": 2, "policy:left": 2},
+        source_fingerprint="table-v1",
+    )
+    restored.restore_cache(tuple(reversed(records)))
+
+    assert restored.action("seed") == 0
+    assert restored.action("left") == 1
+    assert restored.stats.policy_queries == 0
+    assert restored.stats.cache_hits == 2
+
+
+def test_policy_table_fingerprint_keys_have_an_explicit_primitive_contract() -> None:
+    @dataclass(frozen=True)
+    class NonPrimitiveTableKey:
+        name: str
+
+    with pytest.raises(
+        PolicyConfigurationError,
+        match="policy table fingerprint keys.*primitive",
+    ):
+        TableActionOracle(
+            TinyPolicyConnector(),
+            {NonPrimitiveTableKey("policy:seed"): 0},
+        )
 
 
 def test_cache_restore_rejects_malformed_records_with_a_specific_error() -> None:

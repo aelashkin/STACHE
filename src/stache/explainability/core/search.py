@@ -1148,8 +1148,6 @@ def _run_graph(
                 or graph_certifies_formal
             ):
                 checkpoint.minima_complete = True
-            if options.extent is SearchExtent.THROUGH_MINIMAL_CF:
-                return StopReason.THROUGH_MINIMAL
 
         if not checkpoint.next_invariant:
             return _finish_graph(
@@ -1158,6 +1156,12 @@ def _run_graph(
                 options,
                 graph_certifies_formal,
             )
+
+        if (
+            layer_had_counterfactual
+            and options.extent is SearchExtent.THROUGH_MINIMAL_CF
+        ):
+            return StopReason.THROUGH_MINIMAL
 
         checkpoint.current_layer = sorted(
             checkpoint.next_invariant,
@@ -1238,7 +1242,7 @@ def _run_formal(
 
 
 def _remaining_frontier(checkpoint: _Checkpoint, reason: StopReason) -> int:
-    if reason in {StopReason.COMPLETE, StopReason.THROUGH_MINIMAL}:
+    if reason is StopReason.COMPLETE:
         return 0
     if checkpoint.phase == "expand":
         return (
