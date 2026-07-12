@@ -12,6 +12,16 @@ from stache.explainability.model_manifest import load_model_manifest
 from stache.utils import experiment_io
 
 
+def test_load_experiment_requires_trust_before_any_file_access(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(
+        experiment_io.UntrustedModelError,
+        match="trusted source",
+    ):
+        experiment_io.load_experiment(str(tmp_path))
+
+
 def test_load_experiment_supports_dqn_without_constructing_an_environment(
     tmp_path: Path,
     monkeypatch,
@@ -28,20 +38,23 @@ def test_load_experiment_supports_dqn_without_constructing_an_environment(
         encoding="utf-8",
     )
     sentinel = object()
-    loaded_paths: list[str] = []
+    loaded_payloads: list[bytes] = []
 
     class FakeDQN:
         @staticmethod
-        def load(path: str) -> object:
-            loaded_paths.append(path)
+        def load(source: object) -> object:
+            loaded_payloads.append(source.getvalue())
             return sentinel
 
     monkeypatch.setattr(experiment_io, "DQN", FakeDQN)
 
-    model, config = experiment_io.load_experiment(str(tmp_path))
+    model, config = experiment_io.load_experiment(
+        str(tmp_path),
+        acknowledge_trusted_model=True,
+    )
 
     assert model is sentinel
-    assert loaded_paths == [str(model_path)]
+    assert loaded_payloads == [b""]
     assert config["model_config"]["model_type"] == "DQN"
 
 
@@ -69,7 +82,10 @@ def test_load_experiment_accepts_only_the_historical_python_tuple_tag(
 
     monkeypatch.setattr(experiment_io, "DQN", FakeDQN)
 
-    _, config = experiment_io.load_experiment(str(tmp_path))
+    _, config = experiment_io.load_experiment(
+        str(tmp_path),
+        acknowledge_trusted_model=True,
+    )
 
     assert config["model_config"]["train_freq"] == (1, "step")
 
@@ -87,7 +103,10 @@ def test_load_experiment_still_rejects_other_python_specific_tags(
     )
 
     with pytest.raises(yaml.constructor.ConstructorError):
-        experiment_io.load_experiment(str(tmp_path))
+        experiment_io.load_experiment(
+            str(tmp_path),
+            acknowledge_trusted_model=True,
+        )
 
 
 def test_save_config_emits_safe_primitive_yaml_for_tuple_values(
@@ -106,6 +125,7 @@ def test_save_config_emits_safe_primitive_yaml_for_tuple_values(
 
 def test_save_experiment_can_bind_saved_model_to_explicit_connector(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     model_bytes = b"saved-model-archive"
 
@@ -134,3 +154,20 @@ def test_save_experiment_can_bind_saved_model_to_explicit_connector(
         "model.zip",
         "training.log",
     }
+
+    class LoadedModel:
+        pass
+
+    class FakeDQN:
+        @staticmethod
+        def load(source: object) -> LoadedModel:
+            assert source.getvalue() == model_bytes
+            return LoadedModel()
+
+    monkeypatch.setattr(experiment_io, "DQN", FakeDQN)
+    loaded, _ = experiment_io.load_experiment(
+        str(tmp_path),
+        acknowledge_trusted_model=True,
+        model_connector=connector,
+    )
+    assert loaded.stache_model_manifest == manifest

@@ -354,6 +354,13 @@ def test_visualization_cli_writes_canonical_artifact_and_requires_overwrite(
         "compute_taxi_rr",
         lambda *_args, **_kwargs: result,
     )
+    expected_provenance = {"dependencies": {"python": "test-version"}}
+    monkeypatch.setattr(
+        taxi_robustness_region_visualization,
+        "collect_provenance",
+        lambda: expected_provenance,
+        raising=False,
+    )
 
     arguments = [
         "--model-path",
@@ -377,6 +384,7 @@ def test_visualization_cli_writes_canonical_artifact_and_requires_overwrite(
     )
     document = yaml.safe_load(artifact_path.read_text(encoding="utf-8"))
     assert "rr_tuples" not in document
+    assert document["provenance"] == expected_provenance
     assert load_result(
         artifact_path,
         connector,
@@ -417,6 +425,33 @@ def test_visualizer_clis_require_trust_before_model_access(
         )
     with pytest.raises(SystemExit, match="acknowledge-trusted-model"):
         taxi_policy_map.main(["--model-path", str(tmp_path)])
+
+    assert accessed is False
+
+
+def test_policy_map_rejects_unsafe_timestamp_before_model_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    accessed = False
+
+    def unexpected_access(*_args: object, **_kwargs: object) -> object:
+        nonlocal accessed
+        accessed = True
+        raise AssertionError("invalid output path must fail before model access")
+
+    monkeypatch.setattr(
+        taxi_policy_map,
+        "load_trusted_taxi_model",
+        unexpected_access,
+    )
+
+    with pytest.raises(ValueError, match="timestamp"):
+        taxi_policy_map.run_visualisation(
+            tmp_path,
+            timestamp="../outside",
+            acknowledge_trusted_model=True,
+        )
 
     assert accessed is False
 

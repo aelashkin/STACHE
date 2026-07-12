@@ -7,9 +7,11 @@ import yaml
 import torch
 from stable_baselines3 import PPO, A2C, DQN
 from stable_baselines3.common.evaluation import evaluate_policy
+from stache.utils.safe_yaml import SafeInputError, read_bounded_regular_text
 
 
 _LEGACY_TUPLE_TAG = "tag:yaml.org,2002:python/tuple"
+EXPERIMENT_CONFIG_MAX_BYTES = 1024 * 1024
 
 
 class _LegacyExperimentConfigLoader(yaml.SafeLoader):
@@ -33,6 +35,10 @@ class ModelType(Enum):
     A2C = "A2C"
     PPO = "PPO"
     DQN = "DQN"
+
+
+class UntrustedModelError(ValueError):
+    """Legacy experiment loading lacks an explicit model trust decision."""
 
 def save_model(model, experiment_dir):
     """
@@ -152,31 +158,57 @@ def save_experiment(
     return saved_paths
 
 
-def load_experiment(experiment_dir):
+def load_experiment(
+    experiment_dir,
+    *,
+    acknowledge_trusted_model=False,
+    model_connector=None,
+):
     """
-    Load an experiment from the given folder. It will read the configuration and load the model.
+    Load an explicitly trusted experiment from a consistent model snapshot.
 
     Expects:
       - {experiment_dir}/config.yaml
       - {experiment_dir}/model.zip
+
+    ``acknowledge_trusted_model=True`` is required before any path is read.
+    When ``model_connector`` is supplied, the conventional semantic sidecar is
+    required, validated against the snapshotted bytes and connector, and
+    attached to the returned model for compatibility callers.
 
     Returns:
       A tuple (model, config_data) where:
           model      : the loaded model.
           config_data: the dictionary with 'env_config' and 'model_config'.
     """
+    if acknowledge_trusted_model is not True:
+        raise UntrustedModelError(
+            "load_experiment requires explicit acknowledgement that model.zip "
+            "came from a trusted source"
+        )
+
     # Load configuration
-    config_path = os.path.join(experiment_dir, "config.yaml")
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Config file not found: {config_path}")
-    with open(config_path, "r", encoding="utf-8") as file:
-        config_data = yaml.load(file, Loader=_LegacyExperimentConfigLoader)
+    config_path = Path(experiment_dir) / "config.yaml"
+    try:
+        serialized_config = read_bounded_regular_text(
+            config_path,
+            max_bytes=EXPERIMENT_CONFIG_MAX_BYTES,
+            label="experiment config",
+        )
+    except SafeInputError as error:
+        if not config_path.exists():
+            raise FileNotFoundError(f"Config file not found: {config_path}") from error
+        raise ValueError(str(error)) from error
+    config_data = yaml.load(
+        serialized_config,
+        Loader=_LegacyExperimentConfigLoader,
+    )
     if not isinstance(config_data, dict):
         raise ValueError("Experiment config must contain a mapping.")
 
     # Load model
-    model_path = os.path.join(experiment_dir, "model.zip")
-    if not os.path.exists(model_path):
+    model_path = Path(experiment_dir) / "model.zip"
+    if not model_path.exists():
         raise FileNotFoundError(f"Model file not found: {model_path}")
 
     model_type = config_data.get("model_config", {}).get("model_type")
@@ -188,7 +220,30 @@ def load_experiment(experiment_dir):
     if model_type not in model_map:
         raise ValueError(f"Unsupported model type: {model_type}")
 
-    model = model_map[model_type].load(model_path)
+    from stache.explainability.core.policy import (
+        validate_model_manifest_binding,
+    )
+    from stache.explainability.model_manifest import (
+        load_model_manifest,
+        manifest_path_for_model,
+        snapshot_model_file,
+    )
+
+    model_snapshot, model_fingerprint = snapshot_model_file(model_path)
+    model_manifest = None
+    if model_connector is not None:
+        model_manifest = load_model_manifest(
+            manifest_path_for_model(model_path)
+        )
+        validate_model_manifest_binding(
+            model_connector,
+            model_fingerprint,
+            model_manifest,
+        )
+
+    model = model_map[model_type].load(model_snapshot)
+    if model_manifest is not None:
+        model.stache_model_manifest = model_manifest
     print(f"Loaded model from: {model_path}")
     return model, config_data
 

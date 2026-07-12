@@ -26,6 +26,7 @@ from stache.explainability.taxi.taxi_policy_map import (
     _COLORMAP,
     _policy_map_panel_pairs,
 )
+from stache.utils.provenance import collect_provenance
 
 
 _DESTINATION_DISPLAY_ORDER = (3, 1, 0, 2)  # B, G, R, Y
@@ -136,6 +137,7 @@ def main(argv=None) -> None:
         artifact_path,
         rr,
         TaxiConnector(),
+        provenance=collect_provenance(),
         overwrite=args.overwrite,
     )
     print(f"Saved RR artifact → {artifact_path.relative_to(Path.cwd())}")

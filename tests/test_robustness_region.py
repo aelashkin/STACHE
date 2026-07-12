@@ -337,7 +337,10 @@ def test_with_real_model():
     
     # Load the real model
     try:
-        model, config_data = load_experiment(TEST_MODEL_PATH)
+        model, config_data = load_experiment(
+            TEST_MODEL_PATH,
+            acknowledge_trusted_model=True,
+        )
     except Exception as e:
         pytest.skip(f"Could not load model: {e}")
     

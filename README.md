@@ -120,6 +120,10 @@ archives may deserialize Python objects. STACHE validates and snapshots a
 trusted archive before loading it, then fingerprints and loads the same bytes,
 but it does not sandbox the model or establish its provenance.
 
+The legacy Python `load_experiment(...)` utility also requires the explicit
+keyword `acknowledge_trusted_model=True`. Pass `model_connector=...` when a
+connector-owned manifest must be validated and attached to the loaded model.
+
 Budgeted searches report a partial result instead of silently claiming exact
 completion. `max_policy_queries=0` is meaningful in the Python API only when the
 seed action is already cached; the CLI's fresh table/model workflows require at
@@ -139,6 +143,8 @@ version 2. Primitive-only YAML records include:
 
 Loading rejects duplicate mapping keys, contradictory identities, unsupported
 versions, non-canonical state/key records, and invalid completeness evidence.
+CLI/config inputs are capped at 1 MiB and RR artifacts at 16 MiB before YAML
+parsing; regular-file and UTF-8 checks also happen before construction.
 Artifacts are evidence-bearing records, not signed authenticity proofs; use an
 expected policy fingerprint from a trusted channel when authenticity matters.
 
@@ -188,10 +194,12 @@ be interpreted as a documented MiniGrid scientific-universe decision.
 ## MiniGrid direction relation
 
 The broader MiniGrid universe, object ordering, codec, state injection, and
-metric certificate remain deferred. One narrow neighbor contract is fixed:
-headings are adjacent only after one environment turn, left or right by 90°.
-The opposite heading requires two turns and is not adjacent. This matches the
-official [MiniGrid 3.0.0 step implementation](https://github.com/Farama-Foundation/Minigrid/blob/v3.0.0/minigrid/minigrid_env.py).
+metric certificate remain deferred. One narrow neighbor contract is now
+centralized and runtime-verified: headings are adjacent only after one
+environment turn, left or right by 90°. The opposite heading requires two turns
+and is not adjacent. The historical generators already had this topology, so
+this is not a topology migration. The rule matches the official
+[MiniGrid 3.0.0 step implementation](https://github.com/Farama-Foundation/Minigrid/blob/v3.0.0/minigrid/minigrid_env.py).
 
 ## Validation and reproduction scope
 

@@ -13,6 +13,7 @@ import argparse
 from collections.abc import Iterable, Mapping
 import datetime as dt
 from pathlib import Path
+import re
 import warnings
 
 import matplotlib.pyplot as plt
@@ -55,6 +56,21 @@ PICKUP_LOCS = {
 }
 LOC_CHARS = {0: "R", 1: "G", 2: "Y", 3: "B"}
 _DESTINATION_DISPLAY_ORDER = (3, 1, 0, 2)  # B, G, R, Y
+_TIMESTAMP_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+
+
+def _validated_output_timestamp(timestamp: str | None) -> str:
+    if timestamp is None:
+        return dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    if (
+        type(timestamp) is not str
+        or timestamp in {".", ".."}
+        or _TIMESTAMP_COMPONENT.fullmatch(timestamp) is None
+    ):
+        raise ValueError(
+            "timestamp must be one safe relative filename component"
+        )
+    return timestamp
 
 
 def _policy_map_panel_pairs(
@@ -297,14 +313,13 @@ def run_visualisation(
 ) -> None:
     """Load a DQN and write the 500-state mapping and 20-panel images."""
 
+    timestamp = _validated_output_timestamp(timestamp)
     model_name = model_path.name
     zip_path = model_path / "model.zip"
     loaded_model = load_trusted_taxi_model(
         zip_path,
         acknowledge_trusted_model=acknowledge_trusted_model,
     )
-    timestamp = timestamp or dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-
     output_dir = (
         Path.cwd()
         / "data"

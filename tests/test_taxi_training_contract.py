@@ -24,8 +24,14 @@ def test_training_wrapper_matches_connector_for_all_500_states() -> None:
         wrapper.close()
 
 
-def test_training_help_never_starts_training(
+@pytest.mark.parametrize(
+    ("arguments", "expected_code"),
+    [(["--help"], 0), (["--not-a-real-option"], 2)],
+)
+def test_training_argument_handling_never_starts_training(
     monkeypatch: pytest.MonkeyPatch,
+    arguments: list[str],
+    expected_code: int,
 ) -> None:
     started = False
 
@@ -37,7 +43,7 @@ def test_training_help_never_starts_training(
     monkeypatch.setattr(train_taxi, "train_and_save", unexpected_training)
 
     with pytest.raises(SystemExit) as exit_info:
-        train_taxi.main(["--help"])
+        train_taxi.main(arguments)
 
-    assert exit_info.value.code == 0
+    assert exit_info.value.code == expected_code
     assert started is False

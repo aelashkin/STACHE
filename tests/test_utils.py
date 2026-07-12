@@ -12,7 +12,7 @@ def test_load_experiment_missing_config(tmp_path):
     """
     # Do not create config.yaml
     with pytest.raises(FileNotFoundError):
-        load_experiment(str(tmp_path))
+        load_experiment(str(tmp_path), acknowledge_trusted_model=True)
 
 
 def test_load_experiment_missing_model(tmp_path):
@@ -29,7 +29,7 @@ def test_load_experiment_missing_model(tmp_path):
         yaml.dump(config_data, f)
     # Do not create model.zip
     with pytest.raises(FileNotFoundError):
-        load_experiment(str(tmp_path))
+        load_experiment(str(tmp_path), acknowledge_trusted_model=True)
 
 
 @patch("stable_baselines3.PPO.load")
@@ -53,8 +53,12 @@ def test_load_experiment_success(mock_ppo_load, tmp_path):
     dummy_loaded_model = MagicMock(spec=PPO)
     mock_ppo_load.return_value = dummy_loaded_model
 
-    loaded_model, config = load_experiment(str(tmp_path))
-    mock_ppo_load.assert_called_once_with(str(model_path))
+    loaded_model, config = load_experiment(
+        str(tmp_path),
+        acknowledge_trusted_model=True,
+    )
+    loaded_source = mock_ppo_load.call_args.args[0]
+    assert loaded_source.getvalue() == b""
     assert loaded_model == dummy_loaded_model
     assert config["env_config"]["env_name"] == "TestEnv"
 
@@ -80,8 +84,12 @@ def test_load_experiment_success_a2c(mock_a2c_load, tmp_path):
     dummy_loaded_model = MagicMock(spec=A2C)
     mock_a2c_load.return_value = dummy_loaded_model
 
-    loaded_model, config = load_experiment(str(tmp_path))
-    mock_a2c_load.assert_called_once_with(str(model_path))
+    loaded_model, config = load_experiment(
+        str(tmp_path),
+        acknowledge_trusted_model=True,
+    )
+    loaded_source = mock_a2c_load.call_args.args[0]
+    assert loaded_source.getvalue() == b""
     assert loaded_model == dummy_loaded_model
     assert config["env_config"]["env_name"] == "SomeOtherEnv"
 
@@ -103,7 +111,7 @@ def test_load_experiment_missing_info(tmp_path):
         yaml.dump(config_data, f)
 
     with pytest.raises(ValueError):
-        load_experiment(str(tmp_path))
+        load_experiment(str(tmp_path), acknowledge_trusted_model=True)
 
 
 def test_load_experiment_unsupported_model_type(tmp_path):
@@ -123,7 +131,7 @@ def test_load_experiment_unsupported_model_type(tmp_path):
         yaml.dump(config_data, f)
 
     with pytest.raises(ValueError):
-        load_experiment(str(tmp_path))
+        load_experiment(str(tmp_path), acknowledge_trusted_model=True)
 
 # cd /Users/eam/Documents/GIT/STACHE
 # pytest tests/test_utils.py

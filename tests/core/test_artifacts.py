@@ -720,6 +720,43 @@ def test_loader_rejects_action_range_completeness_and_result_invariants() -> Non
         document_to_result(invalid_stats, connector)
 
 
+@pytest.mark.parametrize(
+    "field",
+    ["states_discovered", "states_evaluated", "duplicate_discoveries"],
+)
+def test_complete_graph_rejects_inflated_derivable_operational_stats(
+    field: str,
+) -> None:
+    document, _, connector = make_document()
+    document["result"]["stats"][field] += 10_000
+
+    with pytest.raises(ArtifactSchemaError, match="stats|operational"):
+        document_to_result(document, connector)
+
+
+def test_artifact_loader_rejects_oversized_and_symlink_inputs(
+    tmp_path: Path,
+) -> None:
+    oversized = tmp_path / "oversized.yaml"
+    with oversized.open("wb") as stream:
+        stream.truncate(artifacts.MAX_ARTIFACT_BYTES + 1)
+
+    with pytest.raises(ArtifactError, match="exceeds"):
+        load_result(oversized, ArtifactToyConnector())
+
+    real = tmp_path / "real.yaml"
+    real.write_text("{}\n", encoding="utf-8")
+    linked = tmp_path / "linked.yaml"
+    linked.symlink_to(real)
+    with pytest.raises(ArtifactError, match="non-symlink"):
+        load_result(linked, ArtifactToyConnector())
+
+    invalid_utf8 = tmp_path / "invalid-utf8.yaml"
+    invalid_utf8.write_bytes(b"\xff")
+    with pytest.raises(ArtifactError, match="UTF-8|decode"):
+        load_result(invalid_utf8, ArtifactToyConnector())
+
+
 @pytest.mark.parametrize("best_known_radius", [-7, 1])
 def test_unknown_existence_requires_no_best_known_radius(
     best_known_radius: int,

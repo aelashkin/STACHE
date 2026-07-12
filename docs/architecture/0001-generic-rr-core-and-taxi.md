@@ -176,6 +176,11 @@ snapshot to SHA-256 and `DQN.load`, preventing provenance from disagreeing with
 loaded bytes. The fingerprint is an identity/integrity record, not a signature,
 authenticity proof, or sandbox; users must load only trusted model archives.
 
+The legacy `load_experiment` utility enforces the same explicit trust decision
+and immutable byte snapshot. When a connector is supplied, it also validates
+and attaches the model manifest before deserialization; connector-less legacy
+MiniGrid loading remains a trust-only compatibility path until registration.
+
 Taxi training uses the connector's observation encoder for all 500 raw indices.
 Saving a Taxi experiment atomically writes `model.manifest.yaml` beside
 `model.zip`; the manifest binds the saved archive fingerprint, observation
@@ -196,9 +201,11 @@ is not silently treated as the current safe result schema.
 This ADR does not register a MiniGrid connector and does not choose its broader
 object universe, observation/artifact codec, state injection, metric
 certificate, models, or published-artifact migration. One narrow historical
-neighbor rule is corrected and tested against MiniGrid 3.0.0: a direction is
+neighbor rule is centralized and tested against MiniGrid 3.0.0: a direction is
 adjacent only to the headings reached by one `left` or `right` action (±90°).
-The opposite heading requires two turns and is not adjacent. Follow-up work for
+The opposite heading requires two turns and is not adjacent. The historical
+generators already had this topology, so the change is validation and
+hardening, not a reason to recompute prior results. Follow-up work for
 C1, C2, C4, C5, and the MiniGrid portion of C7 must first:
 
 1. choose and document the scientific state universe;
@@ -220,7 +227,7 @@ stricter public contract:
 - model-backed APIs and the Taxi compatibility shim require a model manifest;
 - model-loading CLIs require explicit trust acknowledgement;
 - fixed-output visualizers require explicit overwrite; and
-- MiniGrid opposite headings are no longer immediate neighbors.
+- MiniGrid one-turn direction adjacency is centralized and runtime-verified.
 
 The detailed user steps are in
 [RR core v2 migration](../migration/rr-core-v2.md). Rollback means reverting the

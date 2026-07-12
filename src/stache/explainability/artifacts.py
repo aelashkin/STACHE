@@ -17,7 +17,11 @@ from typing import Any, Mapping
 
 import yaml
 
-from stache.utils.safe_yaml import safe_load_unique
+from stache.utils.safe_yaml import (
+    SafeInputError,
+    read_bounded_regular_text,
+    safe_load_unique,
+)
 
 from .core.connector import ConnectorIdentity, MetricCertificate
 from .core.models import (
@@ -45,6 +49,7 @@ from .core.search import derive_search_fingerprint
 
 ARTIFACT_SCHEMA = "stache.rr-result"
 ARTIFACT_VERSION = 2
+MAX_ARTIFACT_BYTES = 16 * 1024 * 1024
 
 
 class ArtifactError(Exception):
@@ -950,7 +955,7 @@ def _validate_complete_graph_evidence(
     seed: StateRecord[Any, Any],
     region: tuple[StateRecord[Any, Any], ...],
     boundary: tuple[StateRecord[Any, Any], ...],
-) -> None:
+) -> int:
     region_by_key = {record.key: record for record in region}
     boundary_by_key = {record.key: record for record in boundary}
     known = {**region_by_key, **boundary_by_key}
@@ -1015,6 +1020,7 @@ def _validate_complete_graph_evidence(
                 f"{key!r}: artifact={record.graph_depth!r}, "
                 f"expected={expected_depths[key]}"
             )
+    return sum(len(neighbors) for neighbors in adjacency.values())
 
 
 def _validate_completeness_evidence(
@@ -1276,8 +1282,9 @@ def _validate_result_invariants(
                 "unknown counterfactual existence requires a null best-known radius"
             )
 
+    complete_graph_neighbor_visits: int | None = None
     if completeness.region_complete and completeness.boundary_complete:
-        _validate_complete_graph_evidence(
+        complete_graph_neighbor_visits = _validate_complete_graph_evidence(
             connector=connector,
             seed=seed,
             region=region,
@@ -1401,6 +1408,26 @@ def _validate_result_invariants(
         raise ArtifactSchemaError(
             "stats.states_evaluated is below the serialized graph record count"
         )
+    if (
+        complete_graph_neighbor_visits is not None
+        and stats.formal_states_scanned == 0
+    ):
+        expected_operational = {
+            "states_discovered": known_graph_records,
+            "states_evaluated": known_graph_records,
+            "states_expanded": len(region),
+            "duplicate_discoveries": (
+                complete_graph_neighbor_visits - (known_graph_records - 1)
+            ),
+        }
+        actual_operational = {
+            name: getattr(stats, name) for name in expected_operational
+        }
+        if actual_operational != expected_operational:
+            raise ArtifactSchemaError(
+                "complete graph operational stats disagree with derivable "
+                f"evidence: expected {expected_operational!r}"
+            )
     _validate_completeness_evidence(
         connector=connector,
         seed=seed,
@@ -1685,6 +1712,10 @@ def save_result(
         )
     except Exception as exc:
         raise ArtifactError(f"artifact serialization interruption: {exc}") from exc
+    if len(serialized.encode("utf-8")) > MAX_ARTIFACT_BYTES:
+        raise ArtifactError(
+            f"serialized artifact exceeds the {MAX_ARTIFACT_BYTES}-byte limit"
+        )
 
     temporary_path: Path | None = None
     try:
@@ -1746,8 +1777,12 @@ def load_result(
 
     target = Path(path)
     try:
-        serialized = target.read_text(encoding="utf-8")
-    except OSError as exc:
+        serialized = read_bounded_regular_text(
+            target,
+            max_bytes=MAX_ARTIFACT_BYTES,
+            label="RR artifact",
+        )
+    except SafeInputError as exc:
         raise ArtifactError(f"could not read artifact {target}: {exc}") from exc
     try:
         document = safe_load_unique(serialized)
@@ -1768,6 +1803,7 @@ __all__ = [
     "ACTION_NORMALIZATION_SCHEMA_VERSION",
     "ARTIFACT_SCHEMA",
     "ARTIFACT_VERSION",
+    "MAX_ARTIFACT_BYTES",
     "ArtifactCompatibilityError",
     "ArtifactError",
     "ArtifactSchemaError",

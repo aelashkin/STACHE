@@ -5,18 +5,20 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping
 from io import BytesIO
-from importlib import metadata
 import json
 import os
 from pathlib import Path
-import platform
-import subprocess
 import sys
 from typing import Any
 
 import yaml
 
-from stache.utils.safe_yaml import safe_load_unique
+from stache.utils.safe_yaml import (
+    SafeInputError,
+    read_bounded_regular_text,
+    safe_load_unique,
+)
+from stache.utils.provenance import collect_provenance
 
 
 class CliUsageError(ValueError):
@@ -44,6 +46,8 @@ _CONFIG_KEYS = {
     "output",
     "overwrite",
 }
+
+MAX_CLI_INPUT_BYTES = 1024 * 1024
 
 
 def _nonnegative_integer(value: str) -> int:
@@ -200,11 +204,14 @@ def _safe_mapping(
     label: str,
     require_string_keys: bool = True,
 ) -> dict[Any, Any]:
-    if not path.is_file():
-        raise CliUsageError(f"{label} file does not exist or is not regular: {path}")
     try:
-        value = safe_load_unique(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, yaml.YAMLError) as error:
+        serialized = read_bounded_regular_text(
+            path,
+            max_bytes=MAX_CLI_INPUT_BYTES,
+            label=label,
+        )
+        value = safe_load_unique(serialized)
+    except (SafeInputError, yaml.YAMLError) as error:
         raise CliUsageError(f"cannot safely load {label} {path}: {error}") from error
     if not isinstance(value, Mapping):
         raise CliUsageError(f"{label} must contain a mapping")
@@ -216,7 +223,7 @@ def _safe_mapping(
 def _load_config(path: Path | None) -> tuple[dict[str, Any], Path | None]:
     if path is None:
         return {}, None
-    resolved = path.expanduser().resolve()
+    resolved = Path(os.path.abspath(path.expanduser()))
     document = _safe_mapping(resolved, label="--config")
     if "compute_rr" in document:
         if set(document) != {"compute_rr"}:
@@ -308,11 +315,17 @@ def _validated_compute_config(arguments: argparse.Namespace) -> dict[str, Any]:
         model_value = arguments.model
         source_config_dir = None
         model_manifest_value = arguments.model_manifest
+        manifest_config_dir = None
     else:
         policy_table_value = config.get("policy_table")
         model_value = config.get("model")
         source_config_dir = config_dir
-        model_manifest_value = config.get("model_manifest")
+        if arguments.model_manifest is not None:
+            model_manifest_value = arguments.model_manifest
+            manifest_config_dir = None
+        else:
+            model_manifest_value = config.get("model_manifest")
+            manifest_config_dir = config_dir
     if (policy_table_value is None) == (model_value is None):
         raise CliUsageError(
             "exactly one of --policy-table or --model must be provided"
@@ -366,7 +379,7 @@ def _validated_compute_config(arguments: argparse.Namespace) -> dict[str, Any]:
         model_manifest_path = _path_value(
             model_manifest_value,
             option="--model-manifest",
-            config_dir=source_config_dir,
+            config_dir=manifest_config_dir,
         )
 
     minimum_basis = _exact_string_choice(
@@ -493,52 +506,7 @@ def _snapshot_model(path: Path) -> tuple[BytesIO, str]:
 
 
 def _provenance() -> dict[str, object]:
-    dependencies: dict[str, str] = {"python": platform.python_version()}
-    for package in (
-        "stache",
-        "numpy",
-        "stable-baselines3",
-        "torch",
-        "pyyaml",
-    ):
-        try:
-            dependencies[package] = metadata.version(package)
-        except metadata.PackageNotFoundError:
-            continue
-    result: dict[str, object] = {"dependencies": dependencies}
-    repository = next(
-        (
-            parent
-            for parent in Path(__file__).resolve().parents
-            if (parent / ".git").exists()
-        ),
-        None,
-    )
-    if repository is None:
-        return result
-    try:
-        revision = subprocess.run(
-            ["git", "-C", str(repository), "rev-parse", "HEAD"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-        status = subprocess.run(
-            ["git", "-C", str(repository), "status", "--porcelain"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return result
-    if revision.returncode == 0 and status.returncode == 0:
-        result["git"] = {
-            "commit": revision.stdout.strip(),
-            "dirty": bool(status.stdout),
-        }
-    return result
+    return collect_provenance()
 
 
 def _run_compute_rr(config: Mapping[str, Any]) -> int:

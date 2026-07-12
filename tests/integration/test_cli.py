@@ -262,6 +262,97 @@ def test_config_rejects_duplicate_nested_keys_before_writing(
     assert not (tmp_path / "result.yaml").exists()
 
 
+def test_cli_rejects_oversized_and_symlink_config_inputs(
+    tmp_path: Path,
+) -> None:
+    oversized = tmp_path / "oversized.yaml"
+    with oversized.open("wb") as stream:
+        stream.truncate(cli.MAX_CLI_INPUT_BYTES + 1)
+
+    oversized_result = run_stache("compute-rr", "--config", str(oversized))
+
+    assert oversized_result.returncode != 0
+    assert "exceeds" in oversized_result.stderr.lower()
+    assert "traceback" not in oversized_result.stderr.lower()
+
+    real = tmp_path / "real.yaml"
+    real.write_text("{}\n", encoding="utf-8")
+    linked = tmp_path / "linked.yaml"
+    linked.symlink_to(real)
+    linked_result = run_stache("compute-rr", "--config", str(linked))
+
+    assert linked_result.returncode != 0
+    assert "non-symlink" in linked_result.stderr.lower()
+    assert "traceback" not in linked_result.stderr.lower()
+
+
+def test_cli_model_manifest_override_applies_to_configured_model(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "compute.yaml"
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "domain": "taxi",
+                "state_universe": "taxi-factored-500",
+                "seed": 0,
+                "model": "configured-model.zip",
+                "model_manifest": "configured.manifest.yaml",
+                "acknowledge_trusted_model": True,
+                "output": "result.yaml",
+            }
+        ),
+        encoding="utf-8",
+    )
+    override = tmp_path / "override.manifest.yaml"
+    parser = cli._build_parser()
+    arguments = parser.parse_args(
+        [
+            "compute-rr",
+            "--config",
+            str(config),
+            "--model-manifest",
+            str(override),
+        ]
+    )
+
+    validated = cli._validated_compute_config(arguments)
+
+    assert validated["model"] == tmp_path / "configured-model.zip"
+    assert validated["model_manifest"] == override
+
+
+def test_cli_rejects_manifest_override_for_configured_policy_table(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "compute.yaml"
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "domain": "taxi",
+                "state_universe": "taxi-factored-500",
+                "seed": 0,
+                "policy_table": "policy.yaml",
+                "output": "result.yaml",
+            }
+        ),
+        encoding="utf-8",
+    )
+    parser = cli._build_parser()
+    arguments = parser.parse_args(
+        [
+            "compute-rr",
+            "--config",
+            str(config),
+            "--model-manifest",
+            str(tmp_path / "irrelevant.manifest.yaml"),
+        ]
+    )
+
+    with pytest.raises(cli.CliUsageError, match="model-manifest"):
+        cli._validated_compute_config(arguments)
+
+
 @pytest.mark.parametrize(
     "serialized",
     [

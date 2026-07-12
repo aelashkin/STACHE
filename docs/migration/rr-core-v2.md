@@ -11,10 +11,11 @@ ambiguous v1 inputs instead of guessing.
 | RR artifacts | `stache.rr-result` schema 2 and core schema 2 | Recompute from the trusted policy and connector; do not relabel v1 YAML |
 | Continuations | `stache-rr-continuation-v2` in-memory checkpoint | Restart v1 searches; v1 payloads cannot resume |
 | Model policies | Exact archive fingerprint plus observation/action manifest | Supply `model.manifest.yaml` and explicitly acknowledge trusted archives |
+| Legacy experiment loader | Explicit trust; optional connector-bound manifest | Pass `acknowledge_trusted_model=True` and `model_connector=...` when semantic validation is required |
 | Custom action oracles | Pure, exact `policy_query_cost(state)` | Implement preflight cost and preserve cumulative counters |
 | Legacy Taxi API | Explicit verified `ModelManifest` for model-backed calls | Pass `model_manifest=` or attach `stache_model_manifest` to the model |
 | Visualizers | Trusted-model acknowledgement and explicit overwrite | Add the flags shown below |
-| MiniGrid headings | One-turn left/right adjacency only | Recompute explanations that depended on a direct 180° edge |
+| MiniGrid headings | Centralized one-turn left/right validation | No topology migration; historical generators already excluded 180° edges |
 
 The Python package version is now single-sourced as `1.0.0` in both runtime and
 built-wheel metadata.
@@ -77,6 +78,26 @@ The writer refuses symlinked model inputs and existing sidecars by default. Use
 The sidecar is a semantic identity record, not proof that an archive is safe or
 authentic.
 
+The legacy experiment utility now fails closed unless trust is explicit:
+
+```python
+from stache.explainability.connectors.taxi import TaxiConnector
+from stache.utils.experiment_io import load_experiment
+
+model, config = load_experiment(
+    experiment_dir,
+    acknowledge_trusted_model=True,
+    model_connector=TaxiConnector(),
+)
+```
+
+Omit `model_connector` only for a legacy domain that has no registered connector;
+the archive is still snapshotted and the trust acknowledgement remains required.
+
+Untrusted CLI/config YAML is limited to 1 MiB and RR result YAML to 16 MiB.
+Inputs must be regular non-symlink UTF-8 files. Oversized legacy inputs should be
+reviewed and reduced rather than bypassing the parser boundary.
+
 All model-loading commands require a separate trust decision:
 
 ```bash
@@ -109,6 +130,7 @@ legacy mapping, but model semantics are no longer inferred:
 result = compute_rr_taxi(
     seed,
     model,
+    env,
     model_manifest=verified_manifest,
 )
 ```
@@ -123,14 +145,16 @@ policy-map visualizer uses a timestamped directory and refuses an existing fixed
 timestamp unless `--overwrite` is provided. Neither visualizer re-queries
 scientific fields already stored in an RR result.
 
-## MiniGrid direction change
+## MiniGrid direction verification
 
-Historical MiniGrid neighbor generation previously admitted an opposite heading
-as an immediate categorical alternative. MiniGrid 3.0.0 exposes only a left or
-right 90° turn per action, so the opposite heading now requires two graph edges.
-This narrow correction does not register MiniGrid with the generic core or
-decide its broader object universe, observation codec, state injection, or
-metric certificate.
+The historical Empty and Fetch neighbor generators already used one left or
+right 90° turn and excluded the opposite heading. This release centralizes that
+rule, validates all four headings against MiniGrid 3.0.0 runtime behavior, and
+adds regression tests; it does not change the valid-state topology and does not
+require recomputation solely for direction adjacency. MiniGrid is still not
+registered with the generic core, and this verification does not decide its
+broader object universe, observation codec, state injection, or metric
+certificate.
 
 ## Rollback
 

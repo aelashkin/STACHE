@@ -90,4 +90,3 @@ def test_manifest_mismatch_is_rejected_before_deserialization(
         )
 
     assert called is False
-
