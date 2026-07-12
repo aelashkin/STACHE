@@ -36,7 +36,7 @@ from .policy import (
 )
 
 
-CHECKPOINT_VERSION = "stache-rr-continuation-v1"
+CHECKPOINT_VERSION = "stache-rr-continuation-v2"
 
 
 @dataclass
@@ -139,9 +139,21 @@ def _stable(value: Any, *, _active: set[int] | None = None) -> Any:
                     item, sort_keys=True, separators=(",", ":")
                 )
             )
-            return {"set": entries}
-        if isinstance(value, (tuple, list)):
-            return [_stable(item, _active=_active) for item in value]
+            return {
+                "frozenset" if isinstance(value, frozenset) else "set": entries
+            }
+        if isinstance(value, tuple):
+            return {
+                "tuple": [
+                    _stable(item, _active=_active) for item in value
+                ]
+            }
+        if isinstance(value, list):
+            return {
+                "list": [
+                    _stable(item, _active=_active) for item in value
+                ]
+            }
 
         type_name = f"{type(value).__module__}.{type(value).__qualname__}"
         attributes = getattr(value, "__dict__", None)
@@ -623,6 +635,243 @@ def _initialize(
     return checkpoint, fingerprint, graph_certifies_formal
 
 
+def _validate_checkpoint(connector: Any, checkpoint: _Checkpoint) -> None:
+    """Revalidate restored checkpoint structure and connector-owned identity."""
+
+    try:
+        exact_containers = {
+            "states": dict,
+            "graph_depths": dict,
+            "actions": dict,
+            "ordering": dict,
+            "order_owners": dict,
+            "visited": set,
+            "region_keys": set,
+            "boundary_keys": set,
+            "graph_minimum_keys": set,
+            "formal_minimum_keys": set,
+            "current_layer": list,
+            "next_candidates": dict,
+            "query_order": list,
+            "next_invariant": list,
+            "formal_layers": tuple,
+            "formal_current_minima": set,
+        }
+        for name, expected_type in exact_containers.items():
+            if type(getattr(checkpoint, name)) is not expected_type:
+                raise ContinuationMismatchError(
+                    f"continuation checkpoint {name} must be "
+                    f"{expected_type.__name__}"
+                )
+
+        canonical_seed, seed_key = _canonical_state(connector, checkpoint.seed)
+        if canonical_seed != checkpoint.seed:
+            raise ContinuationMismatchError(
+                "continuation checkpoint seed is not canonical"
+            )
+        if seed_key != checkpoint.seed_key:
+            raise ContinuationMismatchError(
+                "continuation checkpoint seed state-key binding is invalid"
+            )
+
+        known_keys = set(checkpoint.states)
+        if checkpoint.seed_key not in known_keys:
+            raise ContinuationMismatchError(
+                "continuation checkpoint states omit the seed key"
+            )
+        for stored_key, stored_state in checkpoint.states.items():
+            canonical, derived_key = _canonical_state(connector, stored_state)
+            if canonical != stored_state:
+                raise ContinuationMismatchError(
+                    "continuation checkpoint contains a non-canonical state"
+                )
+            if derived_key != stored_key:
+                raise ContinuationMismatchError(
+                    "continuation checkpoint state-key binding is invalid"
+                )
+
+        if set(checkpoint.ordering) != known_keys:
+            raise ContinuationMismatchError(
+                "continuation checkpoint ordering keys disagree with states"
+            )
+        for key, stored_order in checkpoint.ordering.items():
+            if type(stored_order) is not tuple:
+                raise ContinuationMismatchError(
+                    "continuation checkpoint ordering values must be tuples"
+                )
+            if stored_order != _order_key(connector, key):
+                raise ContinuationMismatchError(
+                    "continuation checkpoint ordering disagrees with connector"
+                )
+            if checkpoint.order_owners.get(stored_order) != key:
+                raise ContinuationMismatchError(
+                    "continuation checkpoint order ownership is invalid"
+                )
+        if set(checkpoint.order_owners) != set(checkpoint.ordering.values()):
+            raise ContinuationMismatchError(
+                "continuation checkpoint order owners disagree with ordering"
+            )
+
+        mapping_key_sets = {
+            "graph_depths": set(checkpoint.graph_depths),
+            "actions": set(checkpoint.actions),
+            "next_candidates": set(checkpoint.next_candidates),
+        }
+        for name, keys in mapping_key_sets.items():
+            if not keys <= known_keys:
+                raise ContinuationMismatchError(
+                    f"continuation checkpoint {name} refers to unknown states"
+                )
+        for key, state in checkpoint.next_candidates.items():
+            if checkpoint.states[key] != state:
+                raise ContinuationMismatchError(
+                    "continuation checkpoint candidate state binding is invalid"
+                )
+        for key, depth in checkpoint.graph_depths.items():
+            if type(depth) is not int or depth < 0:
+                raise ContinuationMismatchError(
+                    "continuation checkpoint graph depths must be non-negative ints"
+                )
+        if checkpoint.graph_depths.get(checkpoint.seed_key) != 0:
+            raise ContinuationMismatchError(
+                "continuation checkpoint seed graph depth must be zero"
+            )
+        for key, action in checkpoint.actions.items():
+            _validated_action(connector, action, key=key)
+        if checkpoint.actions.get(checkpoint.seed_key) != checkpoint.seed_action:
+            raise ContinuationMismatchError(
+                "continuation checkpoint seed action disagrees with actions"
+            )
+
+        set_fields = (
+            "visited",
+            "region_keys",
+            "boundary_keys",
+            "graph_minimum_keys",
+            "formal_minimum_keys",
+            "formal_current_minima",
+        )
+        for name in set_fields:
+            keys = getattr(checkpoint, name)
+            if not keys <= known_keys:
+                raise ContinuationMismatchError(
+                    f"continuation checkpoint {name} refers to unknown states"
+                )
+        for name in ("region_keys", "boundary_keys", "graph_minimum_keys"):
+            if not getattr(checkpoint, name) <= set(checkpoint.actions):
+                raise ContinuationMismatchError(
+                    f"continuation checkpoint {name} contains unevaluated states"
+                )
+        for name in ("formal_minimum_keys", "formal_current_minima"):
+            if not getattr(checkpoint, name) <= set(checkpoint.actions):
+                raise ContinuationMismatchError(
+                    f"continuation checkpoint {name} contains unevaluated states"
+                )
+
+        for name in ("current_layer", "query_order", "next_invariant"):
+            values = getattr(checkpoint, name)
+            if len(values) != len(set(values)) or not set(values) <= known_keys:
+                raise ContinuationMismatchError(
+                    f"continuation checkpoint {name} is not a unique known-key list"
+                )
+        if not set(checkpoint.query_order) <= set(checkpoint.next_candidates):
+            raise ContinuationMismatchError(
+                "continuation checkpoint query order disagrees with candidates"
+            )
+
+        for layer in checkpoint.formal_layers:
+            if type(layer) is not tuple or len(layer) != 2:
+                raise ContinuationMismatchError(
+                    "continuation checkpoint formal layer is malformed"
+                )
+            distance, entries = layer
+            if (
+                type(distance) not in {int, float}
+                or not math.isfinite(float(distance))
+                or distance < 0
+                or type(entries) is not tuple
+            ):
+                raise ContinuationMismatchError(
+                    "continuation checkpoint formal layer is malformed"
+                )
+            for entry in entries:
+                if type(entry) is not tuple or len(entry) != 2:
+                    raise ContinuationMismatchError(
+                        "continuation checkpoint formal layer entry is malformed"
+                    )
+                entry_key, entry_state = entry
+                canonical, derived_key = _canonical_state(connector, entry_state)
+                if canonical != entry_state or derived_key != entry_key:
+                    raise ContinuationMismatchError(
+                        "continuation checkpoint formal state-key binding is invalid"
+                    )
+
+        index_limits = {
+            "expand_index": len(checkpoint.current_layer),
+            "query_index": len(checkpoint.query_order),
+            "formal_layer_index": len(checkpoint.formal_layers),
+        }
+        for name, limit in index_limits.items():
+            value = getattr(checkpoint, name)
+            if type(value) is not int or not 0 <= value <= limit:
+                raise ContinuationMismatchError(
+                    f"continuation checkpoint {name} is out of range"
+                )
+        if checkpoint.formal_layer_index < len(checkpoint.formal_layers):
+            entries = checkpoint.formal_layers[checkpoint.formal_layer_index][1]
+            if not 0 <= checkpoint.formal_state_index <= len(entries):
+                raise ContinuationMismatchError(
+                    "continuation checkpoint formal_state_index is out of range"
+                )
+        elif checkpoint.formal_state_index != 0:
+            raise ContinuationMismatchError(
+                "continuation checkpoint formal_state_index is out of range"
+            )
+        if checkpoint.phase not in {"expand", "query", "formal"}:
+            raise ContinuationMismatchError(
+                "continuation checkpoint phase is invalid"
+            )
+
+        counter_fields = (
+            "current_depth",
+            "states_discovered",
+            "states_evaluated",
+            "states_expanded",
+            "policy_queries",
+            "cache_hits",
+            "table_hits",
+            "model_queries",
+            "duplicate_discoveries",
+            "formal_states_scanned",
+            "resume_count",
+            "max_evaluated_graph_depth",
+        )
+        for name in counter_fields:
+            value = getattr(checkpoint, name)
+            if type(value) is not int or value < 0:
+                raise ContinuationMismatchError(
+                    f"continuation checkpoint {name} must be a non-negative int"
+                )
+        for name in (
+            "graph_complete",
+            "region_complete",
+            "boundary_complete",
+            "radius_complete",
+            "minima_complete",
+            "proven_absent",
+        ):
+            if type(getattr(checkpoint, name)) is not bool:
+                raise ContinuationMismatchError(
+                    f"continuation checkpoint {name} must be a bool"
+                )
+    except ContinuationMismatchError:
+        raise
+    except Exception as error:
+        raise ContinuationMismatchError(
+            f"continuation checkpoint validation failed: {error}"
+        ) from error
+
+
 def _resume(
     continuation: SearchContinuation,
     seed: Any,
@@ -655,6 +904,7 @@ def _resume(
     checkpoint = copy.deepcopy(continuation.checkpoint)
     if not isinstance(checkpoint, _Checkpoint):
         raise ContinuationMismatchError("continuation checkpoint payload is invalid")
+    _validate_checkpoint(connector, checkpoint)
     if checkpoint.seed != canonical_seed or checkpoint.seed_key != seed_key:
         raise ContinuationMismatchError("continuation seed does not match")
     if (

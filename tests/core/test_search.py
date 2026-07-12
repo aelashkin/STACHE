@@ -6,6 +6,7 @@ from copy import deepcopy
 from dataclasses import replace
 
 import pytest
+import stache.explainability.core.search as search_module
 
 from stache.explainability.core.connector import ExactActionInvariance
 from stache.explainability.core.policy import TableActionOracle
@@ -635,6 +636,66 @@ def test_continuation_rejects_tampered_checkpoint_payload() -> None:
         compute_rr(
             "s",
             ToyConnector(space),
+            ToyOracle(space.actions),
+            exact_options(),
+            continuation=tampered,
+        )
+
+
+def test_continuation_digest_distinguishes_list_from_equal_tuple() -> None:
+    space = exact_space()
+    connector = ToyConnector(space)
+    partial = compute_rr(
+        "s",
+        connector,
+        ToyOracle(space.actions),
+        exact_options(max_expanded=1),
+    )
+    assert partial.continuation is not None
+    checkpoint = deepcopy(partial.continuation.checkpoint)
+    checkpoint.current_layer = tuple(checkpoint.current_layer)
+    assert (
+        search_module._checkpoint_digest(checkpoint)
+        != partial.continuation.payload_digest
+    )
+    tampered = replace(
+        partial.continuation,
+        checkpoint=checkpoint,
+        payload_digest=search_module._checkpoint_digest(checkpoint),
+    )
+
+    with pytest.raises(ContinuationMismatchError, match="checkpoint|current_layer"):
+        compute_rr(
+            "s",
+            connector,
+            ToyOracle(space.actions),
+            exact_options(),
+            continuation=tampered,
+        )
+
+
+def test_continuation_revalidates_every_restored_state_key_binding() -> None:
+    space = exact_space()
+    connector = ToyConnector(space)
+    partial = compute_rr(
+        "s",
+        connector,
+        ToyOracle(space.actions),
+        exact_options(max_expanded=1),
+    )
+    assert partial.continuation is not None
+    checkpoint = deepcopy(partial.continuation.checkpoint)
+    checkpoint.states["a"] = " A "
+    tampered = replace(
+        partial.continuation,
+        checkpoint=checkpoint,
+        payload_digest=search_module._checkpoint_digest(checkpoint),
+    )
+
+    with pytest.raises(ContinuationMismatchError, match="canonical|state.*key"):
+        compute_rr(
+            "s",
+            connector,
             ToyOracle(space.actions),
             exact_options(),
             continuation=tampered,
