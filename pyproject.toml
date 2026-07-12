@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stache"
-version = "1.0.0"
+dynamic = ["version"]
 description = "State–Action Transparency through Counterfactual & Heuristic Explanations"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
@@ -58,6 +58,9 @@ stache-viz-rr-taxi = "stache.explainability.taxi.taxi_robustness_region_visualiz
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+
+[tool.setuptools.dynamic]
+version = {attr = "stache.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
