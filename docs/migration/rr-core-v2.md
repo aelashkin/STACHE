@@ -108,7 +108,9 @@ stache-viz-policy-map ... --acknowledge-trusted-model
 
 The historical `python -m stache.explainability.evaluate` and
 `python -m stache.explainability.rr_bfs` workflows require the same flag before
-loading their configured MiniGrid archive.
+loading their configured MiniGrid archive. Direct `evaluate_model(...)` callers
+must pass `acknowledge_trusted_model=True`; the helper snapshots and loads the
+same regular archive bytes after that decision.
 
 ## Update custom action oracles
 

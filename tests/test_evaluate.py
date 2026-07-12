@@ -14,6 +14,7 @@ import sys
 import inspect
 
 from stache.explainability.evaluate import (
+    UntrustedModelError,
     evaluate_model,
     evaluate_symbolic_env,
     evaluate_policy_performance,
@@ -86,8 +87,17 @@ class TestEvaluate:
     @patch("stache.explainability.evaluate.gym.make")
     @patch("stache.explainability.evaluate.evaluate_policy")
     @patch("stache.explainability.evaluate.FlatObsWrapper")
+    @patch("stache.explainability.evaluate.snapshot_model_file")
     @patch("stache.explainability.evaluate.PPO.load")
-    def test_evaluate_model(self, mock_ppo_load, mock_flat_wrapper, mock_evaluate_policy, mock_gym_make, mock_model):
+    def test_evaluate_model(
+        self,
+        mock_ppo_load,
+        mock_snapshot_model,
+        mock_flat_wrapper,
+        mock_evaluate_policy,
+        mock_gym_make,
+        mock_model,
+    ):
         """Test that evaluate_model correctly loads and evaluates a model."""
         # Configure mocks
         mock_env = MagicMock()
@@ -99,19 +109,40 @@ class TestEvaluate:
         
         # Setup mock model loading
         mock_ppo_load.return_value = mock_model
+        snapshot = object()
+        mock_snapshot_model.return_value = (snapshot, "sha256:test")
         
         # Setup evaluation return values
         mock_evaluate_policy.return_value = (10.5, 2.5)  # Mean and std reward
         
         # Call the function under test
-        evaluate_model("/path/to/model", env_name="MiniGrid-Test-Env", n_eval_episodes=5)
+        evaluate_model(
+            "/path/to/model",
+            env_name="MiniGrid-Test-Env",
+            n_eval_episodes=5,
+            acknowledge_trusted_model=True,
+        )
         
         # Verify correct function calls
         mock_gym_make.assert_called_once_with("MiniGrid-Test-Env", render_mode='rgb_array')
         mock_flat_wrapper.assert_called_once_with(mock_env)
-        mock_ppo_load.assert_called_once_with("/path/to/model")
+        mock_snapshot_model.assert_called_once()
+        mock_ppo_load.assert_called_once_with(snapshot)
         mock_evaluate_policy.assert_called_once()
         mock_wrapped_env.close.assert_called_once()
+
+    @patch("stache.explainability.evaluate.gym.make")
+    def test_evaluate_model_requires_trust_before_environment_or_file_access(
+        self,
+        mock_gym_make,
+    ):
+        with pytest.raises(
+            UntrustedModelError,
+            match="trusted source",
+        ):
+            evaluate_model("/path/that/is/not/read")
+
+        mock_gym_make.assert_not_called()
     
     @patch("stache.explainability.evaluate.create_minigrid_env")
     def test_evaluate_symbolic_env(self, mock_create_env, env_config):

@@ -1,6 +1,7 @@
 import argparse
 import os
 from datetime import datetime
+from pathlib import Path
 from PIL import Image
 
 import numpy as np
@@ -11,7 +12,8 @@ from minigrid.wrappers import FlatObsWrapper, FullyObsWrapper
 from stable_baselines3.common.evaluation import evaluate_policy
 
 from stache.envs.minigrid.factory import create_minigrid_env
-from stache.utils.experiment_io import load_experiment
+from stache.explainability.model_manifest import snapshot_model_file
+from stache.utils.experiment_io import UntrustedModelError, load_experiment
 
 
 # Hardcoded main inputs for evaluation
@@ -43,7 +45,13 @@ def _parse_entrypoint_args(
 
 
 
-def evaluate_model(model_path, env_name='MiniGrid-Fetch-5x5-N2-v0', n_eval_episodes=10):
+def evaluate_model(
+    model_path,
+    env_name='MiniGrid-Fetch-5x5-N2-v0',
+    n_eval_episodes=10,
+    *,
+    acknowledge_trusted_model=False,
+):
     """
     Load a PPO model from the given path and evaluate it on the specified environment.
     
@@ -55,12 +63,20 @@ def evaluate_model(model_path, env_name='MiniGrid-Fetch-5x5-N2-v0', n_eval_episo
     Returns:
         None
     """
+    if acknowledge_trusted_model is not True:
+        raise UntrustedModelError(
+            "evaluate_model requires explicit acknowledgement that the model "
+            "archive came from a trusted source"
+        )
+
+    model_snapshot, _ = snapshot_model_file(Path(model_path))
+
     # Load environment
     env = gym.make(env_name, render_mode='rgb_array')
     env = FlatObsWrapper(env)  # Use flat observation wrapper
     
     # Load model
-    model = PPO.load(model_path)
+    model = PPO.load(model_snapshot)
     
     # Evaluate model
     mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=n_eval_episodes, deterministic=True)
