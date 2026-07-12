@@ -7,6 +7,7 @@ a long-running job.
 
 from __future__ import annotations
 
+import argparse
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -140,7 +141,14 @@ def train_and_save() -> dict[str, str]:
     return experiment_info
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Train the fixed Taxi-v3 DQN workflow and write a connector-bound "
+            "model manifest"
+        )
+    )
+    parser.parse_args(argv)
     train_and_save()
     return 0
 

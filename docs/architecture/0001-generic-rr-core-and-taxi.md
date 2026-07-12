@@ -39,11 +39,17 @@ change model inputs and potentially invalidate published artifacts.
 
 ### One domain-neutral search
 
-`stache.explainability.core` owns the RR/CF search exactly once. It imports no
-Taxi, MiniGrid, Gymnasium, Stable-Baselines3, rendering, YAML, or artifact code.
+`stache.explainability.core` owns the sole generic RR/CF search used by all
+registered connectors. It imports no Taxi, MiniGrid, Gymnasium,
+Stable-Baselines3, rendering, YAML, or artifact code.
 Connectors own canonical state identity, validation, stable keys and ordering,
 the declared universe, atomic neighbors, formal distance, and the truth of a
 versioned metric certificate.
+
+The historical MiniGrid `rr_bfs` remains a separate, coupled implementation
+until its universe and codec decisions are approved. It is not presented as a
+second generic implementation or as migrated Phase 1 behavior; removing it
+without those decisions would silently change published MiniGrid semantics.
 
 The action-oracle boundary normalizes a policy output to one Python `int` in a
 declared discrete action space and Phase 1 uses exact action equality as its only
