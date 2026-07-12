@@ -132,6 +132,8 @@ def compute_rr_taxi(
     model: object,
     env: object,
     precomputed_sa: Mapping[int, object] | None = None,
+    *,
+    model_manifest: ModelManifest | None = None,
 ) -> dict[str, Any]:
     """Deprecated compatibility wrapper returning the historical mapping.
 
@@ -140,7 +142,9 @@ def compute_rr_taxi(
     fixes that inconsistency: ``precomputed_sa`` is an explicit table-then-model
     source for every state, including the seed.  Scientific computation is
     delegated to :func:`compute_taxi_rr`; only the return-shape conversion and
-    elapsed wall-clock measurement remain here.
+    elapsed wall-clock measurement remain here.  Model-backed legacy calls must
+    pass a verified ``model_manifest`` (or attach ``stache_model_manifest`` to
+    the model) because observation semantics cannot be inferred from shape.
     """
 
     warnings.warn(
@@ -151,7 +155,16 @@ def compute_rr_taxi(
     )
     _validate_legacy_env(env)
     started = time.perf_counter()
-    legacy_manifest = getattr(model, "stache_model_manifest", None)
+    legacy_manifest = (
+        model_manifest
+        if model_manifest is not None
+        else getattr(model, "stache_model_manifest", None)
+    )
+    if not isinstance(legacy_manifest, ModelManifest):
+        raise ValueError(
+            "compute_rr_taxi requires model_manifest=ModelManifest(...) for "
+            "model-backed compatibility calls"
+        )
     legacy_fingerprint = (
         legacy_manifest.model_fingerprint
         if isinstance(legacy_manifest, ModelManifest)

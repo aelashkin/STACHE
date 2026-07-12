@@ -198,7 +198,7 @@ def test_legacy_compute_rr_taxi_warns_and_retains_mapping_contract() -> None:
     table = _policy_table()
     seed = (1, 3, 2, 0)
     model = TableModel(table)
-    model.stache_model_manifest = _model_manifest("legacy-table-model-v1")
+    manifest = _model_manifest("legacy-table-model-v1")
     env = SimpleNamespace(
         unwrapped=SimpleNamespace(
             observation_space=SimpleNamespace(n=500),
@@ -206,7 +206,13 @@ def test_legacy_compute_rr_taxi_warns_and_retains_mapping_contract() -> None:
     )
 
     with pytest.warns(DeprecationWarning, match="compute_taxi_rr"):
-        legacy = compute_rr_taxi(seed, model, env, precomputed_sa=table)
+        legacy = compute_rr_taxi(
+            seed,
+            model,
+            env,
+            precomputed_sa=table,
+            model_manifest=manifest,
+        )
 
     assert set(legacy) == {
         "rr_tuple_set",
@@ -237,6 +243,21 @@ def test_legacy_compute_rr_taxi_warns_and_retains_mapping_contract() -> None:
     assert legacy["initial_action"] == table[connector.encode_index(seed)]
     # The explicit table-then-model source must use the table even at the seed.
     assert model.calls[connector.encode_index(seed)] == 0
+
+
+def test_legacy_compute_rr_taxi_requires_explicit_model_manifest() -> None:
+    model = TableModel(_policy_table())
+    env = SimpleNamespace(
+        unwrapped=SimpleNamespace(
+            observation_space=SimpleNamespace(n=500),
+        )
+    )
+
+    with pytest.warns(DeprecationWarning), pytest.raises(
+        ValueError,
+        match="model_manifest",
+    ):
+        compute_rr_taxi((0, 0, 0, 0), model, env)
 
 
 def test_model_only_search_queries_the_seed_once() -> None:
