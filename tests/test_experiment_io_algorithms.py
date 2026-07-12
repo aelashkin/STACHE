@@ -123,6 +123,23 @@ def test_save_config_emits_safe_primitive_yaml_for_tuple_values(
     assert yaml.safe_load(serialized)["model_config"]["train_freq"] == [1, "step"]
 
 
+def test_load_config_rejects_oversized_and_symlink_inputs(
+    tmp_path: Path,
+) -> None:
+    oversized = tmp_path / "oversized.yaml"
+    with oversized.open("wb") as stream:
+        stream.truncate(experiment_io.EXPERIMENT_CONFIG_MAX_BYTES + 1)
+    with pytest.raises(ValueError, match="exceeds"):
+        experiment_io.load_config(oversized)
+
+    real = tmp_path / "real.yaml"
+    real.write_text("model_type: DQN\n", encoding="utf-8")
+    linked = tmp_path / "linked.yaml"
+    linked.symlink_to(real)
+    with pytest.raises(ValueError, match="non-symlink"):
+        experiment_io.load_config(linked)
+
+
 def test_save_experiment_can_bind_saved_model_to_explicit_connector(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

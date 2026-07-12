@@ -259,26 +259,31 @@ def load_config(config_path):
         
     Raises:
         FileNotFoundError: If the config file does not exist.
-        PermissionError: If the config file is not readable.
+        ValueError: If the input is not a bounded regular UTF-8 file.
         yaml.YAMLError: If the config file contains invalid YAML.
     """
-    # Check if the file exists
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Configuration file not found at: {config_path}")
-    
-    # Check if the file is readable
-    if not os.access(config_path, os.R_OK):
-        raise PermissionError(f"Configuration file is not readable: {config_path}")
-    
-    # Attempt to load the YAML file
+    path = Path(config_path)
     try:
-        with open(config_path, "r") as file:
-            config = yaml.safe_load(file)
-            if config is None:
-                raise ValueError("Configuration file is empty or has invalid content.")
-            return config
+        serialized = read_bounded_regular_text(
+            path,
+            max_bytes=EXPERIMENT_CONFIG_MAX_BYTES,
+            label="configuration file",
+        )
+    except SafeInputError as error:
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Configuration file not found at: {path}"
+            ) from error
+        raise ValueError(str(error)) from error
+    try:
+        config = yaml.safe_load(serialized)
     except yaml.YAMLError as e:
-        raise yaml.YAMLError(f"Error parsing YAML configuration file at {config_path}: {e}")
+        raise yaml.YAMLError(
+            f"Error parsing YAML configuration file at {config_path}: {e}"
+        )
+    if config is None:
+        raise ValueError("Configuration file is empty or has invalid content.")
+    return config
 
 
 def get_device(config_device=None):

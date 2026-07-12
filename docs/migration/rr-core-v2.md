@@ -106,6 +106,10 @@ stache-viz-rr-taxi ... --acknowledge-trusted-model
 stache-viz-policy-map ... --acknowledge-trusted-model
 ```
 
+The historical `python -m stache.explainability.evaluate` and
+`python -m stache.explainability.rr_bfs` workflows require the same flag before
+loading their configured MiniGrid archive.
+
 ## Update custom action oracles
 
 Every oracle must report the exact uncached cost of its next action request

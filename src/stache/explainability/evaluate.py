@@ -1,3 +1,4 @@
+import argparse
 import os
 from datetime import datetime
 from PIL import Image
@@ -24,6 +25,21 @@ run_detailed_evaluation = True
 
 # run_statistics_evaluation = True
 # run_detailed_evaluation = False
+
+
+def _parse_entrypoint_args(
+    argv: list[str] | None = None,
+) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run the historical MiniGrid policy evaluation workflow"
+    )
+    parser.add_argument(
+        "--acknowledge-trusted-model",
+        action="store_true",
+        required=True,
+        help="Confirm that the configured model archive came from a trusted source",
+    )
+    return parser.parse_args(argv)
 
 
 
@@ -261,9 +277,15 @@ def evaluate_single_policy_run(model, env_config, seed=42, max_steps=None, save_
 
 
 if __name__ == "__main__":
+    entrypoint_args = _parse_entrypoint_args()
     # # experiment_dir = "data/experiments/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250211_022445"
     # experiment_dir = "data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_20250305_040208"
-    model, experiment_config = load_experiment(experiment_dir)
+    model, experiment_config = load_experiment(
+        experiment_dir,
+        acknowledge_trusted_model=(
+            entrypoint_args.acknowledge_trusted_model
+        ),
+    )
     env_config = experiment_config["env_config"]
 
 
