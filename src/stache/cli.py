@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
-from hashlib import sha256
 from io import BytesIO
 from importlib import metadata
 import json
@@ -482,14 +481,15 @@ def _load_policy_table(path: Path) -> dict[int, object]:
 def _snapshot_model(path: Path) -> tuple[BytesIO, str]:
     """Read once so the fingerprint and SB3 loader consume identical bytes."""
 
-    if not path.is_file():
-        raise CliUsageError(f"model file does not exist or is not regular: {path}")
+    from stache.explainability.model_manifest import (
+        ModelManifestError,
+        snapshot_model_file,
+    )
+
     try:
-        payload = path.read_bytes()
-    except OSError as error:
-        raise CliUsageError(f"cannot read model file {path}: {error}") from error
-    fingerprint = f"sha256:{sha256(payload).hexdigest()}"
-    return BytesIO(payload), fingerprint
+        return snapshot_model_file(path)
+    except ModelManifestError as error:
+        raise CliUsageError(str(error)) from error
 
 
 def _provenance() -> dict[str, object]:
@@ -564,6 +564,7 @@ def _run_compute_rr(config: Mapping[str, Any]) -> int:
         SearchOptions,
         TableActionOracle,
         compute_rr,
+        validate_model_manifest_binding,
     )
 
     connector = TaxiConnector()
@@ -582,6 +583,7 @@ def _run_compute_rr(config: Mapping[str, Any]) -> int:
             manifest = load_model_manifest(config["model_manifest"])
         except ModelManifestError as error:
             raise CliUsageError(str(error)) from error
+        validate_model_manifest_binding(connector, fingerprint, manifest)
         from stable_baselines3 import DQN
 
         try:

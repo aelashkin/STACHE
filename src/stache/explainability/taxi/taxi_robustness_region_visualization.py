@@ -7,20 +7,15 @@ model_name is derived from that folder's name.
 """
 import argparse
 from collections.abc import Iterable
-from hashlib import sha256
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from stable_baselines3 import DQN
 
 from stache.explainability.artifacts import save_result
 from stache.explainability.connectors.taxi import TaxiConnector
 from stache.explainability.core.models import SearchResult
-from stache.explainability.model_manifest import (
-    load_model_manifest,
-    manifest_path_for_model,
-)
+from stache.explainability.taxi.model_loading import load_trusted_taxi_model
 from stache.explainability.taxi.robust_taxi import compute_taxi_rr
 from stache.explainability.taxi.taxi_policy_map import (
     ACTION_NAMES,
@@ -59,14 +54,6 @@ def _minimal_counterfactuals_for_plot(
     )
 
 
-def _file_fingerprint(path: Path) -> str:
-    digest = sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return f"sha256:{digest.hexdigest()}"
-
-
 def parse_state(s: str) -> tuple[int, int, int, int]:
     parts = s.split(',')
     if len(parts) != 4:
@@ -96,8 +83,13 @@ def main(argv=None) -> None:
         help="Path to folder containing model.zip"
     )
     parser.add_argument(
-        "--state", type=parse_state, default="0,0,0,2", # Default seed state
+        "--state", type=parse_state, default=(0, 0, 0, 2),
         help="Seed state as 'x,y,P,D'"
+    )
+    parser.add_argument(
+        "--acknowledge-trusted-model",
+        action="store_true",
+        help="Confirm that model.zip came from a trusted source",
     )
     parser.add_argument(
         "--hide-walls", action="store_false", dest="show_walls",
@@ -110,12 +102,17 @@ def main(argv=None) -> None:
     )
     parser.set_defaults(show_walls=True)
     args = parser.parse_args(argv)
+    if not args.acknowledge_trusted_model:
+        parser.error(
+            "--acknowledge-trusted-model is required before loading model.zip"
+        )
 
-    # Validate model.zip and derive model_name
     zip_path = args.model_path / "model.zip"
-    if not zip_path.is_file():
-        raise FileNotFoundError(f"Could not find model.zip in {args.model_path}")
     model_name = args.model_path.name
+    loaded_model = load_trusted_taxi_model(
+        zip_path,
+        acknowledge_trusted_model=args.acknowledge_trusted_model,
+    )
 
     # Prepare output directory
     # Ensure args.state is a tuple of ints for string formatting if not already
@@ -124,15 +121,12 @@ def main(argv=None) -> None:
     out_dir = Path.cwd() / "data" / "experiments" / "rr" / "taxi_robustness_region" / model_name / seed_str
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    model = DQN.load(str(zip_path), env=None)
-    manifest = load_model_manifest(manifest_path_for_model(zip_path))
-
     # Compute RR and Counterfactuals
     rr = compute_taxi_rr(
         s_tuple,
-        model=model,
-        model_fingerprint=_file_fingerprint(zip_path),
-        model_manifest=manifest,
+        model=loaded_model.model,
+        model_fingerprint=loaded_model.model_fingerprint,
+        model_manifest=loaded_model.manifest,
     )
     tuples = [record.state for record in rr.region]
     s0_initial_action = rr.seed_action

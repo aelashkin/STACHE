@@ -341,14 +341,13 @@ def test_visualization_cli_writes_canonical_artifact_and_requires_overwrite(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        taxi_robustness_region_visualization.DQN,
-        "load",
-        lambda *_args, **_kwargs: object(),
-    )
-    monkeypatch.setattr(
         taxi_robustness_region_visualization,
-        "load_model_manifest",
-        lambda *_args, **_kwargs: object(),
+        "load_trusted_taxi_model",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            model=object(),
+            model_fingerprint="test-model:visualization-v1",
+            manifest=_model_manifest("test-model:visualization-v1"),
+        ),
     )
     monkeypatch.setattr(
         taxi_robustness_region_visualization,
@@ -361,6 +360,7 @@ def test_visualization_cli_writes_canonical_artifact_and_requires_overwrite(
         str(model_dir),
         "--state",
         "0,0,0,2",
+        "--acknowledge-trusted-model",
         "--hide-walls",
     ]
     taxi_robustness_region_visualization.main(arguments)
@@ -387,6 +387,38 @@ def test_visualization_cli_writes_canonical_artifact_and_requires_overwrite(
         taxi_robustness_region_visualization.main(arguments)
 
     taxi_robustness_region_visualization.main([*arguments, "--overwrite"])
+
+
+def test_visualizer_clis_require_trust_before_model_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    accessed = False
+
+    def unexpected_access(*_args: object, **_kwargs: object) -> object:
+        nonlocal accessed
+        accessed = True
+        raise AssertionError("model access must follow trust acknowledgement")
+
+    monkeypatch.setattr(
+        taxi_robustness_region_visualization,
+        "load_trusted_taxi_model",
+        unexpected_access,
+    )
+    monkeypatch.setattr(
+        taxi_policy_map,
+        "load_trusted_taxi_model",
+        unexpected_access,
+    )
+
+    with pytest.raises(SystemExit):
+        taxi_robustness_region_visualization.main(
+            ["--model-path", str(tmp_path)]
+        )
+    with pytest.raises(SystemExit, match="acknowledge-trusted-model"):
+        taxi_policy_map.main(["--model-path", str(tmp_path)])
+
+    assert accessed is False
 
 
 def test_policy_map_collects_all_500_connector_states_once() -> None:

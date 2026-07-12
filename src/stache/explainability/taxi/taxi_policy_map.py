@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 from collections.abc import Iterable, Mapping
 import datetime as dt
-from hashlib import sha256
 from pathlib import Path
 import warnings
 
@@ -20,7 +19,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from matplotlib.colors import ListedColormap
-from stable_baselines3 import DQN
 
 from stache.explainability.connectors.taxi import TaxiConnector
 from stache.explainability.core.policy import (
@@ -28,10 +26,7 @@ from stache.explainability.core.policy import (
     ModelManifest,
     normalize_discrete_action,
 )
-from stache.explainability.model_manifest import (
-    load_model_manifest,
-    manifest_path_for_model,
-)
+from stache.explainability.taxi.model_loading import load_trusted_taxi_model
 
 
 _ACTION_METADATA = TaxiConnector().action_metadata
@@ -296,13 +291,18 @@ def run_visualisation(
     model_path: Path,
     timestamp: str | None = None,
     show_walls: bool = True,
+    *,
+    acknowledge_trusted_model: bool = False,
+    overwrite: bool = False,
 ) -> None:
     """Load a DQN and write the 500-state mapping and 20-panel images."""
 
     model_name = model_path.name
     zip_path = model_path / "model.zip"
-    if not zip_path.is_file():
-        raise FileNotFoundError(f"Could not find model.zip in {model_path}")
+    loaded_model = load_trusted_taxi_model(
+        zip_path,
+        acknowledge_trusted_model=acknowledge_trusted_model,
+    )
     timestamp = timestamp or dt.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     output_dir = (
@@ -314,16 +314,18 @@ def run_visualisation(
         / model_name
         / timestamp
     )
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if output_dir.exists() and not overwrite:
+        raise FileExistsError(
+            f"policy-map output already exists: {output_dir}; pass overwrite=True"
+        )
+    output_dir.mkdir(parents=True, exist_ok=overwrite)
 
     connector = TaxiConnector()
-    manifest = load_model_manifest(manifest_path_for_model(zip_path))
-    model = DQN.load(zip_path, env=None, print_system_info=False)
     mapping = collect_state_actions(
-        model,
+        loaded_model.model,
         connector=connector,
-        model_fingerprint=_file_fingerprint(zip_path),
-        model_manifest=manifest,
+        model_fingerprint=loaded_model.model_fingerprint,
+        model_manifest=loaded_model.manifest,
     )
 
     yaml_path = output_dir / "state_action_mapping.yaml"
@@ -436,14 +438,6 @@ def _validate_legacy_policy_envs(
         )
 
 
-def _file_fingerprint(path: Path) -> str:
-    digest = sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return f"sha256:{digest.hexdigest()}"
-
-
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Taxi-v3 500-state thesis policy visualiser"
@@ -460,10 +454,20 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Use a fixed timestamp instead of the current datetime.",
     )
     parser.add_argument(
+        "--acknowledge-trusted-model",
+        action="store_true",
+        help="Confirm that model.zip came from a trusted source.",
+    )
+    parser.add_argument(
         "--hide-walls",
         action="store_false",
         dest="show_walls",
         help="Do not draw the environment walls on the plots.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace files in an existing fixed-timestamp output directory.",
     )
     parser.set_defaults(show_walls=True)
     return parser.parse_args(argv)
@@ -471,10 +475,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     args = _parse_args(argv)
+    if not args.acknowledge_trusted_model:
+        raise SystemExit(
+            "stache-viz-policy-map: error: --acknowledge-trusted-model is "
+            "required before loading model.zip"
+        )
     run_visualisation(
         args.model_path,
         args.timestamp,
         show_walls=args.show_walls,
+        acknowledge_trusted_model=args.acknowledge_trusted_model,
+        overwrite=args.overwrite,
     )
 
 

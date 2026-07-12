@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 
 import yaml
 import torch
@@ -69,7 +70,17 @@ def save_training_log(training_log, experiment_dir):
     return log_path
 
 
-def save_experiment(model, env_config, model_config, training_log, experiment_dir=None, experiments_base_dir="data/experiments/models"):
+def save_experiment(
+    model,
+    env_config,
+    model_config,
+    training_log,
+    experiment_dir=None,
+    experiments_base_dir="data/experiments/models",
+    *,
+    model_connector=None,
+    overwrite_model_manifest=False,
+):
     """
     Save the experiment data (model, configuration, training log) into the specified experiment directory.
     If experiment_dir is None, a new experiment folder is created under experiments_base_dir with a timestamp.
@@ -79,6 +90,8 @@ def save_experiment(model, env_config, model_config, training_log, experiment_di
         - model.zip : the saved model (if model is provided, otherwise it should already exist).
         - config.yaml : merged environment and model configurations.
         - training.log : a summary log of the training and evaluation.
+        - model.manifest.yaml : an exact model/connector semantic binding when
+          ``model_connector`` is supplied explicitly.
         
     Raises:
         FileNotFoundError: If model is None and no model.zip exists in the experiment directory.
@@ -91,26 +104,52 @@ def save_experiment(model, env_config, model_config, training_log, experiment_di
         experiment_dir = os.path.join(experiments_base_dir, experiment_folder_name)
         os.makedirs(experiment_dir, exist_ok=True)
 
+    expected_model_path = os.path.join(experiment_dir, "model.zip")
+    if model_connector is not None and not overwrite_model_manifest:
+        from stache.explainability.model_manifest import manifest_path_for_model
+
+        expected_manifest_path = manifest_path_for_model(Path(expected_model_path))
+        if expected_manifest_path.exists() or expected_manifest_path.is_symlink():
+            raise FileExistsError(
+                f"model manifest already exists: {expected_manifest_path}; pass "
+                "overwrite_model_manifest=True to replace it"
+            )
+
     # Handle model saving or validation
     if model is not None:
         # Save the model if provided
         model_path = save_model(model, experiment_dir)
     else:
         # Check if a model already exists at the expected path
-        model_path = os.path.join(experiment_dir, "model.zip")
+        model_path = expected_model_path
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"No model provided and no existing model found at {model_path}")
         print(f"Using existing model at: {model_path}")
 
+    manifest_path = None
+    if model_connector is not None:
+        from stache.explainability.model_manifest import (
+            write_connector_model_manifest,
+        )
+
+        manifest_path = write_connector_model_manifest(
+            Path(model_path),
+            model_connector,
+            overwrite=overwrite_model_manifest,
+        )
+
     config_path = save_config(env_config, model_config, experiment_dir)
     log_path = save_training_log(training_log, experiment_dir)
 
-    return {
+    saved_paths = {
         "experiment_dir": experiment_dir,
         "model_path": model_path,
         "config_path": config_path,
         "log_path": log_path,
     }
+    if manifest_path is not None:
+        saved_paths["manifest_path"] = str(manifest_path)
+    return saved_paths
 
 
 def load_experiment(experiment_dir):

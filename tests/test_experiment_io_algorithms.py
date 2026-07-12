@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from stache.explainability.connectors.taxi import TaxiConnector
+from stache.explainability.model_manifest import load_model_manifest
 from stache.utils import experiment_io
 
 
@@ -100,3 +102,35 @@ def test_save_config_emits_safe_primitive_yaml_for_tuple_values(
     serialized = Path(path).read_text(encoding="utf-8")
     assert "!!python" not in serialized
     assert yaml.safe_load(serialized)["model_config"]["train_freq"] == [1, "step"]
+
+
+def test_save_experiment_can_bind_saved_model_to_explicit_connector(
+    tmp_path: Path,
+) -> None:
+    model_bytes = b"saved-model-archive"
+
+    class FakeModel:
+        def save(self, path: str) -> None:
+            Path(path).write_bytes(model_bytes)
+
+    connector = TaxiConnector()
+    saved = experiment_io.save_experiment(
+        FakeModel(),
+        {"env_name": "Taxi-v3"},
+        {"model_type": "DQN"},
+        "training complete",
+        experiment_dir=str(tmp_path),
+        model_connector=connector,
+    )
+
+    manifest_path = Path(saved["manifest_path"])
+    manifest = load_model_manifest(manifest_path)
+    assert manifest_path == tmp_path / "model.manifest.yaml"
+    assert manifest.observation_identity == connector.observation_spec.identity
+    assert manifest.action_spec == connector.action_spec
+    assert set(path.name for path in tmp_path.iterdir()) == {
+        "config.yaml",
+        "model.manifest.yaml",
+        "model.zip",
+        "training.log",
+    }

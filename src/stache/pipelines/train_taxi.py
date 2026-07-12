@@ -1,118 +1,149 @@
-import numpy as np
+"""Train and persist the Taxi-v3 DQN used by the RR workflows.
+
+Importing this module is side-effect free.  Training is intentionally available
+only through :func:`main` so test collection and package inspection cannot start
+a long-running job.
+"""
+
+from __future__ import annotations
+
 import gymnasium as gym
 from gymnasium import spaces
+import numpy as np
 from stable_baselines3 import DQN
-from stable_baselines3.common.vec_env import DummyVecEnv
-from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
-# Import the saving utility
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import DummyVecEnv
+
+from stache.explainability.connectors.taxi import TaxiConnector
 from stache.utils.experiment_io import save_experiment
 
-# ───────────────────────────────────────────────────────────────────────────────
-# SOLVES TAXI-v3
-# ─────────────────────────────────────────────────────────────────────────────
 
-# 1. One‑hot wrapper for Discrete(500) → Box(500)
 class OneHotObs(gym.ObservationWrapper):
-    def __init__(self, env):
+    """Expose exactly the observation identity declared by ``TaxiConnector``."""
+
+    def __init__(self, env: gym.Env) -> None:
         super().__init__(env)
-        assert isinstance(env.observation_space, spaces.Discrete), \
-            "OneHotObs only supports Discrete spaces"
-        n = env.observation_space.n
+        connector = TaxiConnector()
+        if not isinstance(env.observation_space, spaces.Discrete):
+            raise TypeError("OneHotObs only supports a discrete observation space")
+        if env.observation_space.n != len(connector.declared_states()):
+            raise ValueError(
+                "Taxi training requires the connector's 500-state universe"
+            )
+        if (
+            not isinstance(env.action_space, spaces.Discrete)
+            or env.action_space.n != connector.action_spec.count
+        ):
+            raise ValueError(
+                "Taxi training action space does not match the connector contract"
+            )
+        self._connector = connector
         self.observation_space = spaces.Box(
-            low=0.0, high=1.0, shape=(n,), dtype=np.float32
+            low=0.0,
+            high=1.0,
+            shape=connector.observation_spec.shape,
+            dtype=np.dtype(connector.observation_spec.dtype),
         )
 
-    def observation(self, obs):
-        vec = np.zeros(self.observation_space.shape, dtype=np.float32)
-        vec[obs] = 1.0
-        return vec
+    def observation(self, observation: object) -> np.ndarray:
+        if isinstance(observation, np.integer):
+            observation = int(observation)
+        state = self._connector.decode_index(observation)
+        return self._connector.encode_observation(state)
 
-# 2. Env factory for vectorization
-def make_env():
-    env = gym.make("Taxi-v3")
-    return OneHotObs(env)
 
-# 3. Build 8 parallel environments
-n_envs = 8
-train_env = DummyVecEnv([make_env for _ in range(n_envs)])
+def make_env() -> OneHotObs:
+    """Create one Taxi-v3 environment with connector-owned observations."""
 
-# 4. Instantiate vanilla DQN
-model = DQN(
-    policy="MlpPolicy",
-    env=train_env,
-    learning_rate=1e-4,            # lower LR for stability
-    buffer_size=500_000,           # large enough to cover 2M steps
-    learning_starts=10_000,        # let the buffer fill a bit first
-    batch_size=128,
-    gamma=0.99,
-    train_freq=(1, "step"),        # update once every collected step
-    gradient_steps=1,
-    target_update_interval=10_000,
-    exploration_initial_eps=1.0,
-    exploration_fraction=0.2,      # decay ε from 1.0 to 0.02 over 20% of training
-    exploration_final_eps=0.02,
-    policy_kwargs=dict(net_arch=[256, 256]),
-    verbose=1,
-    seed=42,
-)
+    return OneHotObs(gym.make("Taxi-v3"))
 
-# 5. Train for 2 million timesteps
-total_timesteps_to_train = 600_000
-model.learn(total_timesteps=total_timesteps_to_train)
 
-# 6. Evaluate on a fresh, monitored env
-eval_env = Monitor(OneHotObs(gym.make("Taxi-v3")))
-n_eval_episodes = 100
-print("Evaluating the agent on training environment...")
-mean_reward, std_reward = evaluate_policy(
-    model,
-    eval_env,
-    n_eval_episodes=n_eval_episodes,
-    deterministic=True,
-)
-print(f"Mean reward: {mean_reward} +/- {std_reward}")
+def train_and_save() -> dict[str, str]:
+    """Train, evaluate, and save a model plus its semantic manifest."""
 
-# 7. Prepare configurations and log for saving
-env_config = {
-    "env_name": "Taxi-v3",
-    "n_envs": n_envs,
-    "wrapper": "OneHotObs"
-}
+    connector = TaxiConnector()
+    n_envs = 8
+    train_env = DummyVecEnv([make_env for _ in range(n_envs)])
+    model = DQN(
+        policy="MlpPolicy",
+        env=train_env,
+        learning_rate=1e-4,
+        buffer_size=500_000,
+        learning_starts=10_000,
+        batch_size=128,
+        gamma=0.99,
+        train_freq=(1, "step"),
+        gradient_steps=1,
+        target_update_interval=10_000,
+        exploration_initial_eps=1.0,
+        exploration_fraction=0.2,
+        exploration_final_eps=0.02,
+        policy_kwargs={"net_arch": [256, 256]},
+        verbose=1,
+        seed=42,
+    )
 
-model_config = {
-    "model_type": "DQN", # Note: load_experiment might need adjustment for DQN
-    "policy": "MlpPolicy",
-    "learning_rate": 1e-4,
-    "buffer_size": 500_000,
-    "learning_starts": 10_000,
-    "batch_size": 128,
-    "gamma": 0.99,
-    "train_freq": (1, "step"),
-    "gradient_steps": 1,
-    "target_update_interval": 10_000,
-    "exploration_initial_eps": 1.0,
-    "exploration_fraction": 0.2,
-    "exploration_final_eps": 0.02,
-    "policy_kwargs": dict(net_arch=[256, 256]),
-    "seed": 42,
-    "total_timesteps": total_timesteps_to_train
-}
+    total_timesteps_to_train = 600_000
+    model.learn(total_timesteps=total_timesteps_to_train)
 
-training_log = (
-    f"Training completed for {total_timesteps_to_train} timesteps.\n"
-    f"Evaluation over {n_eval_episodes} episodes:\n"
-    f"Mean Reward: {mean_reward:.2f}, Std Reward: {std_reward:.2f}\n"
-)
+    eval_env = Monitor(make_env())
+    n_eval_episodes = 100
+    print("Evaluating the agent on training environment...")
+    mean_reward, std_reward = evaluate_policy(
+        model,
+        eval_env,
+        n_eval_episodes=n_eval_episodes,
+        deterministic=True,
+    )
+    print(f"Mean reward: {mean_reward} +/- {std_reward}")
 
-# 8. Save the experiment
-print("\nSaving the experiment...")
-experiment_info = save_experiment(
-    model=model,
-    env_config=env_config,
-    model_config=model_config,
-    training_log=training_log,
-    # experiments_base_dir="data/experiments/models" # Default location
-)
-print("Experiment saved successfully:")
-print(experiment_info)
+    env_config = {
+        "env_name": "Taxi-v3",
+        "n_envs": n_envs,
+        "wrapper": "OneHotObs",
+    }
+    model_config = {
+        "model_type": "DQN",
+        "policy": "MlpPolicy",
+        "learning_rate": 1e-4,
+        "buffer_size": 500_000,
+        "learning_starts": 10_000,
+        "batch_size": 128,
+        "gamma": 0.99,
+        "train_freq": (1, "step"),
+        "gradient_steps": 1,
+        "target_update_interval": 10_000,
+        "exploration_initial_eps": 1.0,
+        "exploration_fraction": 0.2,
+        "exploration_final_eps": 0.02,
+        "policy_kwargs": {"net_arch": [256, 256]},
+        "seed": 42,
+        "total_timesteps": total_timesteps_to_train,
+    }
+    training_log = (
+        f"Training completed for {total_timesteps_to_train} timesteps.\n"
+        f"Evaluation over {n_eval_episodes} episodes:\n"
+        f"Mean Reward: {mean_reward:.2f}, Std Reward: {std_reward:.2f}\n"
+    )
+
+    print("\nSaving the experiment...")
+    experiment_info = save_experiment(
+        model=model,
+        env_config=env_config,
+        model_config=model_config,
+        training_log=training_log,
+        model_connector=connector,
+    )
+    print("Experiment saved successfully:")
+    print(experiment_info)
+    return experiment_info
+
+
+def main() -> int:
+    train_and_save()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

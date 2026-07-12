@@ -713,6 +713,16 @@ def _validated_model_binding(
     return identity, policy_fingerprint
 
 
+def validate_model_manifest_binding(
+    connector: object,
+    source_fingerprint: str,
+    manifest: ModelManifest,
+) -> None:
+    """Validate model-owned semantics before any model deserialization."""
+
+    _validated_model_binding(connector, source_fingerprint, manifest)
+
+
 def _model_policy_fingerprint(
     *,
     model_fingerprint: str,
