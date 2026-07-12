@@ -557,6 +557,58 @@ def test_complete_graph_result_rejects_false_depth_and_radius_claims() -> None:
         document_to_result(document, connector)
 
 
+@pytest.mark.parametrize(
+    "field",
+    ["max_evaluated_graph_depth", "max_expanded_graph_depth"],
+)
+def test_loader_derives_graph_depth_completeness_evidence(field: str) -> None:
+    document, _, connector = make_document()
+    document["result"]["completeness"][field] += 1
+
+    with pytest.raises(ArtifactSchemaError, match=field):
+        document_to_result(document, connector)
+
+
+def test_loader_rejects_formal_distance_without_any_formal_scan() -> None:
+    document, _, connector = make_document()
+    assert document["result"]["stats"]["formal_states_scanned"] == 0
+    document["result"]["completeness"]["max_scanned_formal_distance"] = 1
+
+    with pytest.raises(ArtifactSchemaError, match="max_scanned_formal_distance"):
+        document_to_result(document, connector)
+
+
+def test_loader_derives_formal_scan_distance_from_connector_layers() -> None:
+    connector = ArtifactToyConnector(disconnected_formal_minimum_space())
+    result = compute_rr(
+        "s",
+        connector,
+        ToyOracle(connector.space.actions),
+        SearchOptions(minimum_basis=MinimumBasis.FORMAL_GLOBAL),
+    )
+    document = result_to_document(result, connector)
+    assert document["result"]["stats"]["formal_states_scanned"] > 0
+    document["result"]["completeness"]["max_scanned_formal_distance"] = 999
+
+    with pytest.raises(ArtifactSchemaError, match="max_scanned_formal_distance"):
+        document_to_result(document, connector)
+
+
+def test_loader_rejects_formal_scan_count_beyond_declared_layers() -> None:
+    connector = ArtifactToyConnector(disconnected_formal_minimum_space())
+    result = compute_rr(
+        "s",
+        connector,
+        ToyOracle(connector.space.actions),
+        SearchOptions(minimum_basis=MinimumBasis.FORMAL_GLOBAL),
+    )
+    document = result_to_document(result, connector)
+    document["result"]["stats"]["formal_states_scanned"] = 999
+
+    with pytest.raises(ArtifactSchemaError, match="formal_states_scanned"):
+        document_to_result(document, connector)
+
+
 def test_complete_graph_result_rejects_an_omitted_boundary_tie() -> None:
     connector = ArtifactToyConnector(tied_minimum_space())
     result = compute_rr(

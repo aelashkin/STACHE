@@ -1014,6 +1014,119 @@ def _validate_complete_graph_evidence(
             )
 
 
+def _validate_completeness_evidence(
+    *,
+    connector: object,
+    seed: StateRecord[Any, Any],
+    region: tuple[StateRecord[Any, Any], ...],
+    boundary: tuple[StateRecord[Any, Any], ...],
+    options: SearchOptions,
+    completeness: SearchCompleteness,
+    stats: SearchStats,
+) -> None:
+    graph_records = (*region, *boundary)
+    graph_depths = [
+        record.graph_depth
+        for record in graph_records
+        if record.discovery_source == "graph" and record.graph_depth is not None
+    ]
+    expected_evaluated_depth = max(graph_depths, default=0)
+    if completeness.max_evaluated_graph_depth != expected_evaluated_depth:
+        raise ArtifactSchemaError(
+            "result.completeness.max_evaluated_graph_depth disagrees with "
+            f"serialized graph evidence: expected {expected_evaluated_depth}"
+        )
+
+    if stats.states_expanded == 0:
+        expected_expanded_depth = None
+    else:
+        try:
+            ordered_region = sorted(
+                region,
+                key=lambda record: (
+                    record.graph_depth,
+                    connector.ordering_key(record.key),  # type: ignore[attr-defined]
+                ),
+            )
+        except Exception as error:
+            raise ArtifactSchemaError(
+                f"could not derive expanded graph evidence: {error}"
+            ) from error
+        if stats.states_expanded > len(ordered_region):
+            raise ArtifactSchemaError(
+                "stats.states_expanded exceeds serialized region evidence"
+            )
+        expanded = ordered_region[: stats.states_expanded]
+        expected_expanded_depth = max(
+            record.graph_depth for record in expanded
+        )
+    if completeness.max_expanded_graph_depth != expected_expanded_depth:
+        raise ArtifactSchemaError(
+            "result.completeness.max_expanded_graph_depth disagrees with "
+            f"serialized graph evidence: expected {expected_expanded_depth!r}"
+        )
+    if completeness.region_complete and stats.states_expanded != len(region):
+        raise ArtifactSchemaError(
+            "complete region evidence requires every region state to be expanded"
+        )
+
+    scanned = stats.formal_states_scanned
+    reported_distance = completeness.max_scanned_formal_distance
+    if scanned == 0:
+        if reported_distance is not None:
+            raise ArtifactSchemaError(
+                "result.completeness.max_scanned_formal_distance must be null "
+                "when no formal states were scanned"
+            )
+        return
+    if options.minimum_basis is not MinimumBasis.FORMAL_GLOBAL:
+        raise ArtifactSchemaError(
+            "stats.formal_states_scanned requires formal_global minimum basis"
+        )
+    certificate = connector.metric_certificate  # type: ignore[attr-defined]
+    if certificate.certifies_global_minimum_from_graph:
+        raise ArtifactSchemaError(
+            "stats.formal_states_scanned must be zero for a certified geodesic graph"
+        )
+    try:
+        supplied = connector.formal_layers(seed.state)  # type: ignore[attr-defined]
+    except Exception as error:
+        raise ArtifactSchemaError(
+            f"could not obtain connector formal layers: {error}"
+        ) from error
+    if supplied is None:
+        raise ArtifactSchemaError(
+            "stats.formal_states_scanned requires connector formal layers"
+        )
+    cumulative = 0
+    expected_scanned_distance: int | float | None = None
+    for layer in supplied:
+        distance = getattr(layer, "distance", None)
+        states = getattr(layer, "states", None)
+        if (
+            type(distance) not in {int, float}
+            or not math.isfinite(float(distance))
+            or distance < 0
+            or type(states) is not tuple
+        ):
+            raise ArtifactSchemaError(
+                "connector formal layer evidence is malformed"
+            )
+        cumulative += len(states)
+        if scanned <= cumulative:
+            expected_scanned_distance = distance
+            break
+    if expected_scanned_distance is None:
+        raise ArtifactSchemaError(
+            "stats.formal_states_scanned exceeds connector formal layers"
+        )
+    if reported_distance != expected_scanned_distance:
+        raise ArtifactSchemaError(
+            "result.completeness.max_scanned_formal_distance disagrees with "
+            f"connector formal layers: expected {expected_scanned_distance!r}"
+        )
+
+
 def _validate_result_invariants(
     *,
     connector: object,
@@ -1281,6 +1394,15 @@ def _validate_result_invariants(
         raise ArtifactSchemaError(
             "stats.states_evaluated is below the serialized graph record count"
         )
+    _validate_completeness_evidence(
+        connector=connector,
+        seed=seed,
+        region=region,
+        boundary=boundary,
+        options=options,
+        completeness=completeness,
+        stats=stats,
+    )
 
 
 def document_to_result(
