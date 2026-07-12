@@ -267,6 +267,24 @@ def test_table_oracle_uses_policy_key_and_one_cache_for_canonical_states() -> No
     assert oracle.source_description["source"] == "table"
 
 
+def test_policy_query_cost_is_exact_and_has_no_observable_side_effects() -> None:
+    connector = TinyPolicyConnector()
+    oracle = TableActionOracle(
+        connector,
+        {"policy:seed": 2},
+        source_fingerprint="table-v1",
+    )
+
+    before = oracle.stats
+    assert oracle.policy_query_cost(" SEED ") == 1
+    assert oracle.stats == before
+
+    assert oracle.action("seed") == 2
+    after_query = oracle.stats
+    assert oracle.policy_query_cost(" SEED ") == 0
+    assert oracle.stats == after_query
+
+
 def test_table_oracle_reports_unknown_keys_without_model_fallback() -> None:
     oracle = TableActionOracle(
         TinyPolicyConnector(),

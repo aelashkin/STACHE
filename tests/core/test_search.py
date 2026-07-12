@@ -37,6 +37,33 @@ from ._toy import (
 )
 
 
+class VariableCostToyOracle(ToyOracle):
+    """Test oracle whose successful uncached calls consume declared costs."""
+
+    def __init__(
+        self,
+        actions: dict[str, int],
+        costs: dict[str, int],
+        *,
+        declared_costs: dict[str, int] | None = None,
+    ) -> None:
+        super().__init__(actions)
+        self._costs = costs
+        self._declared_costs = costs if declared_costs is None else declared_costs
+
+    def policy_query_cost(self, state: str) -> int:
+        if state in self._cache:
+            return 0
+        return self._declared_costs[state]
+
+    def action(self, state: str) -> int:
+        if state in self._cache:
+            return super().action(state)
+        action = super().action(state)
+        self._policy_queries += self._costs[state] - 1
+        return action
+
+
 def record_keys(records: object) -> tuple[str, ...]:
     return tuple(record.key for record in records)  # type: ignore[union-attr]
 
@@ -306,6 +333,76 @@ def test_query_budget_can_certify_radius_before_all_tied_minima() -> None:
     assert result.completeness.remaining_frontier_size == 2
     assert result.completeness.stop_reason is StopReason.MAX_POLICY_QUERIES
     assert result.continuation is not None
+
+
+def test_query_budget_preflights_variable_cost_before_candidate_call() -> None:
+    space = query_budget_space()
+    oracle = VariableCostToyOracle(
+        dict(space.actions),
+        {"s": 1, "a": 2, "b": 1, "c": 1},
+    )
+
+    result = compute_rr(
+        "s",
+        ToyConnector(space),
+        oracle,
+        exact_options(max_policy_queries=2),
+    )
+
+    assert oracle.calls == ["s"]
+    assert result.stats.policy_queries == 1
+    assert result.stats.policy_queries <= 2
+    assert result.completeness.stop_reason is StopReason.MAX_POLICY_QUERIES
+
+
+def test_search_rejects_oracle_whose_actual_query_delta_differs_from_cost() -> None:
+    space = query_budget_space()
+    oracle = VariableCostToyOracle(
+        dict(space.actions),
+        {"s": 2, "a": 1, "b": 1, "c": 1},
+        declared_costs={"s": 1, "a": 1, "b": 1, "c": 1},
+    )
+
+    with pytest.raises(SearchInvariantError, match="policy_query_cost"):
+        compute_rr(
+            "s",
+            ToyConnector(space),
+            oracle,
+            exact_options(max_policy_queries=2),
+        )
+
+
+def test_zero_query_budget_rejects_uncached_seed_before_action_call() -> None:
+    space = exact_space()
+    oracle = ToyOracle(space.actions)
+
+    with pytest.raises(InvalidSearchOptions, match="seed"):
+        compute_rr(
+            "s",
+            ToyConnector(space),
+            oracle,
+            exact_options(max_policy_queries=0),
+        )
+
+    assert oracle.calls == []
+
+
+def test_prewarmed_seed_costs_zero_and_preserves_zero_budget() -> None:
+    space = exact_space()
+    oracle = ToyOracle(space.actions)
+    assert oracle.action("s") == space.actions["s"]
+
+    result = compute_rr(
+        "s",
+        ToyConnector(space),
+        oracle,
+        exact_options(max_policy_queries=0),
+    )
+
+    assert oracle.calls == ["s"]
+    assert result.stats.policy_queries == 0
+    assert result.stats.cache_hits == 1
+    assert result.completeness.stop_reason is StopReason.MAX_POLICY_QUERIES
 
 
 def test_certified_formal_query_budget_preserves_observed_minimum() -> None:
@@ -697,7 +794,7 @@ def test_asymmetric_graph_exhaustion_does_not_prove_global_absence() -> None:
         },
         {"max_expanded": -1},
         {"max_expanded": True},
-        {"max_policy_queries": 0},
+        {"max_policy_queries": -1},
         {"max_policy_queries": False},
         {"max_graph_depth": -1},
         {"max_graph_depth": True},

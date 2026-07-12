@@ -180,6 +180,9 @@ class ToyOracle:
         self.calls.append(state)
         return action
 
+    def policy_query_cost(self, state: str) -> int:
+        return 0 if state in self._cache else 1
+
     def has_cached(self, key: str) -> bool:
         return key in self._cache
 

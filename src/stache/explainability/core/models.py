@@ -118,7 +118,7 @@ class SearchOptions:
         _validate_ceiling(
             self.max_policy_queries,
             "max_policy_queries",
-            minimum=1,
+            minimum=0,
         )
         _validate_ceiling(self.max_graph_depth, "max_graph_depth", minimum=0)
 

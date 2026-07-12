@@ -361,19 +361,77 @@ def _validated_action(
 
 def _stats_snapshot(oracle: Any) -> tuple[int, int, int, int]:
     stats = oracle.stats
-    return (
-        int(getattr(stats, "policy_queries", 0)),
-        int(getattr(stats, "cache_hits", 0)),
-        int(getattr(stats, "table_hits", 0)),
-        int(getattr(stats, "model_queries", 0)),
+    values = tuple(
+        getattr(stats, field, 0)
+        for field in (
+            "policy_queries",
+            "cache_hits",
+            "table_hits",
+            "model_queries",
+        )
     )
+    if any(type(value) is not int or value < 0 for value in values):
+        raise SearchInvariantError(
+            "action oracle stats counters must be non-negative Python ints"
+        )
+    return values  # type: ignore[return-value]
 
 
-def _oracle_has_cached(oracle: Any, state: Any, key: Hashable) -> bool:
-    try:
-        return bool(oracle.has_cached(state))
-    except (TypeError, ValueError, KeyError):
-        return bool(oracle.has_cached(key))
+def _stats_delta(
+    before: tuple[int, int, int, int],
+    after: tuple[int, int, int, int],
+) -> tuple[int, int, int, int]:
+    if any(later < earlier for earlier, later in zip(before, after)):
+        raise SearchInvariantError(
+            "action oracle stats counters must be monotonic"
+        )
+    return tuple(
+        later - earlier for earlier, later in zip(before, after)
+    )  # type: ignore[return-value]
+
+
+def _policy_query_cost(oracle: Any, state: Any) -> int:
+    cost_method = getattr(oracle, "policy_query_cost", None)
+    if not callable(cost_method):
+        raise SearchInvariantError(
+            "action oracle must implement pure policy_query_cost(state)"
+        )
+    before = _stats_snapshot(oracle)
+    cost = cost_method(state)
+    after = _stats_snapshot(oracle)
+    if after != before:
+        raise SearchInvariantError(
+            "action oracle policy_query_cost(state) must not mutate stats"
+        )
+    if type(cost) is not int or cost < 0:
+        raise SearchInvariantError(
+            "action oracle policy_query_cost(state) must return a "
+            "non-negative Python int"
+        )
+    return cost
+
+
+def _invoke_action(
+    connector: Any,
+    oracle: Any,
+    state: Any,
+    key: Hashable,
+    *,
+    expected_cost: int,
+) -> tuple[int, tuple[int, int, int, int]]:
+    before = _stats_snapshot(oracle)
+    action = _validated_action(
+        connector,
+        oracle.action(state),
+        key=key,
+    )
+    deltas = _stats_delta(before, _stats_snapshot(oracle))
+    if deltas[0] != expected_cost:
+        raise SearchInvariantError(
+            "action oracle policy_query_cost(state) did not match the "
+            "actual policy_queries delta"
+        )
+    return action, deltas
 
 
 def _query_action(
@@ -391,26 +449,22 @@ def _query_action(
             key=key,
         )
 
-    cached = _oracle_has_cached(oracle, state, key)
+    policy_cost = _policy_query_cost(oracle, state)
     if (
-        not cached
-        and options.max_policy_queries is not None
-        and checkpoint.policy_queries >= options.max_policy_queries
+        options.max_policy_queries is not None
+        and checkpoint.policy_queries + policy_cost
+        > options.max_policy_queries
     ):
         return None
 
-    before = _stats_snapshot(oracle)
-    action = _validated_action(
+    action, deltas = _invoke_action(
         connector,
-        oracle.action(state),
-        key=key,
+        oracle,
+        state,
+        key,
+        expected_cost=policy_cost,
     )
-    after = _stats_snapshot(oracle)
-    deltas = tuple(max(0, later - earlier) for earlier, later in zip(before, after))
-    policy_delta = deltas[0]
-    if not cached and policy_delta == 0:
-        policy_delta = 1
-    checkpoint.policy_queries += policy_delta
+    checkpoint.policy_queries += policy_cost
     checkpoint.cache_hits += deltas[1]
     checkpoint.table_hits += deltas[2]
     checkpoint.model_queries += deltas[3]
@@ -529,22 +583,21 @@ def _initialize(
         predicate,
     )
     ordering = _order_key(connector, seed_key)
-    before = _stats_snapshot(oracle)
-    seed_action = _validated_action(
-        connector,
-        oracle.action(canonical_seed),
-        key=seed_key,
-    )
-    after = _stats_snapshot(oracle)
-    deltas = tuple(max(0, later - earlier) for earlier, later in zip(before, after))
-    policy_queries = deltas[0] or 1
+    seed_policy_cost = _policy_query_cost(oracle, canonical_seed)
     if (
         options.max_policy_queries is not None
-        and policy_queries > options.max_policy_queries
+        and seed_policy_cost > options.max_policy_queries
     ):
         raise InvalidSearchOptions(
             "max_policy_queries is too small to evaluate the seed"
         )
+    seed_action, deltas = _invoke_action(
+        connector,
+        oracle,
+        canonical_seed,
+        seed_key,
+        expected_cost=seed_policy_cost,
+    )
     checkpoint = _Checkpoint(
         seed=canonical_seed,
         seed_key=seed_key,
@@ -559,7 +612,7 @@ def _initialize(
         boundary_keys=set(),
         current_layer=[seed_key],
         formal_layers=prepared_layers,
-        policy_queries=policy_queries,
+        policy_queries=seed_policy_cost,
         cache_hits=deltas[1],
         table_hits=deltas[2],
         model_queries=deltas[3],

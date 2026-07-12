@@ -151,7 +151,12 @@ class ActionCacheRecord:
 
 
 class ActionOracle(Protocol):
-    """Search-facing action-source contract."""
+    """Search-facing action-source contract.
+
+    ``policy_query_cost`` must be pure and return the exact increase in
+    ``stats.policy_queries`` that the next successful ``action`` call for the
+    same state will cause.  Cached calls therefore cost zero.
+    """
 
     fingerprint: str
 
@@ -160,6 +165,8 @@ class ActionOracle(Protocol):
 
     @property
     def stats(self) -> OracleStats: ...
+
+    def policy_query_cost(self, state: object) -> int: ...
 
     def action(self, state: object) -> int: ...
 
@@ -264,6 +271,12 @@ class _CachedActionOracle:
         action = normalize_discrete_action(raw_action, self._action_count)
         self._cache[key] = action
         return action
+
+    def policy_query_cost(self, state: object) -> int:
+        """Return the exact uncached-query cost without mutating the oracle."""
+
+        _, key = self._canonical_state_and_key(state)
+        return 0 if key in self._cache else 1
 
     def has_cached(self, state: object) -> bool:
         _, key = self._canonical_state_and_key(state)

@@ -751,7 +751,7 @@ def _decode_options(value: object) -> SearchOptions:
             max_policy_queries=_optional_integer(
                 _required(options, "max_policy_queries", path="options"),
                 path="options.max_policy_queries",
-                minimum=1,
+                minimum=0,
             ),
             max_graph_depth=_optional_integer(
                 _required(options, "max_graph_depth", path="options"),
@@ -1249,8 +1249,8 @@ def _validate_result_invariants(
 
     if stats.states_discovered < 1 or stats.states_evaluated < 1:
         raise ArtifactSchemaError("stats must include the discovered/evaluated seed")
-    if stats.policy_queries < 1:
-        raise ArtifactSchemaError("stats.policy_queries must include the seed query")
+    if stats.policy_queries < 0:
+        raise ArtifactSchemaError("stats.policy_queries must be non-negative")
     if stats.states_expanded > stats.states_evaluated:
         raise ArtifactSchemaError(
             "stats.states_expanded may not exceed states_evaluated"

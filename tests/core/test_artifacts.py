@@ -380,6 +380,25 @@ def test_budget_continuation_is_a_truthful_nonresumable_summary() -> None:
     assert restored.completeness == partial.completeness
 
 
+def test_prewarmed_seed_with_zero_query_budget_round_trips_truthfully() -> None:
+    connector = ArtifactToyConnector()
+    oracle = ToyOracle(connector.space.actions)
+    oracle.action("s")
+    partial = compute_rr(
+        "s",
+        connector,
+        oracle,
+        SearchOptions(max_policy_queries=0),
+    )
+
+    assert partial.stats.policy_queries == 0
+    document = result_to_document(partial, connector)
+    restored = document_to_result(document, connector)
+
+    assert restored.stats.policy_queries == 0
+    assert restored.completeness == partial.completeness
+
+
 def test_formal_global_disconnected_minimum_round_trips() -> None:
     connector = ArtifactToyConnector(disconnected_formal_minimum_space())
     result = compute_rr(
