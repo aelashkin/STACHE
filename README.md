@@ -1,136 +1,101 @@
 # STACHE – State–Action Transparency through Counterfactual & Robustness Explanations
 
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![Thesis](https://img.shields.io/badge/PDF-MSc_Thesis-red)](docs/MSc_Thesis_Andrew_Elashkin_2025.pdf)
 
+STACHE explains deterministic policies over discrete, factored state spaces. It
+computes a policy's connected robustness region (RR), policy-changing boundary,
+and minimal counterfactual states (CFs), while keeping scientific completeness
+separate from partial observations caused by resource limits.
 
-STACHE is a **model-agnostic** toolkit for explaining discrete Reinforcement Learning agents. It maps the geometry of an agent's decision-making process by computing **Robustness Regions** (stability zones) and **Minimal Counterfactuals** (critical tipping points).
+The generic RR core is domain-neutral. Taxi-v3 is the first fully registered
+connector; MiniGrid remains on its historical explanation path while its broader
+scientific state-universe and codec decisions are reviewed.
 
-Unlike standard saliency maps that highlight pixels, STACHE operates on **symbolic, factored state spaces** (e.g., Taxi-v3, MiniGrid). This allows it to generate explanations that are semantically meaningful: *"The agent picked 'South' because the passenger was at (0,4); if the passenger were at (0,3), it would have picked 'North'."*
+## Illustrative Taxi checkpoints
 
----
+These committed images compare an earlier and a later Taxi DQN checkpoint for
+the same seed state `s = (0, 0, 0, 2)`. They are illustrations, not a claim that
+the filenames encode exact percentages of a common training schedule.
 
-## Visual Evidence: The Evolution of Logic
-
-STACHE allows researchers to visualize how an agent's logic stabilizes during training. Below is a comparison of **Robustness Regions (RR)** for a Taxi-v3 agent at **0%** training vs. **100%** training, starting from the same seed state $s = (0,0,0,2)$ (*Taxi at top-left, Passenger at R, Dest at Y*).
-
-| **Untrained Policy ($`\pi_{0\%}`$)** | **Fully Trained Policy ($`\pi_{100\%}`$)** |
+| Earlier committed checkpoint | Later committed checkpoint |
 | :---: | :---: |
 | <img src="assets/taxi/Taxi-v3_DQN_model_0/0_0_0_2/robustness_region_0_0_0_2.png" width="400" /> | <img src="assets/taxi/Taxi-v3_DQN_model_100/0_0_0_2/robustness_region_0_0_0_2.png" width="400" /> |
-| **Erratic Behavior.** The colored regions (representing invariant actions) are scattered and small (Size=9). The agent's decision is unstable and sensitive to random noise. | **Stable Logic.** The region is compact and specific (Size=3). The agent correctly identifies "Pick-up" and holds that decision only while the taxi/passenger are co-located, demonstrating precise logic. |
 
----
+## Scientific contract
 
-## Core Concepts
+The normative definitions come from the
+[MSc thesis](docs/MSc_Thesis_Andrew_Elashkin_2025.pdf) and the accompanying
+OO-MDP formulation.
 
-This toolkit implements the "Composite Explanation" framework presented in the [accompanying thesis](docs/MSc_Thesis_Andrew_Elashkin_2025.pdf).
+### Object projection, distance, and graph
 
-### 1. Robustness Regions (RR)
-**Definition:** The **Robustness Region** $\mathcal{R}(s_0, \pi)$ is the connected set of states around a seed state $s_0$ where the agent's action $\pi(s)$ remains unchanged.
+A versioned projection `φ` maps each raw environment state to a canonical
+object/factor state. Distance is evaluated on that projection, not on a model's
+observation vector. For the domains in this repository, the hybrid distance is
 
-Instead of testing random perturbations, STACHE defines a graph stucture over the factored state space and performs a **Breadth-First Search (BFS)**-based exploration. A state belongs to the region if:
-1.  The agent selects the same action as the seed state.
-2.  It is reachable via a "continuous path" of atomic changes (e.g., moving one tile, changing one color) without the action ever flipping along the path.
-
-**Why it matters:** Large regions imply **navigational stability** (the agent sticks to the plan). Small, specific regions imply **functional precision** (e.g., "Pick-up" is only valid in one specific spot).
-
-### 2. Minimal Counterfactual States (CF)
-**Definition:** A **Minimal Counterfactual** is the state $s'$ closest to the seed state $s_0$ (in terms of L1 distance) that forces the policy to change its action.
-
-STACHE identifies these states by examining the **boundary** of the computed Robustness Region.
-
-**Why it matters:** These are the "tipping points" of the policy. They reveal exactly which feature (e.g., *Passenger Location* vs. *Taxi X-Coordinate*) controls the decision.
-
----
-
-
-
-
-
-## Table of Contents
-1. [Quick install](#quick-install)  
-2. [Key features](#key-features)  
-3. [Getting started](#getting-started)  
-4. [Explaining an agent](#explaining-an-agent)  
-5. [Reproducing paper results](#reproducing-paper-results)  
-6. [Project layout](#project-layout)  
-7. [Citing](#citing)  
-8. [Contributing](#contributing)  
-9. [License](#license)
-
----
-
-## Quick install
-
-First, clone the repository and create a Python 3.11 virtual environment (the
-current dependency set is supported on Python 3.11 only).
-
-```bash
-git clone https://github.com/your-org/stache.git
-cd stache
-python3 -m venv .venv && source .venv/bin/activate
+```text
+d(s, s') = Σ |numeric_i(s) - numeric_i(s')|
+         + Σ [categorical_j(s) != categorical_j(s')]
 ```
 
-Next, install the project and its dependencies.
+Distinct states are adjacent when `0 < d(φ(s), φ(s')) <= ε`. STACHE fixes
+`ε = δ = 1`: every graph edge is one formal unit change.
 
-**For users** who want to run the core library without the extra tuning or testing tools, a standard installation is sufficient:
+Taxi projects a raw index in `0..499` to
+`(row, column, passenger, destination)`. Row and column use Manhattan distance;
+passenger and destination use categorical Hamming distance. The flat float32
+500-way one-hot vector is a separate model-observation codec and is not part of
+the scientific distance.
 
-```bash
-# Standard user installation
-pip install .
-```
+### Robustness region
 
-**For developers** who will be modifying the code, install the package in "editable" mode with all optional dependencies (for tuning and testing):
+For seed `s0`, the RR is the connected component containing `s0` in which every
+state has the seed action `π(s0)`. Connectivity is defined by the connector's
+unit graph, not by Taxi road dynamics.
 
-```bash
-# Developer setup (installs everything)
-pip install -e .[dev]
-```
+### Minimal counterfactuals
 
-> **Tip:** This package requires PyTorch to run Stable Baselines3 models. The default version will be for CPU. If you have a CUDA-enabled GPU, you can get better performance by pre-installing the correct PyTorch wheel for your system *before* running the commands above. Please see the official [PyTorch installation guide](https://pytorch.org/get-started/locally/) for instructions.
+A counterfactual changes the seed action. STACHE distinguishes two minimum
+claims:
 
----
+| Basis | Claim |
+| --- | --- |
+| `graph_boundary` | Minimum graph-hop depth among immediate policy-changing RR boundary states |
+| `formal_global` | Minimum formal distance among every policy-changing state in the declared universe |
 
-## Key features
+The claims coincide only when a sufficient geodesic metric certificate (or an
+independently correct increasing formal-distance provider) justifies it. Every
+tied minimum is part of the formal contract.
 
-| Module                  | What it does                                                                                 | Location                                |
-| ----------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------- |
-| **Symbolic wrappers**   | Factorise MiniGrid observations into objects / walls / goals, pad to fixed-size vectors.     | `src/stache/envs/minigrid/wrappers.py`  |
-| **Env factories**       | One-line creation of Taxi-v3 / MiniGrid with the right observation mode.                     | `src/stache/envs/factory.py`            |
-| **Training pipelines**  | Opinionated scripts for PPO, A2C and DQN with auto-saving & Optuna tuning.                   | `src/stache/pipelines/`                 |
-| **Explainability core** | Exact BFS over discrete state space to compute minimal counterfactuals & robustness regions. | `src/stache/explainability/`            |
-| **Rich visualisers**    | YAML + colour-blind PNGs for policy maps, RR plots, counter-factual grids.                   | `scripts/run_*`, `…/taxi_policy_map.py` |
-| **Experiment I/O**      | Unified save/load of models, configs, logs.                                                  | `src/stache/utils/experiment_io.py`     |
+## Install
 
----
-
-## Getting started
-
-### 1 · Train an agent (MiniGrid–Fetch, PPO)
+STACHE currently supports Python `>=3.11,<3.12`.
 
 ```bash
-python -m src.stache.pipelines.train_minigrid \
-    --env-name MiniGrid-Fetch-5x5-N2-v0 \
-    --model-type PPO \
-    --total-timesteps 1_000_000
-# outputs → data/experiments/models/MiniGrid-Fetch-5x5-N2-v0_PPO_model_YYYYMMDD_HHMMSS/
+git clone https://github.com/aelashkin/STACHE.git
+cd STACHE
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install .
 ```
 
-### 2 · Evaluate
+For tests and tuning dependencies:
 
 ```bash
-python -m src.stache.explainability.evaluate \
-    --model-path data/experiments/models/.../model.zip
+python -m pip install -e '.[dev]'
 ```
 
----
+PyTorch installation varies by platform. If a non-CPU build is required,
+install the appropriate wheel from the official
+[PyTorch selector](https://pytorch.org/get-started/locally/) before installing
+STACHE.
 
-## Explaining an agent
+## Compute a Taxi explanation
 
-Compute a versioned Taxi robustness-region result through the installed generic
-core (the seed is Taxi's encoded 0..499 index):
+The installed CLI accepts either a complete policy table or a trusted
+Stable-Baselines3 DQN archive. The committed model example is:
 
 ```bash
 stache compute-rr \
@@ -138,73 +103,137 @@ stache compute-rr \
     --state-universe taxi-factored-500 \
     --seed 2 \
     --model data/experiments/models/Taxi-v3_DQN_model_100/model.zip \
+    --acknowledge-trusted-model \
     --minimum-basis formal_global \
     --counterfactuals both \
     --extent exact \
     --output result.yaml
 ```
 
-Treat `--model` archives as trusted-code inputs. Stable-Baselines3 model loading
-can deserialize cloudpickled Python objects; STACHE's SHA-256 fingerprint records
-the exact snapshotted bytes used for the computation, but it does not authenticate
-the archive or sandbox deserialization. Use model files only from sources you
-trust. Current RR artifacts and `stache compute-rr` configuration/policy-table
-YAML also reject duplicate mapping keys instead of applying last-value-wins
-behavior.
+Model mode requires a versioned `model.manifest.yaml` beside `model.zip` by
+default; `--model-manifest` selects another path. The sidecar binds the exact
+archive SHA-256, the `taxi-one-hot-500` observation identity/version/scope, and
+the six-action contract. It is an identity check, not authentication.
 
-The YAML artifact contains connector/universe/metric/codec versions, the policy
-fingerprint, options, independent completeness fields, stop reason, statistics,
-and primitive-only state records. `graph_boundary` and `formal_global` are
-different minimum claims; see
-[ADR 0001](docs/architecture/0001-generic-rr-core-and-taxi.md) before comparing
-results. Loading revalidates complete graph evidence, but a non-geodesic
-`formal_global` all-ties flag remains a producer assertion unless the policy is
-independently recomputed; an unsigned artifact cannot prove that a disconnected
-formal tie was not omitted.
+`--acknowledge-trusted-model` is deliberately separate: Stable-Baselines3
+archives may deserialize Python objects. STACHE validates and snapshots a
+trusted archive before loading it, then fingerprints and loads the same bytes,
+but it does not sandbox the model or establish its provenance.
 
-To render the full 500-state Taxi view, including `P == D` panels:
+Budgeted searches report a partial result instead of silently claiming exact
+completion. `max_policy_queries=0` is meaningful in the Python API only when the
+seed action is already cached; the CLI's fresh table/model workflows require at
+least one query to define the seed action.
+
+## Result artifacts
+
+Current RR artifacts use `stache.rr-result` schema version 2 and core schema
+version 2. Primitive-only YAML records include:
+
+- object projection, factorization, topology, adjacency threshold, universe,
+  metric, certificate, and state/key codec identities;
+- policy fingerprint/source plus model observation and action identities;
+- minimum basis, extent, resource ceilings, result records, and statistics;
+- separate region, boundary, radius, and all-minima completeness evidence;
+- stop reason, counterfactual existence, continuation metadata, and provenance.
+
+Loading rejects duplicate mapping keys, contradictory identities, unsupported
+versions, non-canonical state/key records, and invalid completeness evidence.
+Artifacts are evidence-bearing records, not signed authenticity proofs; use an
+expected policy fingerprint from a trusted channel when authenticity matters.
+
+See [ADR 0001](docs/architecture/0001-generic-rr-core-and-taxi.md) for the
+architecture and [RR core v2 migration](docs/migration/rr-core-v2.md) for
+incompatible schema and API changes.
+
+## Visualize Taxi results
+
+Both model-loading visualizers require the same explicit trust decision and
+semantic sidecar as `stache compute-rr`.
 
 ```bash
 stache-viz-rr-taxi \
     --model-path data/experiments/models/Taxi-v3_DQN_model_100 \
-    --state "0,0,0,2"
+    --state '0,0,0,2' \
+    --acknowledge-trusted-model
+
+stache-viz-policy-map \
+    --model-path data/experiments/models/Taxi-v3_DQN_model_100 \
+    --acknowledge-trusted-model
 ```
 
-MiniGrid still uses its historical path in this phase. Its state universe and
-observation-codec decision are deliberately deferred rather than inferred from
-the existing implementation.
+The RR visualizer writes the canonical versioned result artifact and refuses to
+replace it unless `--overwrite` is supplied. The policy-map visualizer uses a
+timestamped directory; a fixed existing timestamp also requires `--overwrite`.
+Both views include all 500 Taxi tuples, including `P == D`.
 
----
+## Training and model manifests
 
-## Reproducing paper results
+Taxi training is explicit and long-running; it is never started by importing
+the module:
 
-1. **Install** as above.
-2. Models shown in the paper are already downloaded in `data/experiments/models/`.
-3. Run the corresponding `scripts/run_*` helper—each script sets the exact seeds and configs used in the paper.
-4. Historical reproduction helpers and committed artifacts remain available.
-   Phase 1 revalidates the Taxi connector and policy results; it does not claim
-   that MiniGrid artifacts have been revalidated or silently regenerate them.
+```bash
+stache-train-taxi
+```
 
----
+The training wrapper delegates all 500 one-hot observations to `TaxiConnector`.
+Saving a Taxi experiment writes `model.zip` and an atomic
+`model.manifest.yaml` bound to the saved bytes. Do not run model training or
+Optuna tuning as part of ordinary validation.
+
+MiniGrid training/evaluation scripts are retained as historical research
+workflows. They are not yet registered with the generic RR core and should not
+be interpreted as a documented MiniGrid scientific-universe decision.
+
+## MiniGrid direction relation
+
+The broader MiniGrid universe, object ordering, codec, state injection, and
+metric certificate remain deferred. One narrow neighbor contract is fixed:
+headings are adjacent only after one environment turn, left or right by 90°.
+The opposite heading requires two turns and is not adjacent. This matches the
+official [MiniGrid 3.0.0 step implementation](https://github.com/Farama-Foundation/Minigrid/blob/v3.0.0/minigrid/minigrid_env.py).
+
+## Validation and reproduction scope
+
+Phase 1 validates the Taxi scientific path with independent toy oracles,
+exhaustive 500-state connector checks, all 250,000 ordered Taxi state pairs,
+arbitrary deterministic 500-state tables, artifact round trips, and parity
+checks for a committed DQN. Historical figures and scripts remain available,
+but STACHE does not claim that every historical figure is regenerated from an
+exact public seed/config manifest, nor that MiniGrid artifacts have been
+revalidated under the generic core.
 
 ## Project layout
 
-```
-├── config/              # YAML presets for env & algo
-├── scripts/             # Thin CLI wrappers for common tasks
-├── src/stache/          # All library code (import as `stache`)
-│   ├── envs/            # Factory + wrappers for MiniGrid / Taxi
-│   ├── explainability/  # RR & CF algorithms, visualisation
-│   ├── pipelines/       # Train / tune / evaluate workflows
-│   └── utils/           # Experiment I/O, helpers
-└── data/experiments/    # Created on-the-fly (models, RR, Optuna, …)
+```text
+├── config/                    # Historical training/tuning presets
+├── data/experiments/          # Committed models and generated experiment data
+├── docs/                      # Thesis, architecture, and migration decisions
+├── scripts/                   # Historical research helpers
+├── src/stache/
+│   ├── envs/                  # Environment factories and wrappers
+│   ├── explainability/core/   # Domain-neutral RR/CF contracts and search
+│   ├── explainability/connectors/ # Domain scientific adapters
+│   ├── explainability/taxi/   # Taxi compatibility and rendering consumers
+│   ├── pipelines/             # Explicit training workflows
+│   └── utils/                 # Experiment I/O and safe configuration helpers
+└── tests/                     # Unit, exhaustive connector, and CLI tests
 ```
 
----
+## Contributing
+
+Changes should include contract tests appropriate to their scientific impact.
+The repository's supported local checks are:
+
+```bash
+python -m pytest -q -p no:cacheprovider
+python -m pip wheel . --no-deps --wheel-dir /tmp/stache-dist
+```
+
+No Ruff/Black or hosted CI gate is currently declared in this repository; do
+not report those checks as passing unless they are added and actually run.
 
 ## Citing
-
-If you use this repo, please cite the paper:
 
 ```bibtex
 @misc{Elashkin2025,
@@ -213,35 +242,17 @@ If you use this repo, please cite the paper:
   year      = {2025},
   publisher = {Technion - Israel Institute of Technology},
   keywords  = {Reinforcement learning; Intelligent agents; Markov processes; Multiagent systems},
-  note      = {MSc Thesis. Supervision: Orna Grumberg},
-  url       = {https://github.com/aelashkin/STACHE/docs/MSc_Thesis_Andrew_Elashkin_2025.pdf}
+  note      = {MSc Thesis. Supervision: Orna Grumberg}
 }
 ```
 
----
-
-## Contributing
-
-Pull requests are welcome! Please:
-
-1. Open an issue describing the bug / feature.
-2. Create a branch (`feat/my-feature`), add unit tests where relevant.
-3. Run `ruff`, `black`, and `pytest`.
-4. Submit the PR; CI must pass before review.
-
----
-
 ## License
 
-Distributed under the **MIT License**.
-See [`LICENSE`](LICENSE) for full text.
+Distributed under the [MIT License](LICENSE).
 
----
+## Acknowledgements
 
-### Acknowledgements
-
-Built on top of
-[Gymnasium](https://gymnasium.farama.org/) ·
-[MiniGrid](https://github.com/Farama-Foundation/MiniGrid) ·
-[Stable-Baselines3](https://stable-baselines3.readthedocs.io/) ·
+Built on [Gymnasium](https://gymnasium.farama.org/),
+[MiniGrid](https://github.com/Farama-Foundation/MiniGrid),
+[Stable-Baselines3](https://stable-baselines3.readthedocs.io/), and
 [Optuna](https://optuna.org/).
