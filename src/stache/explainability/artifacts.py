@@ -37,8 +37,8 @@ from .core.models import (
 )
 from .core.policy import (
     ACTION_NORMALIZATION_SCHEMA_VERSION,
-    PolicyConfigurationError,
-    policy_fingerprint_from_source,
+    PolicyError,
+    policy_fingerprint_for_connector,
 )
 from .core.search import derive_search_fingerprint
 
@@ -342,10 +342,11 @@ def result_to_document(
         error_type=ArtifactError,
     )
     try:
-        derived_policy_fingerprint = policy_fingerprint_from_source(
-            policy_source
+        derived_policy_fingerprint = policy_fingerprint_for_connector(
+            policy_source,
+            connector,
         )
-    except PolicyConfigurationError as error:
+    except PolicyError as error:
         raise ArtifactCompatibilityError(
             f"result policy source identity is invalid: {error}"
         ) from error
@@ -1329,10 +1330,11 @@ def document_to_result(
         error_type=ArtifactSchemaError,
     )
     try:
-        derived_policy_fingerprint = policy_fingerprint_from_source(
-            policy_source
+        derived_policy_fingerprint = policy_fingerprint_for_connector(
+            policy_source,
+            connector,
         )
-    except PolicyConfigurationError as error:
+    except PolicyError as error:
         raise ArtifactCompatibilityError(
             f"policy source identity is invalid: {error}"
         ) from error

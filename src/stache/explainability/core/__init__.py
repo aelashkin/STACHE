@@ -30,6 +30,7 @@ from .policy import (
     custom_policy_source,
     model_manifest_from_document,
     model_manifest_to_document,
+    policy_fingerprint_for_connector,
     policy_fingerprint_from_source,
     normalize_discrete_action,
 )
@@ -101,6 +102,7 @@ __all__ = [
     "custom_policy_source",
     "model_manifest_from_document",
     "model_manifest_to_document",
+    "policy_fingerprint_for_connector",
     "policy_fingerprint_from_source",
     "normalize_discrete_action",
     "compute_rr",

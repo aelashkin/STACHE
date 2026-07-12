@@ -34,6 +34,7 @@ from stache.explainability.core.models import (
     SearchOptions,
 )
 from stache.explainability.core.search import compute_rr
+from stache.explainability.core.policy import TableActionOracle
 
 from ._toy import (
     ToyConnector,
@@ -269,6 +270,21 @@ def test_document_loader_rejects_policy_source_fingerprint_contradiction() -> No
     document["policy"]["source"]["fingerprint"] = "sha256:" + "1" * 64
 
     with pytest.raises(ArtifactCompatibilityError, match="policy.*source"):
+        document_to_result(document, connector)
+
+
+def test_document_loader_rejects_policy_action_contract_mismatch() -> None:
+    connector = ArtifactToyConnector()
+    result = compute_rr(
+        "s",
+        connector,
+        TableActionOracle(connector, connector.space.actions),
+        SearchOptions(),
+    )
+    document = result_to_document(result, connector)
+    document["policy"]["source"]["action_count"] += 1
+
+    with pytest.raises(ArtifactCompatibilityError, match="action contract"):
         document_to_result(document, connector)
 
 

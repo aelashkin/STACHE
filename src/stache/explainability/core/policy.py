@@ -907,6 +907,45 @@ def policy_fingerprint_from_source(source: Mapping[str, object]) -> str:
     return derived
 
 
+def policy_fingerprint_for_connector(
+    source: Mapping[str, object],
+    connector: object,
+) -> str:
+    """Validate persisted policy semantics against a requested connector."""
+
+    fingerprint = policy_fingerprint_from_source(source)
+    expected_action_count = _connector_action_count(connector)
+    kind = source["source"]
+    if kind in {"table", "table_then_model"}:
+        if source["action_count"] != expected_action_count:
+            raise ModelCompatibilityError(
+                "persisted policy action contract is incompatible with the connector"
+            )
+    if kind in {"model", "table_then_model"}:
+        manifest_document = source["model_manifest"]
+        if not isinstance(manifest_document, Mapping):
+            raise ModelCompatibilityError(
+                "persisted policy model manifest is invalid"
+            )
+        manifest = model_manifest_from_document(manifest_document)
+        try:
+            observation_identity = connector.observation_spec.identity
+        except AttributeError as error:
+            raise PolicyConfigurationError(
+                "connector must declare observation_spec.identity"
+            ) from error
+        if manifest.observation_identity != observation_identity:
+            raise ModelCompatibilityError(
+                "persisted policy observation identity is incompatible with "
+                "the connector"
+            )
+        if manifest.action_spec.count != expected_action_count:
+            raise ModelCompatibilityError(
+                "persisted policy action contract is incompatible with the connector"
+            )
+    return fingerprint
+
+
 def _require_source_fields(
     source: Mapping[str, object],
     required: set[str],

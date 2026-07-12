@@ -30,7 +30,10 @@ from .models import (
     StateRecord,
     StopReason,
 )
-from .policy import PolicyConfigurationError, policy_fingerprint_from_source
+from .policy import (
+    PolicyError,
+    policy_fingerprint_for_connector,
+)
 
 
 CHECKPOINT_VERSION = "stache-rr-continuation-v1"
@@ -234,15 +237,15 @@ def derive_search_fingerprint(
         raise SearchInvariantError(str(error)) from error
 
 
-def _validate_oracle_identity(oracle: Any) -> None:
+def _validate_oracle_identity(oracle: Any, connector: Any) -> None:
     source = getattr(oracle, "source_description", None)
     if not isinstance(source, Mapping):
         raise SearchInvariantError(
             "action oracle source_description must be a mapping"
         )
     try:
-        derived = policy_fingerprint_from_source(source)
-    except PolicyConfigurationError as error:
+        derived = policy_fingerprint_for_connector(source, connector)
+    except PolicyError as error:
         raise SearchInvariantError(f"invalid action oracle identity: {error}") from error
     if getattr(oracle, "fingerprint", None) != derived:
         raise SearchInvariantError(
@@ -1217,7 +1220,7 @@ def compute_rr(
             "Phase 1 supports exact action invariance only"
         )
     _connector_action_count(connector)
-    _validate_oracle_identity(oracle)
+    _validate_oracle_identity(oracle, connector)
 
     if continuation is None:
         checkpoint, fingerprint, graph_certifies_formal = _initialize(

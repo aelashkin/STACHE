@@ -32,6 +32,7 @@ from stache.explainability.core.policy import (
     TableThenModelActionOracle,
     UnknownTableKeyError,
     normalize_discrete_action,
+    policy_fingerprint_for_connector,
 )
 
 
@@ -555,6 +556,42 @@ def test_model_policy_identity_changes_when_observation_semantics_change() -> No
     )
 
     assert first.fingerprint != changed.fingerprint
+
+
+def test_persisted_model_source_is_rejected_by_different_observation_semantics() -> None:
+    original_connector = TinyPolicyConnector()
+    oracle = ModelActionOracle(
+        original_connector,
+        DeterministicModel({(0, 0): 0}),
+        source_fingerprint="same-model-bytes",
+        manifest=model_manifest(
+            original_connector,
+            model_fingerprint="same-model-bytes",
+        ),
+    )
+    incompatible_connector = TinyPolicyConnector(
+        observation_encoding="tiny-vector-permuted",
+        observation_scope_fingerprint="sha256:tiny-vector-permuted-v1",
+    )
+
+    with pytest.raises(ModelCompatibilityError, match="observation identity"):
+        policy_fingerprint_for_connector(
+            oracle.source_description,
+            incompatible_connector,
+        )
+
+
+def test_persisted_table_source_is_rejected_by_different_action_contract() -> None:
+    oracle = TableActionOracle(
+        TinyPolicyConnector(action_count=3),
+        {"policy:seed": 0},
+    )
+
+    with pytest.raises(ModelCompatibilityError, match="action contract"):
+        policy_fingerprint_for_connector(
+            oracle.source_description,
+            TinyPolicyConnector(action_count=4),
+        )
 
 
 @pytest.mark.parametrize(
