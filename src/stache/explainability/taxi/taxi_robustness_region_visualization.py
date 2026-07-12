@@ -12,9 +12,10 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
 from stable_baselines3 import DQN
 
+from stache.explainability.artifacts import save_result
+from stache.explainability.connectors.taxi import TaxiConnector
 from stache.explainability.core.models import SearchResult
 from stache.explainability.model_manifest import (
     load_model_manifest,
@@ -102,6 +103,11 @@ def main(argv=None) -> None:
         "--hide-walls", action="store_false", dest="show_walls",
         help="Do not draw walls on plots"
     )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace an existing canonical RR artifact",
+    )
     parser.set_defaults(show_walls=True)
     args = parser.parse_args(argv)
 
@@ -129,38 +135,16 @@ def main(argv=None) -> None:
         model_manifest=manifest,
     )
     tuples = [record.state for record in rr.region]
-    depths_map = {
-        record.state: record.graph_depth
-        for record in rr.region
-    }
     s0_initial_action = rr.seed_action
 
-    # Save YAML (existing logic)
-    yaml_data = {
-        "metadata": {
-            "model_name": model_name,
-            "seed_tuple": list(s_tuple),
-            "initial_action": s0_initial_action,
-            "region_size": len(rr.region),
-            "visited": rr.stats.states_discovered,
-            "opened": rr.stats.states_evaluated,
-            "search_fingerprint": rr.metadata.search_fingerprint,
-        },
-        "rr_tuples": [list(t) for t in tuples],
-        "rr_depths": [depths_map[t] for t in tuples],
-        "counterfactuals_found": [
-            {
-                "state": list(record.state),
-                "action": record.action,
-                "depth": record.graph_depth,
-            }
-            for record in rr.boundary_counterfactuals
-        ]
-    }
-    yaml_path = out_dir / "robustness_region.yaml"
-    with open(yaml_path, "w") as f:
-        yaml.safe_dump(yaml_data, f, sort_keys=False)
-    print(f"Saved YAML → {yaml_path.relative_to(Path.cwd())}")
+    artifact_path = out_dir / "robustness_region.yaml"
+    save_result(
+        artifact_path,
+        rr,
+        TaxiConnector(),
+        overwrite=args.overwrite,
+    )
+    print(f"Saved RR artifact → {artifact_path.relative_to(Path.cwd())}")
 
     # --- Initial state visualization ---
     # Create standalone grid showing initial taxi, passenger, destination, and action

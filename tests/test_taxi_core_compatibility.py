@@ -17,6 +17,7 @@ import pytest
 from stable_baselines3 import DQN
 import yaml
 
+from stache.explainability.artifacts import ArtifactError, load_result
 from stache.explainability.connectors.taxi import TaxiConnector
 from stache.explainability.core.models import SearchResult
 from stache.explainability.core.policy import ModelManifest, normalize_discrete_action
@@ -30,6 +31,7 @@ from stache.explainability.taxi.taxi_robustness_region_visualization import (
     _minimal_counterfactuals_for_plot,
     _taxi_panel_pairs,
 )
+from stache.explainability.taxi import taxi_robustness_region_visualization
 from stache.explainability.taxi.taxi_policy_map import (
     ACTION_NAMES,
     _policy_map_panel_pairs,
@@ -303,6 +305,67 @@ def test_visualization_panels_cover_all_twenty_passenger_destination_pairs() -> 
         for passenger in range(5)
     }
     assert all((destination, destination) in panels for destination in range(4))
+
+
+def test_visualization_cli_writes_canonical_artifact_and_requires_overwrite(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connector = TaxiConnector()
+    seed = (0, 0, 0, 2)
+    result = compute_taxi_rr(seed, policy_table=_policy_table())
+    model_dir = tmp_path / "model-under-test"
+    model_dir.mkdir()
+    (model_dir / "model.zip").write_bytes(b"test model snapshot")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        taxi_robustness_region_visualization.DQN,
+        "load",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        taxi_robustness_region_visualization,
+        "load_model_manifest",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        taxi_robustness_region_visualization,
+        "compute_taxi_rr",
+        lambda *_args, **_kwargs: result,
+    )
+
+    arguments = [
+        "--model-path",
+        str(model_dir),
+        "--state",
+        "0,0,0,2",
+        "--hide-walls",
+    ]
+    taxi_robustness_region_visualization.main(arguments)
+
+    artifact_path = (
+        tmp_path
+        / "data"
+        / "experiments"
+        / "rr"
+        / "taxi_robustness_region"
+        / model_dir.name
+        / "0_0_0_2"
+        / "robustness_region.yaml"
+    )
+    document = yaml.safe_load(artifact_path.read_text(encoding="utf-8"))
+    assert "rr_tuples" not in document
+    assert load_result(
+        artifact_path,
+        connector,
+        expected_policy_fingerprint=result.metadata.policy_fingerprint,
+    ) == result
+
+    with pytest.raises(ArtifactError, match="overwrite"):
+        taxi_robustness_region_visualization.main(arguments)
+
+    taxi_robustness_region_visualization.main([*arguments, "--overwrite"])
 
 
 def test_policy_map_collects_all_500_connector_states_once() -> None:
